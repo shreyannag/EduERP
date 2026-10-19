@@ -25,47 +25,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $score = 0;
     
-    if (!empty($answers)) {
-        $stmt_q = $pdo->prepare("
-            SELECT q.id, q.correct_option, q.marks
-            FROM questions q
-            JOIN exam_questions eq ON q.id = eq.question_id
-            WHERE eq.exam_id = ?
-        ");
-        $stmt_q->execute([$exam_id]);
-        $correct_mapping = [];
-        $marks_mapping = [];
-        while($row = $stmt_q->fetch()) {
-            $correct_mapping[$row['id']] = $row['correct_option'];
-            $marks_mapping[$row['id']] = $row['marks'] ?? 1;
-        }
-        
-        $stmt_ans_ins = $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option) VALUES (?, ?, ?)");
-        
-        foreach($answers as $q_id => $sel_opt) {
-            $q_id = intval($q_id);
-            $sel_opt = intval($sel_opt);
+    try {
+        $pdo->beginTransaction();
+
+        if (!empty($answers)) {
+            $stmt_q = $pdo->prepare("
+                SELECT q.id, q.correct_option, q.marks
+                FROM questions q
+                JOIN exam_questions eq ON q.id = eq.question_id
+                WHERE eq.exam_id = ?
+            ");
+            $stmt_q->execute([$exam_id]);
+            $correct_mapping = [];
+            $marks_mapping = [];
+            while($row = $stmt_q->fetch()) {
+                $correct_mapping[$row['id']] = $row['correct_option'];
+                $marks_mapping[$row['id']] = $row['marks'] ?? 1;
+            }
             
-            if (isset($correct_mapping[$q_id])) {
-                $is_correct = ($correct_mapping[$q_id] == $sel_opt) ? 1 : 0;
-                if ($is_correct) {
-                    $score += $marks_mapping[$q_id];
-                }
+            $stmt_ans_ins = $pdo->prepare("
+                INSERT INTO attempt_answers (attempt_id, question_id, chosen_option) 
+                VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE chosen_option = VALUES(chosen_option)
+            ");
+            
+            foreach($answers as $q_id => $sel_opt) {
+                $q_id = intval($q_id);
+                $sel_opt = intval($sel_opt);
                 
-                $stmt_ans_ins->execute([$attempt_id, $q_id, $sel_opt]);
+                if (isset($correct_mapping[$q_id])) {
+                    $is_correct = ($correct_mapping[$q_id] == $sel_opt) ? 1 : 0;
+                    if ($is_correct) {
+                        $score += $marks_mapping[$q_id];
+                    }
+                    
+                    $stmt_ans_ins->execute([$attempt_id, $q_id, $sel_opt]);
+                }
             }
         }
+        
+        $stmt_sub = $pdo->prepare("
+            UPDATE attempts 
+            SET score = ?, 
+                total_marks = COALESCE(total_marks, (SELECT COALESCE(SUM(q.marks), COUNT(eq.id)) FROM exam_questions eq JOIN questions q ON eq.question_id = q.id WHERE eq.exam_id = ?)),
+                submitted_at = NOW(), 
+                is_submitted = 1 
+            WHERE id = ?
+        ");
+        $stmt_sub->execute([$score, $exam_id, $attempt_id]);
+        
+        $pdo->commit();
+    } catch (\Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log("Exam submission failure: " . $e->getMessage());
+        header("Location: dashboard.php");
+        exit;
     }
-    
-    $stmt_sub = $pdo->prepare("
-        UPDATE attempts 
-        SET score = ?, 
-            total_marks = COALESCE(total_marks, (SELECT COALESCE(SUM(q.marks), COUNT(eq.id)) FROM exam_questions eq JOIN questions q ON eq.question_id = q.id WHERE eq.exam_id = ?)),
-            submitted_at = NOW(), 
-            is_submitted = 1 
-        WHERE id = ?
-    ");
-    $stmt_sub->execute([$score, $exam_id, $attempt_id]);
     
     header("Location: dashboard.php");
     exit;

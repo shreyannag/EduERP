@@ -50,12 +50,20 @@ if (!$attempt) {
     $total_q = (int)($meta['q_count'] ?? 0);
     $total_m = (int)($meta['total_marks'] ?? $total_q);
     
-    // Mount initial buffer
-    $stmt_ins = $pdo->prepare("INSERT INTO attempts (student_id, exam_id, total_questions, total_marks) VALUES (?, ?, ?, ?)");
-    $stmt_ins->execute([$student_id, $exam_id, $total_q, $total_m]);
-    $attempt_id = $pdo->lastInsertId();
+    // Mount initial buffer with race-condition safety
+    try {
+        $stmt_ins = $pdo->prepare("INSERT INTO attempts (student_id, exam_id, total_questions, total_marks, started_at) VALUES (?, ?, ?, ?, NOW())");
+        $stmt_ins->execute([$student_id, $exam_id, $total_q, $total_m]);
+        $attempt_id = (int)$pdo->lastInsertId();
+    } catch (\PDOException $e) {
+        // Fallback if concurrent insert occurred in another tab/request
+        $stmt_attempt = $pdo->prepare("SELECT * FROM attempts WHERE student_id = ? AND exam_id = ?");
+        $stmt_attempt->execute([$student_id, $exam_id]);
+        $attempt = $stmt_attempt->fetch();
+        $attempt_id = $attempt ? (int)$attempt['id'] : 0;
+    }
 } else {
-    $attempt_id = $attempt['id'];
+    $attempt_id = (int)$attempt['id'];
 }
 
 // Fetch pointers

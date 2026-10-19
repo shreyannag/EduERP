@@ -71,8 +71,20 @@ function h($str) {
     return htmlspecialchars((string)$str, ENT_QUOTES, 'UTF-8');
 }
 
-// Auto-complete logic for exams that have surpassed their allotted time
-function update_exam_statuses($pdo) {
+// Auto-complete logic for exams that have surpassed their allotted time (throttled to avoid DB lockups)
+function update_exam_statuses($pdo, $force = false) {
+    if (!$force) {
+        $throttleFile = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'eduerp_exam_status_throttle.tmp';
+        $now = time();
+        if (file_exists($throttleFile)) {
+            $mtime = @filemtime($throttleFile);
+            if ($mtime && ($now - $mtime < 30)) {
+                return; // Throttled: checked in last 30s
+            }
+        }
+        @touch($throttleFile);
+    }
+
     try {
         $stmt = $pdo->prepare("
             UPDATE exams 

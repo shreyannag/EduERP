@@ -465,7 +465,19 @@ $migrations = [
         INDEX idx_comp_student (competition_id, student_id),
         FOREIGN KEY (problem_id) REFERENCES coding_problems(id) ON DELETE CASCADE,
         FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // High-Concurrency Index Optimizations (Prevents Table Scans & Locks Under Peak Student Load)
+    "ALTER TABLE attempts ADD INDEX idx_student_exam (student_id, exam_id)",
+    "ALTER TABLE attempts ADD INDEX idx_exam_submitted (exam_id, is_submitted)",
+    "ALTER TABLE attempt_answers ADD INDEX idx_attempt_question (attempt_id, question_id)",
+    "ALTER TABLE exam_questions ADD INDEX idx_exam_order (exam_id, order_no, question_id)",
+    "ALTER TABLE exams ADD INDEX idx_status_schedule (status, scheduled_date, scheduled_time)",
+    "ALTER TABLE exams ADD INDEX idx_admin_status (admin_id, status)",
+    "ALTER TABLE questions ADD INDEX idx_admin_archived (admin_id, is_archived)",
+    "ALTER TABLE homework ADD INDEX idx_admin_active (admin_id, is_active)",
+    "ALTER TABLE homework ADD INDEX idx_batch_active (batch_id, is_active)",
+    "ALTER TABLE batch_students ADD INDEX idx_student (student_id)"
 ];
 
 $successCount = 0;

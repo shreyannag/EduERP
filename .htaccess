@@ -10,3 +10,39 @@
 
 # Ensure directory index loads index.php
 DirectoryIndex index.php index.html
+
+# -------------------------------------------------------------
+# High-Performance Compression (Gzip / Deflate)
+# Reduces network bandwidth by 60% - 80% for text, CSS, JS, HTML
+# -------------------------------------------------------------
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript
+    AddOutputFilterByType DEFLATE application/javascript application/x-javascript application/json application/xml
+    AddOutputFilterByType DEFLATE image/svg+xml
+</IfModule>
+
+# -------------------------------------------------------------
+# Browser Caching Headers for Static Assets (1 Month)
+# -------------------------------------------------------------
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresDefault "access plus 1 day"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/webp "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Security Headers: MIME sniffing and XSS defense
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-XSS-Protection "1; mode=block"
+
+    # Static assets cache control
+    <FilesMatch "\.(css|js|webp|png|jpg|jpeg|gif|ico|svg|woff2)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+</IfModule>
