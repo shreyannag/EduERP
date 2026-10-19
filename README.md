@@ -1,9 +1,12 @@
 # 🎓 EduERP: Enterprise Educational Resource Planning & Assessment System
 
+> **Developed by SN Technologies (Shreyan Nag Technologies)**
+
 [![PHP Version](https://img.shields.io/badge/PHP-8.2%20%7C%208.3-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 [![Database](https://img.shields.io/badge/MariaDB-10.11%20%7C%20MySQL%208.0-003545?style=flat-square&logo=mariadb&logoColor=white)](https://mariadb.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Frontend](https://img.shields.io/badge/Frontend-Bootstrap%204.6-7952B3?style=flat-square&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
+[![Developed by](https://img.shields.io/badge/Developed%20by-SN%20Technologies-ff69b4?style=flat-square&logo=github)](https://github.com/shreyannag)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![High Concurrency](https://img.shields.io/badge/Architecture-High--Concurrency%20Resilient-blueviolet?style=flat-square)](#-high-concurrency-performance--resilience)
 
@@ -426,6 +429,16 @@ All test suites execute end-to-end assertions against the active database and re
 
 ---
 
+## 👨‍💻 Author & Credits
+
+**EduERP** is proudly developed and maintained by **SN Technologies (Shreyan Nag Technologies)**.
+
+* **Developer & Lead Architect:** Shreyan Nag
+* **GitHub Organization / Profile:** [@shreyannag](https://github.com/shreyannag)
+* **Official Repository:** [https://github.com/shreyannag/EduERP](https://github.com/shreyannag/EduERP)
+
+---
+
 ## 📄 License
 
 This project is licensed under the **MIT License**. You are free to use, customize, and deploy this software for commercial or private educational institutions.
@@ -433,6 +446,6 @@ This project is licensed under the **MIT License**. You are free to use, customi
 ---
 
 <p align="center">
-  <b>Built with ❤️ for Educators, Students, and Engineers.</b><br>
-  <i>Empowering coaching institutes with modern, resilient digital infrastructure.</i>
+  <b>Developed by SN Technologies (Shreyan Nag Technologies)</b><br>
+  <i>Built with ❤️ for Educators, Students, and Engineers • Empowering coaching institutes with modern, resilient digital infrastructure.</i>
 </p>
