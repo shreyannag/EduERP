@@ -1,0 +1,22 @@
+# Environment variables and secrets
+.env
+.env.local
+
+# Backups
+backups/*
+!backups/.gitkeep
+
+# User submission uploads
+uploads/homework/submissions/*
+!uploads/homework/submissions/.gitkeep
+
+# Local IDE, scratch, and runtime files
+.vscode/
+.idea/
+.gemini/
+scratch/
+scratch_*
+*.log
+
+# Composer dependencies (installed via Docker)
+# vendor/

@@ -1,0 +1,7 @@
+.git
+.gitignore
+.gemini
+.vscode
+scratch/
+*.md
+docker/init.sql

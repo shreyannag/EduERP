@@ -1,0 +1,12 @@
+# Apache URL Rewriting and Canonical Routing
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Redirect /admin without trailing slash cleanly to /admin/
+    RewriteRule ^admin$ /admin/ [R=301,L]
+    RewriteRule ^shreyansir/admin$ /shreyansir/admin/ [R=301,L]
+</IfModule>
+
+# Ensure directory index loads index.php
+DirectoryIndex index.php index.html
