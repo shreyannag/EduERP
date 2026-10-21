@@ -6,6 +6,40 @@ require_once __DIR__ . '/../config/db.php';
 
 echo "[Migration] Checking database schema for updates...\n";
 
+// Auto-detect if base tables (students, exams) are missing. If so, bootstrap from docker/init.sql
+$checkStmt = $pdo->query("SHOW TABLES LIKE 'students'");
+$hasStudents = $checkStmt->fetch();
+
+if (!$hasStudents) {
+    echo "[Migration] Core base tables not detected. Initializing schema from docker/init.sql...\n";
+    $initSqlPaths = [
+        __DIR__ . '/init.sql',
+        __DIR__ . '/../docker/init.sql',
+        '/var/www/html/docker/init.sql'
+    ];
+    $loaded = false;
+    foreach ($initSqlPaths as $path) {
+        if (file_exists($path)) {
+            $initContent = file_get_contents($path);
+            if (!empty($initContent)) {
+                try {
+                    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
+                    $pdo->exec($initContent);
+                    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
+                    echo "[Migration] Base schema successfully imported from $path.\n";
+                    $loaded = true;
+                    break;
+                } catch (\Throwable $e) {
+                    echo "  [Warning] Direct import failed: " . $e->getMessage() . "\n";
+                }
+            }
+        }
+    }
+    if (!$loaded) {
+        echo "  [Warning] Could not auto-import init.sql. Proceeding with migrations...\n";
+    }
+}
+
 $migrations = [
     // Ensure core tables exist if not present
     "CREATE TABLE IF NOT EXISTS messages (
