@@ -98,7 +98,15 @@ $enrolled_count = count(array_filter($students, function($s){ return $s['is_enro
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
-    <h2 class="font-weight-bold text-dark">Enrolment Management</h2>
+    <div>
+        <h2 class="font-weight-bold text-dark mb-1">Exam Enrolments</h2>
+        <p class="text-muted mb-0">Assign enrolled students to specific online examination rosters.</p>
+    </div>
+    <div>
+        <a href="links.php" class="btn btn-outline-primary font-weight-bold shadow-sm rounded-pill px-4">
+            <i class="fas fa-link mr-2"></i>Temporary Enrollment Links
+        </a>
+    </div>
 </div>
 
 <div class="card shadow-sm border-0 rounded-lg mb-4 bg-light">

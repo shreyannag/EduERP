@@ -46,6 +46,9 @@ $all_admins = is_super_admin() ? $pdo->query("SELECT id, username, institute_nam
         <button type="button" class="btn btn-outline-info font-weight-bold shadow-sm rounded-pill px-4 mr-2" id="bulkEmailBtn" disabled onclick="sendEmails()">
             <i class="fas fa-envelope mr-2"></i>Send Credentials
         </button>
+        <a href="../enrolments/links.php" class="btn btn-outline-primary font-weight-bold shadow-sm rounded-pill px-4 mr-2">
+            <i class="fas fa-link mr-2"></i>Enrollment Links
+        </a>
         <a href="create.php" class="btn btn-primary font-weight-bold shadow-sm rounded-pill px-4">
             <i class="fas fa-user-plus mr-2"></i>Add Student
         </a>

@@ -477,7 +477,56 @@ $migrations = [
     "ALTER TABLE questions ADD INDEX idx_admin_archived (admin_id, is_archived)",
     "ALTER TABLE homework ADD INDEX idx_admin_active (admin_id, is_active)",
     "ALTER TABLE homework ADD INDEX idx_batch_active (batch_id, is_active)",
-    "ALTER TABLE batch_students ADD INDEX idx_student (student_id)"
+    "ALTER TABLE batch_students ADD INDEX idx_student (student_id)",
+
+    // --- Student Profile Expansion (Phone, Parent Info, Address, DOB, Gender) ---
+    "ALTER TABLE students ADD COLUMN IF NOT EXISTS phone VARCHAR(25) NULL",
+    "ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_name VARCHAR(150) NULL",
+    "ALTER TABLE students ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(25) NULL",
+    "ALTER TABLE students ADD COLUMN IF NOT EXISTS dob DATE NULL",
+    "ALTER TABLE students ADD COLUMN IF NOT EXISTS address TEXT NULL",
+    "ALTER TABLE students ADD COLUMN IF NOT EXISTS gender VARCHAR(20) NULL",
+
+    // --- Temporary Student Enrollment Links & Submissions ---
+    "CREATE TABLE IF NOT EXISTS enrollment_links (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        title VARCHAR(200) NOT NULL,
+        admin_id INT NOT NULL DEFAULT 1,
+        class_id INT NULL,
+        board_id INT NULL,
+        batch_id INT NULL,
+        max_uses INT NOT NULL DEFAULT 0,
+        used_count INT NOT NULL DEFAULT 0,
+        expires_at DATETIME NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        require_approval TINYINT(1) NOT NULL DEFAULT 0,
+        collect_parent_info TINYINT(1) NOT NULL DEFAULT 1,
+        collect_address TINYINT(1) NOT NULL DEFAULT 0,
+        custom_welcome_message TEXT NULL,
+        created_by INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_token (token),
+        INDEX idx_admin_status (admin_id, is_active),
+        INDEX idx_expires (expires_at),
+        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE,
+        FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE SET NULL,
+        FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE SET NULL,
+        FOREIGN KEY (batch_id) REFERENCES batches(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    "CREATE TABLE IF NOT EXISTS enrollment_submissions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        link_id INT NOT NULL,
+        student_id INT NOT NULL,
+        ip_address VARCHAR(45) NULL,
+        status ENUM('approved', 'pending', 'rejected') NOT NULL DEFAULT 'approved',
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_link (link_id),
+        INDEX idx_student (student_id),
+        FOREIGN KEY (link_id) REFERENCES enrollment_links(id) ON DELETE CASCADE,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
 ];
 
 $successCount = 0;

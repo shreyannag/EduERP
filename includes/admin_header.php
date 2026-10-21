@@ -259,7 +259,10 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                     <?php endif; ?>
                     <?php if (admin_has_feature('enrolments')): ?>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/enrolments/index.php"><i class="fas fa-user-plus mr-2 fa-fw"></i> Enrolments</a>
+                        <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/enrolments/index.php"><i class="fas fa-user-plus mr-2 fa-fw"></i> Exam Enrolments</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/enrolments/links.php"><i class="fas fa-link mr-2 fa-fw"></i> Enrollment Links</a>
                     </li>
                     <?php endif; ?>
                     <?php if (admin_has_feature('messages')): ?>

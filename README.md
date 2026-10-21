@@ -112,7 +112,8 @@ The system maintains a granular permissions matrix to protect administrative pri
 * **Batch Segmentation:** Create morning, evening, and weekend batches per class with maximum seat caps and scheduled timing.
 * **Timetable & Schedule:** Assign batches to designated teachers with date and time slots to avoid scheduling clashes.
 
-### 2. Student Information System (SIS)
+### 2. Student Information System (SIS) & Temporary Enrollment Links
+* **Temporary Self-Service Admission Links:** Generate tokenized, time-limited admission links (with seat caps, custom expiry, and batch presets) to share via WhatsApp, Email, or QR code. Prospective students fill in their admission details and receive their student portal credentials immediately upon submission.
 * **Automated Student ID Generation:** System dynamically generates memorable, collision-resistant student IDs (e.g., `rahul.10cbse101`).
 * **Bulk Enrollment:** Import hundreds of students instantly via standard CSV upload with pre-validation and rollback safeguards.
 * **Multi-Batch Enrolment:** Assign a student to multiple specialized batches (e.g., *Physics Mains*, *Chemistry Advanced*).
@@ -240,6 +241,7 @@ EduERP/
 ├── .htaccess                  # Apache Gzip compression, browser caching, & security headers
 ├── docker-compose.yml         # Multi-container orchestration (App, MariaDB, phpMyAdmin)
 ├── Dockerfile                 # PHP 8.2 Apache production image with required PHP extensions
+├── enroll.php                 # Public self-service student enrollment portal with token validation
 ├── README.md                  # Comprehensive project documentation & architecture guide
 ├── admin/                     # Admin & Sub-Admin portal modules
 │   ├── admins/                # Super admin tenant provisioning & subscription tracking
