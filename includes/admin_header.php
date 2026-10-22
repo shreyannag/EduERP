@@ -34,6 +34,10 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <!-- Bootstrap 4.6 -->
+        <!-- Google Material Design Fonts & Symbols -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
     <!-- DataTables -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/dataTables.bootstrap4.min.css">
@@ -101,6 +105,20 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
         }
         .admin-mobile-nav-item i { font-size: 1.2rem; margin-bottom: 2px; }
         .admin-mobile-nav-item.active { color: #38bdf8 !important; font-weight: 700 !important; }
+        .admin-mobile-nav-item .mobile-icon-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            height: 30px;
+            border-radius: 16px;
+            margin-bottom: 2px;
+            transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
+        }
+        .admin-mobile-nav-item.active .mobile-icon-wrapper {
+            background: rgba(56, 189, 248, 0.2) !important;
+            color: #38bdf8 !important;
+        }
     }
     body.modal-open .admin-mobile-bottom-nav { display: none !important; }
     </style>

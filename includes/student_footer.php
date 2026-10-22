@@ -18,23 +18,23 @@
     $s_curr_page = basename($_SERVER['PHP_SELF']); 
     ?>
     <a href="<?php echo BASE_URL; ?>/student/dashboard.php" class="student-mobile-nav-item <?php echo ($s_curr_page == 'dashboard.php') ? 'active' : ''; ?>">
-        <i class="fas fa-home"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-home"></i></div>
         <span>Home</span>
     </a>
     <a href="<?php echo BASE_URL; ?>/student/homework.php" class="student-mobile-nav-item <?php echo in_array($s_curr_page, ['homework.php', 'homework_view.php']) ? 'active' : ''; ?>">
-        <i class="fas fa-book-reader"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-book-reader"></i></div>
         <span>Homework</span>
     </a>
     <a href="<?php echo BASE_URL; ?>/student/report_card.php" class="student-mobile-nav-item <?php echo ($s_curr_page == 'report_card.php') ? 'active' : ''; ?>">
-        <i class="fas fa-chart-line"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-chart-line"></i></div>
         <span>Results</span>
     </a>
     <a href="<?php echo BASE_URL; ?>/student/fees.php" class="student-mobile-nav-item <?php echo ($s_curr_page == 'fees.php') ? 'active' : ''; ?>">
-        <i class="fas fa-receipt"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-receipt"></i></div>
         <span>Fees</span>
     </a>
     <button type="button" class="student-mobile-nav-item border-0 bg-transparent p-0" id="btnStudentMoreModalTrigger" data-toggle="modal" data-target="#studentMoreModal">
-        <i class="fas fa-th-large"></i>
+        <div class="mobile-icon-wrapper position-relative"><i class="fas fa-th-large"></i></div>
         <span>More</span>
         <?php if (!empty($unread_msg_count)): ?>
             <span class="badge badge-danger mobile-badge-dot"></span>
@@ -83,7 +83,7 @@
                     </a>
                     <a href="<?php echo BASE_URL; ?>/student/fees.php" class="list-group-item list-group-item-action d-flex align-items-center py-3 font-weight-bold text-dark border-0 rounded-lg mb-1">
                         <div class="rounded-circle bg-success bg-opacity-10 text-success p-2 mr-3 d-flex align-items-center justify-content-center" style="width:36px; height:36px;">
-                            <i class="fas fa-receipt"></i>
+                            <div class="mobile-icon-wrapper"><i class="fas fa-receipt"></i></div>
                         </div>
                         <span>Fees & Payments Ledger</span>
                         <i class="fas fa-chevron-right ml-auto text-muted small"></i>

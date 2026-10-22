@@ -47,23 +47,23 @@
     $admin_req_uri = $_SERVER['REQUEST_URI'] ?? '';
     ?>
     <a href="<?php echo BASE_URL; ?>/admin/dashboard.php" class="admin-mobile-nav-item <?php echo ($admin_current_page == 'dashboard.php') ? 'active' : ''; ?>">
-        <i class="fas fa-home"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-home"></i></div>
         <span>Dashboard</span>
     </a>
     <a href="<?php echo BASE_URL; ?>/admin/students/index.php" class="admin-mobile-nav-item <?php echo (strpos($admin_req_uri, '/admin/students/') !== false) ? 'active' : ''; ?>">
-        <i class="fas fa-user-graduate"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-user-graduate"></i></div>
         <span>Students</span>
     </a>
     <a href="<?php echo BASE_URL; ?>/admin/exams/index.php" class="admin-mobile-nav-item <?php echo (strpos($admin_req_uri, '/admin/exams/') !== false) ? 'active' : ''; ?>">
-        <i class="fas fa-file-alt"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-file-alt"></i></div>
         <span>Exams</span>
     </a>
     <a href="<?php echo BASE_URL; ?>/admin/batches/index.php" class="admin-mobile-nav-item <?php echo (strpos($admin_req_uri, '/admin/batches/') !== false) ? 'active' : ''; ?>">
-        <i class="fas fa-layer-group"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-layer-group"></i></div>
         <span>Batches</span>
     </a>
     <button type="button" class="admin-mobile-nav-item border-0 bg-transparent p-0" id="btnAdminMenuModalTrigger" data-toggle="modal" data-target="#adminMenuModal">
-        <i class="fas fa-bars"></i>
+        <div class="mobile-icon-wrapper"><i class="fas fa-bars"></i></div>
         <span>Menu</span>
     </button>
 </nav>
