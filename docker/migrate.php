@@ -564,6 +564,10 @@ $migrations = [
 ];
 
 $successCount = 0;
+try {
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
+} catch (\Throwable $e) {}
+
 foreach ($migrations as $sql) {
     try {
         $pdo->exec($sql);
@@ -572,5 +576,9 @@ foreach ($migrations as $sql) {
         echo "  [Notice] " . $e->getMessage() . "\n";
     }
 }
+
+try {
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
+} catch (\Throwable $e) {}
 
 echo "[Migration] Completed successfully ($successCount checks executed). Existing data preserved.\n";

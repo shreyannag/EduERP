@@ -6,6 +6,11 @@
     # Redirect /admin without trailing slash cleanly to /admin/
     RewriteRule ^admin$ /admin/ [R=301,L]
     RewriteRule ^shreyansir/admin$ /shreyansir/admin/ [R=301,L]
+
+    # Fallback: if accessing /shreyansir/* on a host where project is at root, rewrite cleanly
+    RewriteCond %{REQUEST_URI} ^/shreyansir/(.*)$
+    RewriteCond %{DOCUMENT_ROOT}/shreyansir !-d
+    RewriteRule ^shreyansir/(.*)$ /$1 [QSA,L,R=301]
 </IfModule>
 
 # Ensure directory index loads index.php

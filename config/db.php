@@ -1,7 +1,18 @@
 <?php
 // config/db.php
 if (!defined('BASE_URL')) {
-    define('BASE_URL', getenv('BASE_URL') !== false ? getenv('BASE_URL') : '/shreyansir');
+    if (getenv('BASE_URL') !== false) {
+        define('BASE_URL', rtrim(getenv('BASE_URL'), '/'));
+    } else {
+        // Smart auto-detection: checks if project is in /shreyansir subfolder or root domain
+        $reqUri = $_SERVER['REQUEST_URI'] ?? '';
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        if (strpos($reqUri, '/shreyansir/') === 0 || strpos($scriptName, '/shreyansir/') === 0) {
+            define('BASE_URL', '/shreyansir');
+        } else {
+            define('BASE_URL', '');
+        }
+    }
 }
 $host = getenv('DB_HOST') ?: 'localhost';
 $port = getenv('DB_PORT') ?: '3308';

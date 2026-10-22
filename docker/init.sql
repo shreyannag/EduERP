@@ -954,3 +954,48 @@ CREATE TABLE IF NOT EXISTS `coding_submissions` (
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-10-14  6:13:05
+
+--
+-- Table structure for table `enrollment_links`
+--
+DROP TABLE IF EXISTS `enrollment_links`;
+CREATE TABLE IF NOT EXISTS `enrollment_links` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `token` varchar(64) NOT NULL,
+  `title` varchar(200) NOT NULL,
+  `admin_id` int(11) NOT NULL DEFAULT 1,
+  `class_id` int(11) DEFAULT NULL,
+  `board_id` int(11) DEFAULT NULL,
+  `batch_id` int(11) DEFAULT NULL,
+  `max_uses` int(11) NOT NULL DEFAULT 0,
+  `used_count` int(11) NOT NULL DEFAULT 0,
+  `expires_at` datetime NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `require_approval` tinyint(1) NOT NULL DEFAULT 0,
+  `collect_parent_info` tinyint(1) NOT NULL DEFAULT 1,
+  `collect_address` tinyint(1) NOT NULL DEFAULT 0,
+  `custom_welcome_message` text DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `token` (`token`),
+  KEY `idx_token` (`token`),
+  KEY `idx_admin_status` (`admin_id`,`is_active`),
+  KEY `idx_expires` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `enrollment_submissions`
+--
+DROP TABLE IF EXISTS `enrollment_submissions`;
+CREATE TABLE IF NOT EXISTS `enrollment_submissions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `link_id` int(11) NOT NULL,
+  `student_id` int(11) NOT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `status` enum('approved','pending','rejected') NOT NULL DEFAULT 'approved',
+  `submitted_at` datetime DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_link` (`link_id`),
+  KEY `idx_student` (`student_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

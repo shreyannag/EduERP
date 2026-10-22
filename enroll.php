@@ -4,10 +4,54 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$pdo = require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/config/db.php';
+global $pdo;
+if (!isset($pdo) || !($pdo instanceof PDO)) {
+    $pdo = require __DIR__ . '/config/db.php';
+}
+
+// Self-healing: verify enrollment tables exist
+try {
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS enrollment_links (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        title VARCHAR(200) NOT NULL,
+        admin_id INT NOT NULL DEFAULT 1,
+        class_id INT NULL,
+        board_id INT NULL,
+        batch_id INT NULL,
+        max_uses INT NOT NULL DEFAULT 0,
+        used_count INT NOT NULL DEFAULT 0,
+        expires_at DATETIME NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        require_approval TINYINT(1) NOT NULL DEFAULT 0,
+        collect_parent_info TINYINT(1) NOT NULL DEFAULT 1,
+        collect_address TINYINT(1) NOT NULL DEFAULT 0,
+        custom_welcome_message TEXT NULL,
+        created_by INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_token (token),
+        INDEX idx_admin_status (admin_id, is_active),
+        INDEX idx_expires (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS enrollment_submissions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        link_id INT NOT NULL,
+        student_id INT NOT NULL,
+        ip_address VARCHAR(45) NULL,
+        status ENUM('approved', 'pending', 'rejected') NOT NULL DEFAULT 'approved',
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_link (link_id),
+        INDEX idx_student (student_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
+} catch (\Throwable $e) {}
 require_once __DIR__ . '/includes/functions.php';
 
-$token = trim($_GET['token'] ?? ($_POST['token'] ?? ''));
+$token = trim(urldecode($_GET['token'] ?? ($_POST['token'] ?? '')));
 
 $error = '';
 $success_data = null;
@@ -27,7 +71,7 @@ if (!empty($token)) {
                a.institute_name,
                a.username as admin_username
         FROM enrollment_links el
-        JOIN admins a ON el.admin_id = a.id
+        LEFT JOIN admins a ON el.admin_id = a.id
         LEFT JOIN classes c ON el.class_id = c.id
         LEFT JOIN boards b ON el.board_id = b.id
         LEFT JOIN batches bt ON el.batch_id = bt.id

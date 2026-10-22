@@ -1,6 +1,6 @@
 <?php
 // admin/enrolments/link_students.php
-require_once '../../includes/admin_header.php';
+require_once __DIR__ . '/../../includes/admin_header.php';
 
 require_admin_feature('enrolments');
 
@@ -279,7 +279,7 @@ $public_url = $protocol . $_SERVER['HTTP_HOST'] . BASE_URL . '/enroll.php?token=
                             <td class="text-right pr-4">
                                 <?php if ($sub['submission_status'] === 'pending'): ?>
                                     <form method="POST" class="d-inline">
-                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                        <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
                                         <input type="hidden" name="student_id" value="<?= $sub['id'] ?>">
                                         <input type="hidden" name="action" value="approve_student">
                                         <button type="submit" class="btn btn-sm btn-success font-weight-bold shadow-sm" title="Approve & Activate">
@@ -287,7 +287,7 @@ $public_url = $protocol . $_SERVER['HTTP_HOST'] . BASE_URL . '/enroll.php?token=
                                         </button>
                                     </form>
                                     <form method="POST" class="d-inline ml-1">
-                                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                        <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
                                         <input type="hidden" name="student_id" value="<?= $sub['id'] ?>">
                                         <input type="hidden" name="action" value="reject_student">
                                         <button type="submit" class="btn btn-sm btn-outline-danger font-weight-bold shadow-sm" title="Reject Admission">
@@ -320,4 +320,4 @@ function copyLink() {
 }
 </script>
 
-<?php require_once '../../includes/admin_footer.php'; ?>
+<?php require_once __DIR__ . '/../../includes/admin_footer.php'; ?>

@@ -1,8 +1,62 @@
 <?php
 // admin/enrolments/links.php
-require_once '../../includes/admin_header.php';
+require_once __DIR__ . '/../../includes/admin_header.php';
 
 require_admin_feature('enrolments');
+
+// Self-healing schema check
+try {
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 0;");
+    $pdo->exec("CREATE TABLE IF NOT EXISTS enrollment_links (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        token VARCHAR(64) NOT NULL UNIQUE,
+        title VARCHAR(200) NOT NULL,
+        admin_id INT NOT NULL DEFAULT 1,
+        class_id INT NULL,
+        board_id INT NULL,
+        batch_id INT NULL,
+        max_uses INT NOT NULL DEFAULT 0,
+        used_count INT NOT NULL DEFAULT 0,
+        expires_at DATETIME NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        require_approval TINYINT(1) NOT NULL DEFAULT 0,
+        collect_parent_info TINYINT(1) NOT NULL DEFAULT 1,
+        collect_address TINYINT(1) NOT NULL DEFAULT 0,
+        custom_welcome_message TEXT NULL,
+        created_by INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_token (token),
+        INDEX idx_admin_status (admin_id, is_active),
+        INDEX idx_expires (expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS enrollment_submissions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        link_id INT NOT NULL,
+        student_id INT NOT NULL,
+        ip_address VARCHAR(45) NULL,
+        status ENUM('approved', 'pending', 'rejected') NOT NULL DEFAULT 'approved',
+        submitted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_link (link_id),
+        INDEX idx_student (student_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+    $studentCols = $pdo->query("DESCRIBE students")->fetchAll(PDO::FETCH_COLUMN);
+    $neededCols = [
+        'phone' => 'VARCHAR(25) NULL',
+        'parent_name' => 'VARCHAR(150) NULL',
+        'parent_phone' => 'VARCHAR(25) NULL',
+        'dob' => 'DATE NULL',
+        'address' => 'TEXT NULL',
+        'gender' => 'VARCHAR(20) NULL'
+    ];
+    foreach ($neededCols as $col => $type) {
+        if (!in_array($col, $studentCols)) {
+            $pdo->exec("ALTER TABLE students ADD COLUMN $col $type");
+        }
+    }
+    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1;");
+} catch (\Throwable $e) {}
 
 $current_admin_id = get_effective_admin_id();
 $is_super = is_super_admin();
@@ -153,10 +207,21 @@ foreach ($links as $l) {
     $total_students_enrolled += (int)$l['used_count'];
 }
 
-// Determine host URL for public links
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
-$host = $_SERVER['HTTP_HOST'];
-$base_enroll_url = $protocol . $host . BASE_URL . '/enroll.php?token=';
+// Determine host URL for public links (with reverse-proxy HTTPS support)
+$is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https')
+    || (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && $_SERVER['HTTP_X_FORWARDED_SSL'] === 'on')
+    || (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443);
+$protocol = $is_https ? 'https://' : 'http://';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+// Determine web root relative to current script path /admin/enrolments/links.php
+$scriptDir = dirname(dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+$webRoot = ($scriptDir === '/' || $scriptDir === '\\' || $scriptDir === '.') ? '' : rtrim(str_replace('\\', '/', $scriptDir), '/');
+
+// Prefer BASE_URL if explicitly configured, else use detected web root
+$resolvedBasePath = defined('BASE_URL') && BASE_URL !== '' ? BASE_URL : $webRoot;
+$base_enroll_url = $protocol . $host . $resolvedBasePath . '/enroll.php?token=';
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
@@ -343,7 +408,7 @@ $base_enroll_url = $protocol . $host . BASE_URL . '/enroll.php?token=';
                                     </button>
                                     <div class="dropdown-menu dropdown-menu-right shadow-sm border-0">
                                         <form method="POST" class="d-inline">
-                                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                            <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
                                             <input type="hidden" name="link_id" value="<?= $link['id'] ?>">
                                             <input type="hidden" name="action" value="toggle_active">
                                             <input type="hidden" name="status" value="<?= $link['is_active'] ? '0' : '1' ?>">
@@ -357,7 +422,7 @@ $base_enroll_url = $protocol . $host . BASE_URL . '/enroll.php?token=';
                                         </a>
                                         <div class="dropdown-divider"></div>
                                         <form method="POST" onsubmit="return confirm('Are you sure you want to permanently delete this enrollment link? Students already registered will not be affected.');">
-                                            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                                            <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
                                             <input type="hidden" name="link_id" value="<?= $link['id'] ?>">
                                             <input type="hidden" name="action" value="delete_link">
                                             <button type="submit" class="dropdown-item text-danger">
@@ -387,7 +452,7 @@ $base_enroll_url = $protocol . $host . BASE_URL . '/enroll.php?token=';
                 </button>
             </div>
             <form method="POST" action="links.php">
-                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
                 <input type="hidden" name="action" value="create_link">
                 <div class="modal-body p-4">
                     <div class="form-group mb-3">
@@ -508,7 +573,7 @@ $base_enroll_url = $protocol . $host . BASE_URL . '/enroll.php?token=';
                 <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
             </div>
             <form method="POST" action="links.php">
-                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
                 <input type="hidden" name="action" value="extend_expiry">
                 <input type="hidden" name="link_id" id="extendLinkId" value="">
                 <div class="modal-body p-4">
@@ -597,4 +662,4 @@ function showQrModal(title, url) {
 }
 </script>
 
-<?php require_once '../../includes/admin_footer.php'; ?>
+<?php require_once __DIR__ . '/../../includes/admin_footer.php'; ?>
