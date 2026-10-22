@@ -216,11 +216,11 @@ $protocol = $is_https ? 'https://' : 'http://';
 $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
 
 // Determine web root relative to current script path /admin/enrolments/links.php
-$scriptDir = dirname(dirname($_SERVER['SCRIPT_NAME'] ?? ''));
+$scriptDir = dirname(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')));
 $webRoot = ($scriptDir === '/' || $scriptDir === '\\' || $scriptDir === '.') ? '' : rtrim(str_replace('\\', '/', $scriptDir), '/');
 
 // Prefer BASE_URL if explicitly configured, else use detected web root
-$resolvedBasePath = defined('BASE_URL') && BASE_URL !== '' ? BASE_URL : $webRoot;
+$resolvedBasePath = defined('BASE_URL') ? BASE_URL : $webRoot;
 $base_enroll_url = $protocol . $host . $resolvedBasePath . '/enroll.php?token=';
 ?>
 
