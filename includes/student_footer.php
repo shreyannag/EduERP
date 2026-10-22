@@ -33,13 +33,13 @@
         <i class="fas fa-receipt"></i>
         <span>Fees</span>
     </a>
-    <a href="javascript:void(0)" class="student-mobile-nav-item" data-toggle="modal" data-target="#studentMoreModal">
+    <button type="button" class="student-mobile-nav-item border-0 bg-transparent p-0" id="btnStudentMoreModalTrigger" data-toggle="modal" data-target="#studentMoreModal">
         <i class="fas fa-th-large"></i>
         <span>More</span>
         <?php if (!empty($unread_msg_count)): ?>
             <span class="badge badge-danger mobile-badge-dot"></span>
         <?php endif; ?>
-    </a>
+    </button>
 </nav>
 
 <!-- Student Mobile "More" Drawer Modal -->
@@ -108,5 +108,15 @@
     </div>
 </div>
 
+
+<script>
+// Explicit touch & click activation for student mobile more modal
+$(document).ready(function() {
+    $('#btnStudentMoreModalTrigger, [data-target="#studentMoreModal"]').on('click', function(e) {
+        e.preventDefault();
+        $('#studentMoreModal').modal('show');
+    });
+});
+</script>
 </body>
 </html>

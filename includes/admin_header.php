@@ -42,7 +42,7 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
     <!-- Summernote -->
     <link href="https://cdn.jsdelivr.net/npm/summernote@0.8.18/dist/summernote-bs4.min.css" rel="stylesheet">
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/custom.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/custom.css?v=<?php echo file_exists(__DIR__ . '/../assets/css/custom.css') ? filemtime(__DIR__ . '/../assets/css/custom.css') : time(); ?>">
     <!-- Prism.js for Programming Questions & Code Syntax Highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <!-- jQuery -->
@@ -64,6 +64,46 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
     };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+    <!-- Critical Mobile Bottom Nav Inline CSS (Cache-Proof) -->
+    <style>
+    @media (max-width: 767.98px) {
+        body.has-admin-bottom-nav { padding-bottom: 72px !important; }
+        .admin-mobile-bottom-nav {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 60px !important;
+            background: #0f172a !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+            z-index: 1030 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-around !important;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2) !important;
+            padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+        }
+        .admin-mobile-nav-item {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: #94a3b8 !important;
+            font-size: 0.7rem !important;
+            font-weight: 600 !important;
+            text-decoration: none !important;
+            flex: 1 !important;
+            height: 100% !important;
+            cursor: pointer !important;
+            border: none !important;
+            background: transparent !important;
+            outline: none !important;
+        }
+        .admin-mobile-nav-item i { font-size: 1.2rem; margin-bottom: 2px; }
+        .admin-mobile-nav-item.active { color: #38bdf8 !important; font-weight: 700 !important; }
+    }
+    body.modal-open .admin-mobile-bottom-nav { display: none !important; }
+    </style>
 </head>
 <body class="has-admin-bottom-nav">
 

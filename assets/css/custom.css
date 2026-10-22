@@ -247,7 +247,7 @@ mjx-container[jax="CHTML"][display="true"] {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-top: 1px solid #e2e8f0;
-    z-index: 1040;
+    z-index: 1030;
     display: flex;
     align-items: center;
     justify-content: space-around;
@@ -310,7 +310,7 @@ mjx-container[jax="CHTML"][display="true"] {
     height: 60px;
     background: #0f172a;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
-    z-index: 1040;
+    z-index: 1030;
     display: flex;
     align-items: center;
     justify-content: space-around;
@@ -443,4 +443,41 @@ mjx-container[jax="CHTML"][display="true"] {
     background: #cbd5e1;
     border-radius: 999px;
     margin: 10px auto 16px;
+}
+
+/* Auto-hide bottom navbars when any modal / bottom sheet is active */
+body.modal-open .student-mobile-bottom-nav,
+body.modal-open .admin-mobile-bottom-nav {
+    display: none !important;
+}
+
+/* Bottom sheet modal styling enhancements */
+.bottom-sheet-modal {
+    z-index: 1055 !important;
+    padding-right: 0 !important;
+}
+.bottom-sheet-modal .modal-dialog {
+    margin: 0 !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+}
+.bottom-sheet-modal .modal-content {
+    border-radius: 20px 20px 0 0 !important;
+    border: none !important;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.25) !important;
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: env(safe-area-inset-bottom, 20px);
+}
+.bottom-sheet-modal.admin-modal-theme .modal-content {
+    background: #1e293b !important;
+    color: #f8fafc !important;
+}
+.bottom-sheet-modal.admin-modal-theme .bottom-sheet-drag-handle {
+    background: #475569 !important;
 }

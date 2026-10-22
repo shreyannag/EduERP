@@ -37,7 +37,7 @@ $coding_platform_active = is_coding_platform_enabled($pdo);
     <title>Student Portal - Online Examination Platform</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/custom.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/custom.css?v=<?php echo file_exists(__DIR__ . '/../assets/css/custom.css') ? filemtime(__DIR__ . '/../assets/css/custom.css') : time(); ?>">
     <!-- Prism.js for Programming Questions & Code Syntax Highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -86,6 +86,50 @@ $coding_platform_active = is_coding_platform_enabled($pdo);
             border-color: rgba(255, 255, 255, 0.3) !important;
             font-weight: 700;
         }
+    </style>
+    <!-- Critical Mobile Bottom Nav Inline CSS (Cache-Proof) -->
+    <style>
+    @media (max-width: 991.98px) {
+        body.has-student-bottom-nav { padding-bottom: 76px !important; }
+        .student-mobile-bottom-nav {
+            position: fixed !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 64px !important;
+            background: rgba(255, 255, 255, 0.98) !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            border-top: 1px solid #e2e8f0 !important;
+            z-index: 1030 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-around !important;
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08) !important;
+            padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+        }
+        .student-mobile-nav-item {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            color: #64748b !important;
+            font-size: 0.7rem !important;
+            font-weight: 600 !important;
+            text-decoration: none !important;
+            flex: 1 !important;
+            height: 100% !important;
+            position: relative !important;
+            cursor: pointer !important;
+            border: none !important;
+            background: transparent !important;
+            outline: none !important;
+        }
+        .student-mobile-nav-item i { font-size: 1.25rem; margin-bottom: 2px; }
+        .student-mobile-nav-item.active { color: #1e3a8a !important; font-weight: 700 !important; }
+        .student-mobile-nav-item.active i { color: #2563eb !important; }
+    }
+    body.modal-open .student-mobile-bottom-nav { display: none !important; }
     </style>
 </head>
 <body class="has-student-bottom-nav">
