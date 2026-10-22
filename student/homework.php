@@ -173,7 +173,7 @@ $overallTotal = count($allHomework);
 </div>
 
 <!-- Tabs: To-Do vs Completed vs All -->
-<ul class="nav nav-pills mb-4" id="homeworkTabs" role="tablist">
+<ul class="nav nav-pills nav-pills-scrollable mb-4" id="homeworkTabs" role="tablist">
     <li class="nav-item">
         <a class="nav-link active font-weight-bold rounded-pill px-4 mr-2" id="todo-tab" data-toggle="pill" href="#todoPane" role="tab">
             <i class="fas fa-hourglass-half mr-1"></i>To-Do / Due (<?= $pendingCount ?>)

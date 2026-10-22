@@ -126,6 +126,41 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
         .q-btn.unanswered { border-color: #cbd5e1; color: #64748b; background: #f8fafc; }
         .q-text-content { flex-grow: 1; min-width: 0; line-height: 1.6; }
         .q-text-content img { max-width: 100%; height: auto; border-radius: 6px; display: block; margin: 12px 0; }
+        @media (max-width: 767.98px) {
+            body { padding-top: 75px !important; padding-bottom: 80px !important; }
+            .exam-header { padding: 10px 14px !important; }
+            .timer-box { font-size: 1.15rem !important; padding: 4px 10px !important; }
+            .timer-box i { margin-right: 6px !important; }
+            .exam-header .btn-primary { font-size: 0.85rem !important; padding: 6px 14px !important; }
+            .q-card { margin-bottom: 20px; border-radius: 10px; }
+            .q-header { padding: 16px !important; font-size: 1rem !important; }
+            .q-num { padding: 4px 10px; font-size: 0.85rem; margin-right: 12px; }
+            .q-body { padding: 16px !important; }
+            .opt-row { margin-bottom: 12px; }
+            .opt-label { padding: 12px 14px !important; font-size: 0.92rem; }
+            .letter { width: 28px !important; height: 28px !important; font-size: 0.82rem !important; margin-right: 12px !important; }
+            .floating-palette-btn {
+                position: fixed;
+                bottom: 20px;
+                right: 20px;
+                width: 54px;
+                height: 54px;
+                border-radius: 50%;
+                background: #1e3a8a;
+                color: #ffffff;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+                z-index: 1040;
+                border: 2px solid #ffffff;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .floating-palette-btn:active {
+                transform: scale(0.92);
+            }
+        }
     </style>
 </head>
 <body>
@@ -198,6 +233,47 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
             </div>
         </div>
     </div>
+
+    <!-- Mobile Floating Question Palette Trigger -->
+    <div class="floating-palette-btn d-lg-none" data-toggle="modal" data-target="#paletteModal" title="Open Question Palette">
+        <i class="fas fa-th-large fa-lg"></i>
+        <span class="badge badge-light text-primary position-absolute font-weight-bold shadow-sm" id="mobileFloatingBadge" style="top: -4px; right: -4px; font-size: 0.65rem; border-radius: 10px; padding: 3px 6px;">
+            0/<?php echo count($questions); ?>
+        </span>
+    </div>
+
+    <!-- Mobile Question Palette Modal -->
+    <div class="modal fade" id="paletteModal" tabindex="-1" role="dialog" aria-labelledby="paletteModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content shadow-lg border-0 rounded-lg">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title font-weight-bold text-dark" id="paletteModalTitle">
+                        <i class="fas fa-map-signs text-primary mr-2"></i>Question Navigator
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom small font-weight-bold">
+                        <span class="text-success"><i class="fas fa-check-circle mr-1"></i><span id="mobileAnsweredCount">0</span> Answered</span>
+                        <span class="text-muted"><i class="fas fa-circle mr-1"></i><span id="mobileUnansweredCount"><?php echo count($questions); ?></span> Unanswered</span>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-center" id="mobileQNavGrid">
+                        <?php for($i=1; $i<=count($questions); $i++): ?>
+                            <a href="#q<?php echo $i; ?>" class="btn q-btn unanswered border text-center p-0 d-flex align-items-center justify-content-center shadow-sm mobile-q-link" id="nav_btn_mobile_<?php echo $i; ?>"><?php echo $i; ?></a>
+                        <?php endfor; ?>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light d-flex justify-content-between">
+                    <button type="button" class="btn btn-secondary rounded-pill px-4 font-weight-bold" data-dismiss="modal">Back to Exam</button>
+                    <button type="button" class="btn btn-primary rounded-pill px-4 font-weight-bold shadow-sm" onclick="$('#paletteModal').modal('hide'); confirmSubmit();">
+                        Submit Exam <i class="fas fa-paper-plane ml-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </form>
 
 <script>
@@ -248,12 +324,47 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
                 }
             } catch(e){}
         }
+        syncCounts();
     }
     
+    function updatePalette(qNum) {
+        $('#nav_btn_' + qNum).removeClass('unanswered').addClass('answered shadow text-white');
+        $('#nav_btn_mobile_' + qNum).removeClass('unanswered').addClass('answered shadow text-white');
+        syncCounts();
+    }
+
+    function syncCounts() {
+        let total = <?php echo count($questions); ?>;
+        let ans = $('.q-radio:checked').length;
+        $('#mobileAnsweredCount').text(ans);
+        $('#mobileUnansweredCount').text(total - ans);
+        $('#mobileFloatingBadge').text(ans + '/' + total);
+    }
+
     $('.q-radio').change(function() {
         saveState();
         let qNum = $(this).data('qnum');
-        $('#nav_btn_' + qNum).removeClass('unanswered').addClass('answered shadow text-white');
+        updatePalette(qNum);
+    });
+
+    $(document).on('click', '.mobile-q-link', function(e) {
+        e.preventDefault();
+        $('#paletteModal').modal('hide');
+        let targetId = $(this).attr('href');
+        setTimeout(function() {
+            let el = document.querySelector(targetId);
+            if (el) {
+                let offset = 85;
+                let bodyRect = document.body.getBoundingClientRect().top;
+                let elementRect = el.getBoundingClientRect().top;
+                let elementPosition = elementRect - bodyRect;
+                let offsetPosition = elementPosition - offset;
+                window.scrollTo({
+                    top: offsetPosition,
+                    behavior: 'smooth'
+                });
+            }
+        }, 350);
     });
     
     function confirmSubmit() {

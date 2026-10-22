@@ -35,8 +35,8 @@ $avg_pct = $total_mocks > 0 ? round(array_sum($percentages) / $total_mocks, 1) :
 $highest_pct = $total_mocks > 0 ? max($percentages) : 0;
 ?>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="font-weight-bold text-dark">Weekly Mock Test Report Card</h2>
+<div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-center mb-4">
+    <h2 class="font-weight-bold text-dark mb-2 mb-sm-0">Weekly Mock Test Report Card</h2>
     <button class="btn btn-outline-primary rounded-pill shadow-sm font-weight-bold" onclick="window.print()">
         <i class="fas fa-print mr-2"></i>Print Report
     </button>

@@ -203,3 +203,244 @@ mjx-container[jax="CHTML"][display="true"] {
     margin: 1em 0 !important;
     text-align: center !important;
 }
+
+
+/* ========================================================
+   MOBILE & TOUCH-OPTIMIZED RESPONSIVE ENHANCEMENTS
+   ======================================================== */
+
+/* Prevent iOS Safari auto-zoom on input focus */
+@media (max-width: 767.98px) {
+    input, select, textarea, .form-control, .custom-select {
+        font-size: 16px !important;
+    }
+    
+    .container, .container-fluid {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+    }
+
+    /* Touch targets */
+    .btn {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Fluid horizontal table scrolling */
+    .table-responsive {
+        -webkit-overflow-scrolling: touch;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+}
+
+/* Student Mobile Bottom Navigation Bar */
+.student-mobile-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-top: 1px solid #e2e8f0;
+    z-index: 1040;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.student-mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-decoration: none !important;
+    flex: 1;
+    height: 100%;
+    position: relative;
+    transition: all 0.2s ease;
+}
+
+.student-mobile-nav-item i {
+    font-size: 1.25rem;
+    margin-bottom: 2px;
+    transition: transform 0.2s;
+}
+
+.student-mobile-nav-item:hover,
+.student-mobile-nav-item:active {
+    color: #1e3a8a;
+}
+
+.student-mobile-nav-item.active {
+    color: #1e3a8a !important;
+    font-weight: 700;
+}
+
+.student-mobile-nav-item.active i {
+    color: #2563eb;
+    transform: translateY(-2px);
+}
+
+.student-mobile-nav-item .mobile-badge-dot {
+    position: absolute;
+    top: 8px;
+    right: 28%;
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border-radius: 50%;
+}
+
+/* Admin Mobile Bottom Quick-Access Bar */
+.admin-mobile-bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background: #0f172a;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    z-index: 1040;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.admin-mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-decoration: none !important;
+    flex: 1;
+    height: 100%;
+    transition: all 0.2s ease;
+}
+
+.admin-mobile-nav-item i {
+    font-size: 1.2rem;
+    margin-bottom: 2px;
+}
+
+.admin-mobile-nav-item.active {
+    color: #38bdf8 !important;
+    font-weight: 700;
+}
+
+.admin-mobile-nav-item:hover {
+    color: #f8fafc;
+}
+
+/* Page body padding for mobile bottom navs */
+@media (max-width: 991.98px) {
+    body.has-student-bottom-nav {
+        padding-bottom: 76px !important;
+    }
+}
+@media (max-width: 767.98px) {
+    body.has-admin-bottom-nav {
+        padding-bottom: 72px !important;
+    }
+}
+
+/* Horizontal Swipeable Nav Pills */
+.nav-pills-scrollable {
+    display: flex;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 4px;
+}
+.nav-pills-scrollable::-webkit-scrollbar {
+    display: none;
+}
+.nav-pills-scrollable .nav-item {
+    flex: 0 0 auto;
+}
+
+/* Mobile Admin Drawer Styling */
+.admin-mobile-drawer {
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: #1e293b;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1rem 0.5rem;
+}
+
+.admin-mobile-drawer .drawer-category {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
+    padding: 0.75rem 1rem 0.25rem;
+}
+
+.admin-mobile-drawer .drawer-link {
+    display: flex;
+    align-items: center;
+    color: #e2e8f0;
+    padding: 0.65rem 1rem;
+    font-size: 0.92rem;
+    font-weight: 500;
+    text-decoration: none;
+    border-radius: 8px;
+    margin-bottom: 2px;
+    transition: background 0.15s;
+}
+
+.admin-mobile-drawer .drawer-link i {
+    width: 24px;
+    font-size: 1rem;
+    margin-right: 10px;
+    text-align: center;
+}
+
+.admin-mobile-drawer .drawer-link:hover,
+.admin-mobile-drawer .drawer-link.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    font-weight: 700;
+}
+
+/* Mobile Card Modal for Student "More" Menu */
+.bottom-sheet-modal .modal-dialog {
+    margin: 0;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-width: 100%;
+}
+.bottom-sheet-modal .modal-content {
+    border-radius: 1.5rem 1.5rem 0 0;
+    border: none;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.15);
+    padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.bottom-sheet-drag-handle {
+    width: 40px;
+    height: 5px;
+    background: #cbd5e1;
+    border-radius: 999px;
+    margin: 10px auto 16px;
+}

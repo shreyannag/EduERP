@@ -71,9 +71,26 @@ foreach($assigned_exams as $ex) {
     box-shadow: 0 2px 8px rgba(30, 58, 138, 0.25);
     font-weight: 700;
 }
+@media (max-width: 767.98px) {
+    #dashboardTabs {
+        border-radius: 12px !important;
+        padding: 4px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        white-space: nowrap;
+    }
+    #dashboardTabs .nav-item {
+        flex: 0 0 auto;
+    }
+    #dashboardTabs .nav-link {
+        font-size: 0.85rem;
+        padding: 8px 14px !important;
+    }
+}
 </style>
 
-<ul class="nav nav-pills nav-fill mb-4 rounded-pill shadow-sm" id="dashboardTabs" role="tablist">
+<ul class="nav nav-pills nav-pills-scrollable nav-fill mb-4 rounded-pill shadow-sm" id="dashboardTabs" role="tablist">
     <li class="nav-item">
         <a class="nav-link active font-weight-bold rounded-pill transition px-4" id="active-tab" data-toggle="pill" href="#active" role="tab">
             <i class="fas fa-play-circle mr-2 <?php echo count($active)>0 ? 'text-danger animate-pulse' : 'text-primary'; ?>"></i>Live Exams

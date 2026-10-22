@@ -65,7 +65,7 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </head>
-<body>
+<body class="has-admin-bottom-nav">
 
 <nav class="navbar navbar-expand-md navbar-dark bg-dark shadow-sm py-2">
     <a class="navbar-brand font-weight-bold d-flex align-items-center" href="<?php echo BASE_URL; ?>/admin/dashboard.php" style="letter-spacing: -0.5px;">
@@ -85,7 +85,121 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
         <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="adminNavbar">
-        <ul class="navbar-nav ml-auto">
+        <!-- Mobile Drawer (Visible on screens < 768px) -->
+        <div class="d-md-none admin-mobile-drawer w-100">
+            <!-- Mobile User Profile Card -->
+            <div class="d-flex align-items-center justify-content-between p-3 mb-3 rounded" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);">
+                <div class="d-flex align-items-center overflow-hidden">
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center mr-2 font-weight-bold flex-shrink-0" style="width:36px; height:36px; font-size:14px;">
+                        <?php echo strtoupper(substr($adminUser ?: 'A', 0, 1)); ?>
+                    </div>
+                    <div class="text-truncate">
+                        <div class="font-weight-bold text-white small text-truncate"><?php echo h($adminUser ?: 'Admin'); ?></div>
+                        <div class="text-white-50 small" style="font-size: 0.72rem;"><?= h($_SESSION['institute_name'] ?? 'Main Campus') ?></div>
+                    </div>
+                </div>
+                <a href="<?php echo BASE_URL; ?>/admin/logout.php" class="btn btn-sm btn-outline-danger font-weight-bold ml-2 flex-shrink-0">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+
+            <!-- Core Operations -->
+            <div class="drawer-category">Core Management</div>
+            <a href="<?php echo BASE_URL; ?>/admin/dashboard.php" class="drawer-link"><i class="fas fa-home text-primary"></i> Dashboard</a>
+            <?php if (admin_has_feature('students')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/students/index.php" class="drawer-link"><i class="fas fa-user-graduate text-info"></i> Manage Students</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('batches')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/batches/index.php" class="drawer-link"><i class="fas fa-layer-group text-warning"></i> Teaching Batches</a>
+            <?php endif; ?>
+
+            <!-- Super Admin Section -->
+            <?php if (is_super_admin()): ?>
+            <div class="drawer-category text-warning"><i class="fas fa-crown mr-1"></i> Super Admin</div>
+            <a href="<?php echo BASE_URL; ?>/admin/admins/index.php" class="drawer-link text-warning"><i class="fas fa-users-cog"></i> Admin Accounts</a>
+            <a href="<?php echo BASE_URL; ?>/admin/admins/billing.php" class="drawer-link text-warning"><i class="fas fa-file-invoice-dollar"></i> Billing & Payments</a>
+            <?php endif; ?>
+
+            <!-- Questions -->
+            <?php if (admin_has_feature('subjects') || admin_has_feature('upload_csv') || admin_has_feature('questions') || admin_has_feature('image_storage') || admin_has_feature('ai_settings') || admin_has_feature('ai_generation')): ?>
+            <div class="drawer-category">Question Bank</div>
+            <?php if (admin_has_feature('questions')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/questions/index.php" class="drawer-link"><i class="fas fa-database text-primary"></i> Question Bank</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('subjects')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/subjects/index.php" class="drawer-link"><i class="fas fa-book text-warning"></i> Subjects & Topics</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('upload_csv')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/questions/upload.php" class="drawer-link"><i class="fas fa-upload text-info"></i> Upload CSV</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('image_storage')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/image_storage.php" class="drawer-link"><i class="fas fa-images text-muted"></i> Image Storage</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('ai_settings') || admin_has_feature('ai_generation')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/ai_settings.php" class="drawer-link"><i class="fas fa-brain text-light"></i> OpenRouter AI</a>
+            <?php endif; ?>
+            <?php endif; ?>
+
+            <!-- Exams -->
+            <?php if (admin_has_feature('exams')): ?>
+            <div class="drawer-category">Exams & Tests</div>
+            <a href="<?php echo BASE_URL; ?>/admin/exams/create.php" class="drawer-link"><i class="fas fa-plus-circle text-success"></i> Create Exam</a>
+            <a href="<?php echo BASE_URL; ?>/admin/exams/index.php" class="drawer-link"><i class="fas fa-list-alt text-primary"></i> All Exams</a>
+            <a href="<?php echo BASE_URL; ?>/admin/schedule/index.php" class="drawer-link"><i class="fas fa-calendar-alt text-info"></i> Schedule</a>
+            <?php endif; ?>
+
+            <!-- Academics & Tools -->
+            <?php if (admin_has_feature('homework') || admin_has_feature('fees') || admin_has_feature('enrolments') || admin_has_feature('messages') || admin_has_feature('coding')): ?>
+            <div class="drawer-category">Academics & Management</div>
+            <?php if (admin_has_feature('homework')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/homework/index.php" class="drawer-link"><i class="fas fa-book-reader text-warning"></i> Homework Assignments</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('fees')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/fees/index.php" class="drawer-link"><i class="fas fa-hand-holding-usd text-success"></i> Fees & Payments</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('enrolments')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/enrolments/index.php" class="drawer-link"><i class="fas fa-user-plus text-primary"></i> Exam Enrolments</a>
+            <a href="<?php echo BASE_URL; ?>/admin/enrolments/links.php" class="drawer-link"><i class="fas fa-link text-info"></i> Enrollment Links</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('coding')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/coding/index.php" class="drawer-link"><i class="fas fa-laptop-code text-primary"></i> Coding Arena & Contests</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('messages')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/messages.php" class="drawer-link"><i class="fas fa-envelope text-info"></i> Student Messages <?php if($unread_msg_count > 0): ?><span class="badge badge-danger ml-auto"><?php echo $unread_msg_count; ?></span><?php endif; ?></a>
+            <?php endif; ?>
+            <?php endif; ?>
+
+            <!-- Staff & Payroll -->
+            <?php if (can_manage_sub_admins() || can_process_payroll() || is_sub_admin()): ?>
+            <div class="drawer-category">Staff & Payroll</div>
+            <?php if (can_manage_sub_admins()): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/sub_admins/index.php" class="drawer-link"><i class="fas fa-user-shield text-info"></i> Sub-Admins & Staff</a>
+            <?php endif; ?>
+            <?php if (can_process_payroll()): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/payroll/index.php" class="drawer-link"><i class="fas fa-money-check-alt text-success"></i> Staff Payroll</a>
+            <?php endif; ?>
+            <?php if (is_sub_admin()): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/payroll/my_salary.php" class="drawer-link text-success"><i class="fas fa-file-invoice-dollar"></i> My Salary & Payslips</a>
+            <?php endif; ?>
+            <?php endif; ?>
+
+            <!-- Reports -->
+            <?php if (admin_has_feature('reports')): ?>
+            <div class="drawer-category">Reports</div>
+            <a href="<?php echo BASE_URL; ?>/admin/reports/attendance.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Attendance</a>
+            <a href="<?php echo BASE_URL; ?>/admin/reports/results.php" class="drawer-link"><i class="fas fa-chart-bar text-warning"></i> Results</a>
+            <a href="<?php echo BASE_URL; ?>/admin/exams/history.php" class="drawer-link"><i class="fas fa-history text-secondary"></i> Past Exams</a>
+            <?php endif; ?>
+
+            <!-- Account & Security -->
+            <div class="drawer-category">Account & Security</div>
+            <a href="<?php echo BASE_URL; ?>/admin/settings.php" class="drawer-link"><i class="fas fa-cog text-primary"></i> Account Settings</a>
+            <a href="<?php echo BASE_URL; ?>/admin/settings.php#password" class="drawer-link"><i class="fas fa-key text-warning"></i> Change Password</a>
+            <a href="<?php echo BASE_URL; ?>/admin/2fa_setup.php" class="drawer-link"><i class="fas fa-shield-alt text-success"></i> Two-Factor Auth (2FA)</a>
+            <a href="<?php echo BASE_URL; ?>/admin/messages.php?channel=admin" class="drawer-link"><i class="fas fa-comments text-info"></i> <?= is_super_admin() ? 'Admin Chat Network' : 'Support Chat' ?> <?php if ($unread_admin_msg_count > 0): ?><span class="badge badge-danger ml-auto"><?php echo $unread_admin_msg_count; ?></span><?php endif; ?></a>
+        </div>
+
+        <ul class="navbar-nav ml-auto d-none d-md-flex">
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle font-weight-bold text-white px-3" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <i class="fas fa-user-circle mr-1"></i> <?php echo h($adminUser ?: 'Admin'); ?>

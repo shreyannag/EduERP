@@ -88,7 +88,7 @@ $coding_platform_active = is_coding_platform_enabled($pdo);
         }
     </style>
 </head>
-<body>
+<body class="has-student-bottom-nav">
 
 <nav class="navbar navbar-expand-lg navbar-dark student-navbar sticky-top">
     <div class="container">
