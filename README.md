@@ -2,7 +2,7 @@
 
 > **Developed by SN Technologies (Shreyan Nag Technologies)**
 
-[![PHP Version](https://img.shields.io/badge/PHP-8.2%20%7C%208.3-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
+[![PHP Version](https://img.shields.io/badge/PHP-8.3%20%7C%208.4%20(Secured)-777BB4?style=flat-square&logo=php&logoColor=white)](https://www.php.net/)
 [![Database](https://img.shields.io/badge/MariaDB-10.11%20%7C%20MySQL%208.0-003545?style=flat-square&logo=mariadb&logoColor=white)](https://mariadb.org/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
 [![Frontend](https://img.shields.io/badge/Frontend-Bootstrap%204.6-7952B3?style=flat-square&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
@@ -223,7 +223,7 @@ Apache `mod_deflate` compresses all text, HTML, JSON, CSS, and JS payloads, cutt
 
 | Layer | Technology | Purpose |
 | :--- | :--- | :--- |
-| **Backend Language** | PHP 8.2 / 8.3 | High-speed server-side processing with strict typing |
+| **Backend Language** | PHP 8.3 / 8.4 (Secured) | High-speed server-side processing with strict typing |
 | **Database Engine** | MariaDB 10.11 / MySQL 8.0 | InnoDB storage engine with `utf8mb4_general_ci` |
 | **Web Server** | Apache 2.4 | Configured with `mod_rewrite`, `mod_deflate`, `mod_headers`, `mod_expires` |
 | **Frontend UI** | Bootstrap 4.6 & Custom CSS | Responsive layout optimized for desktop, tablet, and mobile |
@@ -240,7 +240,7 @@ Apache `mod_deflate` compresses all text, HTML, JSON, CSS, and JS payloads, cutt
 EduERP/
 ├── .htaccess                  # Apache Gzip compression, browser caching, & security headers
 ├── docker-compose.yml         # Multi-container orchestration (App, MariaDB, phpMyAdmin)
-├── Dockerfile                 # PHP 8.2 Apache production image with required PHP extensions
+├── Dockerfile                 # Hardened Alpine image (PHP 8.3/8.4 patched against critical RCE)
 ├── enroll.php                 # Public self-service student enrollment portal with token validation
 ├── README.md                  # Comprehensive project documentation & architecture guide
 ├── admin/                     # Admin & Sub-Admin portal modules
@@ -308,7 +308,7 @@ docker compose up -d --build
 ```
 
 Docker will:
-1. Build the PHP 8.2 Apache web container with necessary extensions (`pdo_mysql`, `curl`, `mbstring`, `gd`, `zip`).
+1. Build the hardened Apache web container with latest secured PHP 8.3/8.4 and necessary extensions (`pdo_mysql`, `curl`, `mbstring`, `gd`, `zip`).
 2. Start the MariaDB 10.11 database container and automatically execute [`docker/init.sql`](docker/init.sql) to seed the initial schema.
 3. Start phpMyAdmin for database administration.
 

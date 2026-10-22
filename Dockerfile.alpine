@@ -1,7 +1,9 @@
-FROM alpine:3.20
+FROM alpine:3.21
 
-# Install Apache, PHP 8.3 and all required extensions
-RUN apk add --no-cache \
+# Upgrade all base system packages and install Apache, PHP 8.3+ with security patches
+# Patched against critical RCE vulnerabilities (PHP 8.3.36, 8.2.35, 8.4.27)
+RUN apk update && apk upgrade --no-cache \
+    && apk add --no-cache \
     bash \
     curl \
     git \

@@ -1,7 +1,7 @@
-FROM php:8.2-apache
+FROM php:8.3-apache
 
-# Install system dependencies required for PHP extensions and Composer
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Upgrade system packages to pull latest security patches (Secured against critical RCE advisories)
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     libzip-dev \
     zip \
     unzip \

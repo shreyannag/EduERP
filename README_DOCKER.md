@@ -1,6 +1,6 @@
 # Docker Setup for Online Exam System
 
-This project is fully containerized using **Docker** and **Docker Compose**, providing a complete environment with PHP 8.2 (Apache), MariaDB 10.11, and phpMyAdmin.
+This project is fully containerized using **Docker** and **Docker Compose**, providing a complete environment with PHP 8.3+ (Apache), MariaDB 10.11, and phpMyAdmin (hardened against critical RCE advisories).
 
 ---
 

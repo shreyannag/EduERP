@@ -30,9 +30,9 @@ else
     echo "[2/6] No .git directory detected, skipping git pull."
 fi
 
-# Step 3: Rebuild ONLY the app container
-echo "[3/6] Building updated application image..."
-docker compose build app
+# Step 3: Rebuild ONLY the app container (pull latest security patches with no-cache)
+echo "[3/6] Building updated application image (pulling latest security patches)..."
+docker compose build --pull --no-cache app
 
 # Step 4: Recreate application container (db container is untouched)
 echo "[4/6] Restarting application container (--no-deps)..."
