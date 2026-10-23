@@ -468,8 +468,17 @@ function openStudentCustomFeeModal(studentId, studentName) {
             recalcCustomFeeModal();
             $('#studentCustomFeeModal').modal('show');
         },
-        error: function() {
-            alert('Failed to connect to fee server.');
+        error: function(xhr) {
+            let msg = 'Failed to connect to fee server.';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                msg = xhr.responseJSON.error;
+            } else if (xhr.responseText) {
+                try {
+                    let d = JSON.parse(xhr.responseText);
+                    if (d.error) msg = d.error;
+                } catch(e) {}
+            }
+            alert(msg);
         }
     });
 }

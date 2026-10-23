@@ -778,8 +778,10 @@ function loadCustomProfilesTable() {
 
             $('#customProfilesTableBody').html(html);
         },
-        error: function() {
-            $('#customProfilesTableBody').html('<tr><td colspan="7" class="text-center text-danger py-4">Server error while loading custom fee profiles.</td></tr>');
+        error: function(xhr) {
+            let msg = 'Server error while loading custom fee profiles.';
+            if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
+            $('#customProfilesTableBody').html('<tr><td colspan="7" class="text-center text-danger py-4">' + msg + '</td></tr>');
         }
     });
 }
@@ -839,8 +841,17 @@ function openStudentCustomFeeModal(studentId, studentName) {
             recalcCustomFeeModal();
             $('#studentCustomFeeModal').modal('show');
         },
-        error: function() {
-            alert('Failed to connect to fee server.');
+        error: function(xhr) {
+            let msg = 'Failed to connect to fee server.';
+            if (xhr.responseJSON && xhr.responseJSON.error) {
+                msg = xhr.responseJSON.error;
+            } else if (xhr.responseText) {
+                try {
+                    let d = JSON.parse(xhr.responseText);
+                    if (d.error) msg = d.error;
+                } catch(e) {}
+            }
+            alert(msg);
         }
     });
 }
