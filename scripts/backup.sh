@@ -19,3 +19,6 @@ cd "${PROJECT_DIR}"
 docker compose exec -T db mariadb-dump -u root -proot_secret --databases online_exam | gzip > "${BACKUP_FILE}"
 
 echo "==> Backup completed successfully ($(du -h "${BACKUP_FILE}" 2>/dev/null | cut -f1 || echo "OK"))"
+
+# Retain last 30 days of backups, prune older
+find "${BACKUP_DIR}" -name "backup_*.sql.gz" -type f -mtime +30 -delete 2>/dev/null || true
