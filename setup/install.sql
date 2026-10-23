@@ -132,35 +132,3 @@ INSERT INTO classes (name) VALUES ('8'), ('9'), ('10'), ('11'), ('12');
 
 INSERT INTO admins (username, password_hash) VALUES ('admin', '$2y$10$nBAT.IGTSIKfceyQYBxydefXK2W90KMUQ1U5Dy.xMP.E3BKwKc3V2');
 
-INSERT INTO students (full_name, email, class_id, board_id, username, password_hash, plain_password) VALUES
-('Rahul Sharma', 'rahul@example.com', 3, 2, 'rahul.10cbse101', '$2y$10$sxzVvSrHMYFtRA9l4G73A.6Sv7QNOJ0DoGm3c3lPGEd3DXNRtwCT6', 'Pass123'),
-('Priya Singh', 'priya@example.com', 3, 2, 'priya.10cbse102', '$2y$10$sxzVvSrHMYFtRA9l4G73A.6Sv7QNOJ0DoGm3c3lPGEd3DXNRtwCT6', 'Pass123'),
-('Amit Patel', 'amit@example.com', 3, 2, 'amit.10cbse103', '$2y$10$sxzVvSrHMYFtRA9l4G73A.6Sv7QNOJ0DoGm3c3lPGEd3DXNRtwCT6', 'Pass123'),
-('Sneha Roy', 'sneha@example.com', 3, 2, 'sneha.10cbse104', '$2y$10$sxzVvSrHMYFtRA9l4G73A.6Sv7QNOJ0DoGm3c3lPGEd3DXNRtwCT6', 'Pass123'),
-('Vikram Gupta', 'vikram@example.com', 3, 2, 'vikram.10cbse105', '$2y$10$sxzVvSrHMYFtRA9l4G73A.6Sv7QNOJ0DoGm3c3lPGEd3DXNRtwCT6', 'Pass123');
-
-INSERT INTO questions (class_id, board_id, question_text, option1, option2, option3, option4, correct_option) VALUES
-(3, 2, 'Which of the following is a non-metal that remains liquid at room temperature?', 'Phosphorus', 'Bromine', 'Chlorine', 'Helium', 2),
-(3, 2, 'The SI unit of electric current is:', 'Volt', 'Ohm', 'Ampere', 'Coulomb', 3),
-(3, 2, 'What is the chemical name of baking soda?', 'Sodium carbonate', 'Calcium carbonate', 'Sodium hydrogen carbonate', 'Calcium hydroxide', 3),
-(3, 2, 'A solution turns red litmus blue, its pH is likely to be:', '1', '4', '5', '10', 4),
-(3, 2, 'Which of the following gases is used for the storage of fresh sample of an oil for a long time?', 'Carbon dioxide or oxygen', 'Nitrogen or oxygen', 'Carbon dioxide or helium', 'Helium or nitrogen', 4),
-(3, 2, 'Which instrument is used to measure electric voltage?', 'Ammeter', 'Galvanometer', 'Voltmeter', 'Potentiometer', 3),
-(3, 2, 'An object is placed at a distance of 10 cm from a convex mirror of focal length 15 cm. Find the position of the image.', '6 cm behind the mirror', '10 cm behind the mirror', '6 cm in front of the mirror', '10 cm in front of the mirror', 1),
-(3, 2, 'The human eye forms the image of an object at its:', 'Cornea', 'Iris', 'Pupil', 'Retina', 4),
-(3, 2, 'The least distance of distinct vision for a young adult with normal vision is about:', '25 m', '2.5 cm', '25 cm', '2.5 m', 3),
-(3, 2, 'Which of the following is a plant hormone?', 'Insulin', 'Thyroxin', 'Oestrogen', 'Cytokinin', 4),
-(3, 2, 'The gap between two neurons is called a:', 'Dendrite', 'Synapse', 'Axon', 'Impulse', 2),
-(3, 2, 'In a food chain, the third trophic level is always occupied by:', 'Carnivores', 'Herbivores', 'Decomposers', 'Producers', 1),
-(3, 2, 'Which of the following is an example of a homologous organ?', 'Our arm and a dog''s fore-leg', 'Our teeth and an elephant''s tusks', 'Potato and runners of grass', 'All of the above', 4),
-(3, 2, 'The male reproductive parts of a flower are called:', 'Sepals', 'Petals', 'Stamens', 'Carpels', 3),
-(3, 2, 'An alloy of copper and zinc is called:', 'Bronze', 'Brass', 'Solder', 'Steel', 2);
-
-INSERT INTO exams (title, class_id, board_id, status, scheduled_date, scheduled_time, duration_minutes, published_at) VALUES
-('Class 10 CBSE Science Mock Test', 3, 2, 'published', DATE(DATE_ADD(NOW(), INTERVAL 2 HOUR)), TIME(DATE_ADD(NOW(), INTERVAL 2 HOUR)), 60, NOW());
-
-INSERT INTO exam_questions (exam_id, question_id, order_no)
-SELECT 1, id, id FROM questions WHERE class_id = 3 AND board_id = 2;
-
-INSERT INTO enrolments (exam_id, student_id)
-SELECT 1, id FROM students WHERE class_id = 3 AND board_id = 2;
