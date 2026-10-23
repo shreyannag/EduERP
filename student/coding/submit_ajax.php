@@ -27,6 +27,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 verify_csrf_token($_POST['csrf_token'] ?? '');
 
+// Anti-DDoS & resource exhaustion: rate limit code submissions per student session
+$last_sub = $_SESSION['last_coding_submit_time'] ?? 0;
+if (microtime(true) - $last_sub < 3.0) {
+    http_response_code(429);
+    echo json_encode(['success' => false, 'error' => 'Please wait at least 3 seconds between contest submissions.']);
+    exit;
+}
+$_SESSION['last_coding_submit_time'] = microtime(true);
+
 $student_id = (int)$_SESSION['student_id'];
 $problem_id = (int)($_POST['problem_id'] ?? 0);
 $competition_id = !empty($_POST['competition_id']) ? (int)$_POST['competition_id'] : null;

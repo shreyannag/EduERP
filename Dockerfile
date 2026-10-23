@@ -55,8 +55,11 @@ RUN sed -i 's/#LoadModule rewrite_module modules\/mod_rewrite.so/LoadModule rewr
 RUN echo "upload_max_filesize = 50M" >> /etc/php83/conf.d/custom.ini \
     && echo "post_max_size = 50M" >> /etc/php83/conf.d/custom.ini \
     && echo "memory_limit = 256M" >> /etc/php83/conf.d/custom.ini \
-    && echo "max_execution_time = 300" >> /etc/php83/conf.d/custom.ini \
+    && echo "max_execution_time = 60" >> /etc/php83/conf.d/custom.ini \
     && echo "date.timezone = Asia/Kolkata" >> /etc/php83/conf.d/custom.ini
+
+# Copy Apache Anti-DDoS and Security Hardening Configuration
+COPY docker/security_hardening.conf /etc/apache2/conf.d/security_hardening.conf
 
 # Set working directory
 WORKDIR /var/www/html

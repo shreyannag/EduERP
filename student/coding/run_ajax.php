@@ -27,6 +27,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 verify_csrf_token($_POST['csrf_token'] ?? '');
 
+// Anti-DDoS & resource exhaustion: rate limit code executions per student session
+$last_run = $_SESSION['last_coding_run_time'] ?? 0;
+if (microtime(true) - $last_run < 2.0) {
+    http_response_code(429);
+    echo json_encode(['success' => false, 'error' => 'Please wait a moment before running code again.']);
+    exit;
+}
+$_SESSION['last_coding_run_time'] = microtime(true);
+
 $student_id = (int)$_SESSION['student_id'];
 $problem_id = (int)($_POST['problem_id'] ?? 0);
 $language = strtolower(trim($_POST['language'] ?? ''));

@@ -158,6 +158,12 @@ function start_secure_session($session_name = 'ADMIN_SESSION') {
  * Safely retrieve client IP address
  */
 function get_client_ip() {
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) {
+        $cfIp = trim($_SERVER['HTTP_CF_CONNECTING_IP']);
+        if (filter_var($cfIp, FILTER_VALIDATE_IP)) {
+            return $cfIp;
+        }
+    }
     $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
     if (!filter_var($ip, FILTER_VALIDATE_IP)) {
         return '127.0.0.1';

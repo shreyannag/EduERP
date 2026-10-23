@@ -27,6 +27,7 @@ $admins = $stmtAdmins->fetchAll(PDO::FETCH_ASSOC);
 
 $current_admin_id = (int)$_SESSION['admin_id'];
 $csrf_token = generate_csrf_token();
+$currency = '₹';
 ?>
 
 <style>
