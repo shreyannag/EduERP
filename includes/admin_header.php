@@ -29,6 +29,26 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
 <head>
     <meta charset="UTF-8">
     <title>Admin Dashboard - Online Exam</title>
+    <!-- PWA Progressive Web App Manifest & Meta Tags -->
+    <link rel="manifest" href="<?php echo BASE_URL; ?>/manifest.json">
+    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>/assets/icons/favicon.png">
+    <link rel="apple-touch-icon" href="<?php echo BASE_URL; ?>/assets/icons/icon-192.png">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="EduERP">
+    <script src="<?php echo BASE_URL; ?>/assets/js/pwa.js" defer></script>
+    <!-- PWA Progressive Web App Manifest & Meta Tags -->
+    <link rel="manifest" href="<?php echo BASE_URL; ?>/manifest.json">
+    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>/assets/icons/favicon.png">
+    <link rel="apple-touch-icon" href="<?php echo BASE_URL; ?>/assets/icons/icon-192.png">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="EduERP">
+    <script src="<?php echo BASE_URL; ?>/assets/js/pwa.js" defer></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -250,6 +270,12 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             <?php endif; ?>
 
             <!-- Account & Security -->
+            <div class="drawer-category">Application</div>
+            <a href="javascript:void(0)" class="drawer-link text-warning pwa-install-btn font-weight-bold" style="display: none;" onclick="installEduERPApp()"><i class="fas fa-download text-warning"></i> Install EduERP to Device</a>
+
+            <div class="drawer-category">Application</div>
+            <a href="javascript:void(0)" class="drawer-link text-warning pwa-install-btn font-weight-bold" style="display: none;" onclick="installEduERPApp()"><i class="fas fa-download text-warning"></i> Install EduERP to Device</a>
+
             <div class="drawer-category">Account & Security</div>
             <a href="<?php echo BASE_URL; ?>/admin/settings.php" class="drawer-link"><i class="fas fa-cog text-primary"></i> Account Settings</a>
             <a href="<?php echo BASE_URL; ?>/admin/settings.php#password" class="drawer-link"><i class="fas fa-key text-warning"></i> Change Password</a>
@@ -257,7 +283,12 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             <a href="<?php echo BASE_URL; ?>/admin/messages.php?channel=admin" class="drawer-link"><i class="fas fa-comments text-info"></i> <?= is_super_admin() ? 'Admin Chat Network' : 'Support Chat' ?> <?php if ($unread_admin_msg_count > 0): ?><span class="badge badge-danger ml-auto"><?php echo $unread_admin_msg_count; ?></span><?php endif; ?></a>
         </div>
 
-        <ul class="navbar-nav ml-auto d-none d-md-flex">
+        <ul class="navbar-nav ml-auto d-none d-md-flex align-items-center">
+            <li class="nav-item mr-2">
+                <button type="button" class="btn btn-sm btn-outline-warning text-white font-weight-bold rounded-pill px-3 pwa-install-btn" style="display: none;" onclick="installEduERPApp()">
+                    <i class="fas fa-download mr-1"></i>Install App
+                </button>
+            </li>
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle font-weight-bold text-white px-3" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <i class="fas fa-user-circle mr-1"></i> <?php echo h($adminUser ?: 'Admin'); ?>

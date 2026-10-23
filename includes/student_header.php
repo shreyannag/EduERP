@@ -36,6 +36,26 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Portal - Online Examination Platform</title>
+    <!-- PWA Progressive Web App Manifest & Meta Tags -->
+    <link rel="manifest" href="<?php echo BASE_URL; ?>/manifest.json">
+    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>/assets/icons/favicon.png">
+    <link rel="apple-touch-icon" href="<?php echo BASE_URL; ?>/assets/icons/icon-192.png">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="EduERP">
+    <script src="<?php echo BASE_URL; ?>/assets/js/pwa.js" defer></script>
+    <!-- PWA Progressive Web App Manifest & Meta Tags -->
+    <link rel="manifest" href="<?php echo BASE_URL; ?>/manifest.json">
+    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>/assets/icons/favicon.png">
+    <link rel="apple-touch-icon" href="<?php echo BASE_URL; ?>/assets/icons/icon-192.png">
+    <meta name="theme-color" content="#1e3a8a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="EduERP">
+    <script src="<?php echo BASE_URL; ?>/assets/js/pwa.js" defer></script>
         <!-- Google Material Design Fonts & Symbols -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -211,6 +231,16 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
                         <i class="fas fa-university text-primary mr-1"></i> <?php echo h(!empty($current_student['institute_name']) ? $current_student['institute_name'] : 'Main Campus'); ?> • Class <?php echo h($current_student['class_name'] ?? ''); ?> • <?php echo h($current_student['board_name'] ?? ''); ?>
                     </span>
                 </li>
+                <li class="nav-item mr-2 d-none d-sm-block">
+                    <button type="button" class="btn btn-sm btn-warning text-dark font-weight-bold rounded-pill shadow-sm px-3 pwa-install-btn" style="display: none;" onclick="installEduERPApp()">
+                        <i class="fas fa-download mr-1"></i>Install App
+                    </button>
+                </li>
+                <li class="nav-item mr-2 d-none d-sm-block">
+                    <button type="button" class="btn btn-sm btn-warning text-dark font-weight-bold rounded-pill shadow-sm px-3 pwa-install-btn" style="display: none;" onclick="installEduERPApp()">
+                        <i class="fas fa-download mr-1"></i>Install App
+                    </button>
+                </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-white font-weight-bold d-flex align-items-center" href="#" id="studentDropdown" role="button" data-toggle="dropdown">
                         <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center mr-2 shadow-sm font-weight-bold" style="width:32px; height:32px; font-size:14px;">
@@ -226,6 +256,12 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
                         </div>
                         <a class="dropdown-item py-2 text-dark font-weight-bold" href="<?php echo BASE_URL; ?>/student/homework.php">
                             <i class="fas fa-book-reader mr-2 text-primary"></i>My Homework
+                        </a>
+                        <a class="dropdown-item py-2 text-warning font-weight-bold pwa-install-btn" style="display: none;" href="javascript:void(0)" onclick="installEduERPApp()">
+                            <i class="fas fa-download mr-2 text-warning"></i>Install App to Device
+                        </a>
+                        <a class="dropdown-item py-2 text-warning font-weight-bold pwa-install-btn" style="display: none;" href="javascript:void(0)" onclick="installEduERPApp()">
+                            <i class="fas fa-download mr-2 text-warning"></i>Install App to Device
                         </a>
                         <a class="dropdown-item py-2 text-dark font-weight-bold" href="<?php echo BASE_URL; ?>/student/fees.php">
                             <i class="fas fa-receipt mr-2 text-primary"></i>My Fees Ledger

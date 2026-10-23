@@ -1,0 +1,62 @@
+{
+  "name": "EduERP - Examination & Learning Platform",
+  "short_name": "EduERP",
+  "description": "Comprehensive Examination, Coding Platform & Student Learning Management System",
+  "id": "/?source=pwa",
+  "start_url": "/index.php",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "window-controls-overlay"
+  ],
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#1e3a8a",
+  "categories": [
+    "education",
+    "productivity"
+  ],
+  "icons": [
+    {
+      "src": "/assets/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/assets/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Student Login",
+      "short_name": "Student",
+      "description": "Access Student Dashboard and Active Examinations",
+      "url": "/student/login.php",
+      "icons": [
+        {
+          "src": "/assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Administrator Login",
+      "short_name": "Admin",
+      "description": "Manage Institute, Teachers, Batches and Exams",
+      "url": "/admin/login.php",
+      "icons": [
+        {
+          "src": "/assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
