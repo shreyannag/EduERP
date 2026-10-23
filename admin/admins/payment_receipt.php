@@ -125,27 +125,86 @@ $billingPeriod = ($monthNames[$payment['billing_month']] ?? "Month {$payment['bi
             </div>
 
             <!-- Line Items Table -->
+            <?php 
+            $breakdown = !empty($payment['itemized_breakdown']) ? json_decode($payment['itemized_breakdown'], true) : null;
+            $hasItemized = !empty($breakdown) && (!empty($breakdown['feature_breakdown']) || !empty($breakdown['students_total']) || !empty($breakdown['discount_amount']));
+            ?>
             <table class="table table-bordered mb-4">
                 <thead class="bg-light text-muted small text-uppercase">
                     <tr>
-                        <th class="py-2">Description</th>
+                        <th class="py-2">Description / Modular Subscription Items</th>
                         <th class="py-2 text-center">Billing Cycle</th>
                         <th class="py-2 text-center">Enrolled Students</th>
                         <th class="py-2 text-right">Amount</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td class="py-3">
-                            <strong><?= h($payment['plan_name']) ?></strong>
-                            <div class="text-muted small">Cloud hosting, question banking, AI authoring, and student examination portal</div>
-                        </td>
-                        <td class="py-3 text-center align-middle font-weight-bold"><?= h($billingPeriod) ?></td>
-                        <td class="py-3 text-center align-middle font-weight-bold"><?= (int)$payment['enrolled_students'] ?></td>
-                        <td class="py-3 text-right align-middle font-weight-bold text-success" style="font-size: 1.1rem;">
-                            <?= $settings['fee_currency_symbol'] ?><?= number_format($payment['amount_paid'], 2) ?>
-                        </td>
-                    </tr>
+                    <?php if ($hasItemized): ?>
+                        <?php if (!empty($breakdown['base_fee']) && $breakdown['base_fee'] > 0): ?>
+                        <tr>
+                            <td class="py-2">
+                                <strong>Base Platform Infrastructure & Server Hosting</strong>
+                                <div class="text-muted small">Multi-tenant server hosting, daily backups & security maintenance</div>
+                            </td>
+                            <td class="py-2 text-center align-middle font-weight-bold"><?= h($billingPeriod) ?></td>
+                            <td class="py-2 text-center align-middle font-weight-bold"><?= (int)$payment['enrolled_students'] ?></td>
+                            <td class="py-2 text-right align-middle font-weight-bold">
+                                <?= $settings['fee_currency_symbol'] ?><?= number_format($breakdown['base_fee'], 2) ?>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+
+                        <?php foreach ($breakdown['feature_breakdown'] as $fItem): ?>
+                        <tr>
+                            <td class="py-2">
+                                <strong><i class="<?= $fItem['feature_icon'] ?> text-primary mr-1"></i> <?= h($fItem['feature_label']) ?></strong>
+                                <div class="text-muted small">Specialized add-on module subscription</div>
+                            </td>
+                            <td class="py-2 text-center align-middle"><?= h($billingPeriod) ?></td>
+                            <td class="py-2 text-center align-middle">-</td>
+                            <td class="py-2 text-right align-middle font-weight-bold text-primary">
+                                <?= $settings['fee_currency_symbol'] ?><?= number_format($fItem['price'], 2) ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+
+                        <?php if (!empty($breakdown['students_total']) && $breakdown['students_total'] > 0): ?>
+                        <tr>
+                            <td class="py-2">
+                                <strong>Student Capacity Fee (Tier Pricing)</strong>
+                                <div class="text-muted small"><?= (int)$breakdown['enrolled_students'] ?> active students @ <?= $settings['fee_currency_symbol'] ?><?= number_format($breakdown['per_student_fee'], 2) ?>/student</div>
+                            </td>
+                            <td class="py-2 text-center align-middle"><?= h($billingPeriod) ?></td>
+                            <td class="py-2 text-center align-middle font-weight-bold"><?= (int)$payment['enrolled_students'] ?></td>
+                            <td class="py-2 text-right align-middle font-weight-bold">
+                                <?= $settings['fee_currency_symbol'] ?><?= number_format($breakdown['students_total'], 2) ?>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+
+                        <?php if (!empty($breakdown['discount_amount']) && $breakdown['discount_amount'] > 0): ?>
+                        <tr class="table-warning">
+                            <td class="py-2" colspan="3">
+                                <strong class="text-danger"><i class="fas fa-tag mr-1"></i> Promotional Discount / Concession</strong>
+                            </td>
+                            <td class="py-2 text-right align-middle font-weight-bold text-danger">
+                                -<?= $settings['fee_currency_symbol'] ?><?= number_format($breakdown['discount_amount'], 2) ?>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td class="py-3">
+                                <strong><?= h($payment['plan_name']) ?></strong>
+                                <div class="text-muted small">Cloud hosting, question banking, AI authoring, and student examination portal</div>
+                            </td>
+                            <td class="py-3 text-center align-middle font-weight-bold"><?= h($billingPeriod) ?></td>
+                            <td class="py-3 text-center align-middle font-weight-bold"><?= (int)$payment['enrolled_students'] ?></td>
+                            <td class="py-3 text-right align-middle font-weight-bold text-success" style="font-size: 1.1rem;">
+                                <?= $settings['fee_currency_symbol'] ?><?= number_format($payment['amount_paid'], 2) ?>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
                 </tbody>
                 <tfoot>
                     <tr class="bg-light">

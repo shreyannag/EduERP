@@ -116,6 +116,7 @@ if (!defined('ALL_ADMIN_FEATURES')) {
         'sub_admins'    => ['label' => 'Staff & Sub-Admins', 'icon' => 'fas fa-user-shield', 'desc' => 'Manage sub-admin accounts, teachers, accountants and permissions'],
         'payroll'       => ['label' => 'Payroll & Salaries', 'icon' => 'fas fa-money-check-alt', 'desc' => 'Process salary disbursements and view payroll history'],
         'homework'      => ['label' => 'Homework & Assignments', 'icon' => 'fas fa-book-reader', 'desc' => 'Assign homework with text, images, LaTeX, code snippets & due dates'],
+        'coding'        => ['label' => 'Online Coding & Competitions', 'icon' => 'fas fa-laptop-code', 'desc' => 'Online code editor, multi-language execution engine & coding competitions'],
         'image_storage' => ['label' => 'Image Storage & CDN', 'icon' => 'fas fa-images', 'desc' => 'Compressed image bank, WebP conversion & Cloudinary CDN'],
         'ai_settings'   => ['label' => 'AI Settings', 'icon' => 'fas fa-cogs', 'desc' => 'Configure OpenRouter API keys, model presets & temperature'],
     ]);

@@ -109,6 +109,30 @@ $ledger = $ledgerData['ledger'];
     </div>
 </div>
 
+<?php if (!empty($student['custom_fee_profile']['is_custom'])): ?>
+<!-- Custom Fee Concession / Scholarship Notice Banner -->
+<div class="card border-0 rounded-lg shadow-sm mb-4" style="background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%); border-left: 4px solid #10b981 !important;">
+    <div class="card-body p-3 p-md-4 d-flex align-items-center">
+        <div class="mr-3 text-success">
+            <span class="rounded-circle bg-success text-white d-inline-flex align-items-center justify-content-center" style="width: 44px; height: 44px; min-width: 44px;">
+                <i class="fas fa-award fa-lg"></i>
+            </span>
+        </div>
+        <div>
+            <h6 class="font-weight-bold text-success mb-1">
+                <i class="fas fa-check-circle mr-1"></i>Special Fee Concession / Scholarship Applied
+            </h6>
+            <div class="text-dark small">
+                Your monthly tuition is calculated under a customized fee structure: 
+                <strong class="text-dark"><?php echo h($student['custom_fee_profile']['discount_desc']); ?></strong>.
+                Standard Class Rate: <del class="text-muted"><?php echo h($currency) . number_format($student['custom_fee_profile']['base_fee'], 2); ?></del> 
+                &rarr; Effective Monthly: <span class="badge badge-success px-2 py-1 font-weight-bold" style="font-size: 0.85rem;"><?php echo h($currency) . number_format($student['custom_fee_profile']['effective_fee'], 2); ?></span>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Stat KPI Cards -->
 <div class="row mb-4">
     <div class="col-6 col-lg-3 mb-3 mb-lg-0">
@@ -118,9 +142,16 @@ $ledger = $ledgerData['ledger'];
                     <div>
                         <span class="text-muted small font-weight-bold text-uppercase">Monthly Fee</span>
                         <h3 class="font-weight-bold text-dark mb-0 mt-1">
+                            <?php if (!empty($student['custom_fee_profile']['is_custom']) && $student['custom_fee_profile']['base_fee'] != $ledgerData['monthly_rate']): ?>
+                                <small class="text-muted text-decoration-line-through mr-1" style="font-size: 0.65em; text-decoration: line-through;"><?php echo $currency . number_format($student['custom_fee_profile']['base_fee'], 0); ?></small>
+                            <?php endif; ?>
                             <?php echo $currency . number_format($ledgerData['monthly_rate'], 0); ?>
                         </h3>
-                        <small class="text-muted">Class <?php echo h($student['class_name']); ?></small>
+                        <?php if (!empty($student['custom_fee_profile']['is_custom'])): ?>
+                            <small class="text-success font-weight-bold"><i class="fas fa-tag mr-1"></i>Custom Concession</small>
+                        <?php else: ?>
+                            <small class="text-muted">Class <?php echo h($student['class_name']); ?></small>
+                        <?php endif; ?>
                     </div>
                     <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-sm" style="width:44px; height:44px;">
                         <i class="fas fa-money-bill-wave"></i>

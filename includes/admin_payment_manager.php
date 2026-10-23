@@ -35,6 +35,146 @@ function get_admin_billing_settings($pdo) {
 }
 
 /**
+ * Retrieve custom billing profile for an institute admin if configured
+ */
+function get_admin_billing_profile($admin_id, $pdo = null) {
+    if (!$pdo) {
+        $pdo = require __DIR__ . '/../config/db.php';
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM admin_billing_profiles WHERE admin_id = ?");
+        $stmt->execute([$admin_id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($row) {
+            $row['feature_prices'] = !empty($row['feature_prices']) ? json_decode($row['feature_prices'], true) : [];
+            return $row;
+        }
+        return null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * Save or update custom billing profile for an institute admin
+ */
+function save_admin_billing_profile($admin_id, array $data, $pdo = null) {
+    if (!$pdo) {
+        $pdo = require __DIR__ . '/../config/db.php';
+    }
+
+    $model = $data['billing_model'] ?? 'standard';
+    $baseFee = (float)($data['base_monthly_fee'] ?? 1500.00);
+    $perStudent = (float)($data['per_student_fee'] ?? 0.00);
+    $featurePrices = !empty($data['feature_prices']) ? (is_array($data['feature_prices']) ? json_encode($data['feature_prices']) : $data['feature_prices']) : json_encode([]);
+    $discount = (float)($data['discount_amount'] ?? 0.00);
+    $dueDay = min(28, max(1, (int)($data['billing_due_day'] ?? 10)));
+    $notes = trim($data['notes'] ?? '');
+
+    $stmt = $pdo->prepare("
+        INSERT INTO admin_billing_profiles 
+        (admin_id, billing_model, base_monthly_fee, per_student_fee, feature_prices, discount_amount, billing_due_day, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+            billing_model = VALUES(billing_model),
+            base_monthly_fee = VALUES(base_monthly_fee),
+            per_student_fee = VALUES(per_student_fee),
+            feature_prices = VALUES(feature_prices),
+            discount_amount = VALUES(discount_amount),
+            billing_due_day = VALUES(billing_due_day),
+            notes = VALUES(notes),
+            updated_at = NOW()
+    ");
+    return $stmt->execute([$admin_id, $model, $baseFee, $perStudent, $featurePrices, $discount, $dueDay, $notes]);
+}
+
+/**
+ * Calculates complete itemized billing breakdown for an administrator for a month/year
+ */
+function calculate_admin_monthly_billing($admin_id, $month = null, $year = null, $pdo = null) {
+    if (!$pdo) {
+        $pdo = require __DIR__ . '/../config/db.php';
+    }
+
+    $settings = get_admin_billing_settings($pdo);
+    $profile = get_admin_billing_profile($admin_id, $pdo);
+
+    // Active students count under this admin
+    $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM students WHERE admin_id = ? AND is_active = 1");
+    $stmtCount->execute([$admin_id]);
+    $studentCount = (int)$stmtCount->fetchColumn();
+
+    // Admin features
+    $stmtAdm = $pdo->prepare("SELECT features, institute_name FROM admins WHERE id = ?");
+    $stmtAdm->execute([$admin_id]);
+    $adm = $stmtAdm->fetch(PDO::FETCH_ASSOC);
+    $enabledFeatures = !empty($adm['features']) ? json_decode($adm['features'], true) : [];
+    if (!is_array($enabledFeatures)) {
+        $enabledFeatures = [];
+    }
+
+    $allFeaturesMeta = defined('ALL_ADMIN_FEATURES') ? ALL_ADMIN_FEATURES : [];
+
+    $model = $profile['billing_model'] ?? 'standard';
+    $baseFee = (float)($profile ? $profile['base_monthly_fee'] : $settings['admin_default_monthly_fee']);
+    $perStudentFee = (float)($profile ? $profile['per_student_fee'] : 0.00);
+    $featurePrices = !empty($profile['feature_prices']) && is_array($profile['feature_prices']) ? $profile['feature_prices'] : [];
+    $discount = (float)($profile ? $profile['discount_amount'] : 0.00);
+    $dueDay = (int)($profile ? $profile['billing_due_day'] : $settings['admin_payment_due_day']);
+
+    $featureItems = [];
+    $featuresTotal = 0.00;
+
+    foreach ($featurePrices as $featKey => $price) {
+        $p = (float)$price;
+        if ($p > 0 && in_array($featKey, $enabledFeatures, true)) {
+            $meta = $allFeaturesMeta[$featKey] ?? ['label' => ucfirst(str_replace('_', ' ', $featKey)), 'icon' => 'fas fa-cube'];
+            $featureItems[] = [
+                'feature_key'   => $featKey,
+                'feature_label' => $meta['label'],
+                'feature_icon'  => $meta['icon'],
+                'price'         => $p
+            ];
+            $featuresTotal += $p;
+        }
+    }
+
+    $studentsTotal = $studentCount * $perStudentFee;
+
+    switch ($model) {
+        case 'custom_fixed':
+            $totalDue = $baseFee - $discount;
+            break;
+        case 'per_feature':
+            $totalDue = $featuresTotal - $discount;
+            break;
+        case 'hybrid':
+            $totalDue = $baseFee + $studentsTotal + $featuresTotal - $discount;
+            break;
+        case 'standard':
+        default:
+            $totalDue = $baseFee;
+            break;
+    }
+
+    $totalDue = max(0.00, $totalDue);
+
+    return [
+        'amount_due'         => $totalDue,
+        'billing_model'      => $model,
+        'base_fee'           => $baseFee,
+        'per_student_fee'    => $perStudentFee,
+        'enrolled_students'  => $studentCount,
+        'students_total'     => $studentsTotal,
+        'features_total'     => $featuresTotal,
+        'feature_breakdown'  => $featureItems,
+        'discount_amount'    => $discount,
+        'billing_due_day'    => $dueDay,
+        'profile'            => $profile
+    ];
+}
+
+/**
  * Get or automatically create a billing record for an administrator for a given month/year
  */
 function get_or_create_admin_billing($admin_id, $month = null, $year = null, $pdo = null) {
@@ -91,40 +231,46 @@ function get_or_create_admin_billing($admin_id, $month = null, $year = null, $pd
     $stmt->execute([$admin_id, $month, $year]);
     $record = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    $dueDay = min(28, max(1, (int)$settings['admin_payment_due_day']));
+    $calculated = calculate_admin_monthly_billing($admin_id, $month, $year, $pdo);
+    $amountDue = (float)$calculated['amount_due'];
+    $breakdownJson = json_encode($calculated);
+
+    $dueDay = min(28, max(1, (int)$calculated['billing_due_day']));
     $dueDate = sprintf('%04d-%02d-%02d', $year, $month, $dueDay);
     $today = date('Y-m-d');
 
     if (!$record) {
-        // Auto-create initial billing record
-        $defaultFee = (float)$settings['admin_default_monthly_fee'];
         $status = ($today > $dueDate) ? 'overdue' : 'pending';
+        $planName = ($calculated['billing_model'] === 'standard') 
+            ? 'Institute Platform Subscription' 
+            : 'Custom Institute Plan (' . ucfirst(str_replace('_', ' ', $calculated['billing_model'])) . ')';
 
         $stmtIns = $pdo->prepare("
             INSERT INTO admin_payments 
-            (admin_id, billing_month, billing_year, enrolled_students, plan_name, amount_due, amount_paid, status, due_date)
-            VALUES (?, ?, ?, ?, 'Institute Platform Subscription', ?, 0.00, ?, ?)
+            (admin_id, billing_month, billing_year, enrolled_students, plan_name, amount_due, amount_paid, status, due_date, itemized_breakdown)
+            VALUES (?, ?, ?, ?, ?, ?, 0.00, ?, ?, ?)
         ");
-        $stmtIns->execute([$admin_id, $month, $year, $totalStudents, $defaultFee, $status, $dueDate]);
+        $stmtIns->execute([$admin_id, $month, $year, $totalStudents, $planName, $amountDue, $status, $dueDate, $breakdownJson]);
 
         $record = [
-            'id'                => (int)$pdo->lastInsertId(),
-            'admin_id'          => $admin_id,
-            'billing_month'     => $month,
-            'billing_year'      => $year,
-            'enrolled_students' => $totalStudents,
-            'plan_name'         => 'Institute Platform Subscription',
-            'amount_due'        => $defaultFee,
-            'amount_paid'       => 0.00,
-            'status'            => $status,
-            'due_date'          => $dueDate,
-            'payment_date'      => null,
-            'payment_method'    => 'UPI',
-            'transaction_ref'   => null,
-            'receipt_number'    => null,
-            'reminder_sent_at'  => null,
-            'reminder_count'    => 0,
-            'notes'             => null
+            'id'                 => (int)$pdo->lastInsertId(),
+            'admin_id'           => $admin_id,
+            'billing_month'      => $month,
+            'billing_year'       => $year,
+            'enrolled_students'  => $totalStudents,
+            'plan_name'          => $planName,
+            'amount_due'         => $amountDue,
+            'amount_paid'        => 0.00,
+            'status'             => $status,
+            'due_date'           => $dueDate,
+            'payment_date'       => null,
+            'payment_method'     => 'UPI',
+            'transaction_ref'    => null,
+            'receipt_number'     => null,
+            'reminder_sent_at'   => null,
+            'reminder_count'     => 0,
+            'notes'              => null,
+            'itemized_breakdown' => $breakdownJson
         ];
     } else {
         // Always sync latest enrolled student count
@@ -134,14 +280,14 @@ function get_or_create_admin_billing($admin_id, $month = null, $year = null, $pd
             $record['enrolled_students'] = $totalStudents;
         }
 
-        // If pending/overdue, check for overdue transition
+        // If unpaid, sync dynamic custom billing calculation and overdue status
         if ($record['status'] !== 'paid') {
             $newStatus = ($today > $record['due_date']) ? 'overdue' : 'pending';
-            if ($newStatus !== $record['status']) {
-                $stmtUp = $pdo->prepare("UPDATE admin_payments SET status = ? WHERE id = ?");
-                $stmtUp->execute([$newStatus, $record['id']]);
-                $record['status'] = $newStatus;
-            }
+            $stmtUp = $pdo->prepare("UPDATE admin_payments SET amount_due = ?, itemized_breakdown = ?, status = ? WHERE id = ?");
+            $stmtUp->execute([$amountDue, $breakdownJson, $newStatus, $record['id']]);
+            $record['amount_due'] = $amountDue;
+            $record['itemized_breakdown'] = $breakdownJson;
+            $record['status'] = $newStatus;
         }
     }
 

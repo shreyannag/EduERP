@@ -6,7 +6,8 @@ require_once __DIR__ . '/../../includes/student_header.php';
 require_once __DIR__ . '/../../includes/coding_engine.php';
 
 $student_id = (int)$_SESSION['student_id'];
-$is_platform_enabled = is_coding_platform_enabled($pdo);
+$student_admin_id = !empty($current_student['admin_id']) ? (int)$current_student['admin_id'] : 1;
+$is_platform_enabled = is_coding_platform_enabled($pdo, $student_admin_id);
 
 if (!$is_platform_enabled) {
     echo "<div class='container my-5 alert alert-warning text-center'>Online Coding Platform is currently disabled by administration. <a href='" . BASE_URL . "/student/dashboard.php'>Return to Dashboard</a></div>";

@@ -9,9 +9,13 @@ require_once __DIR__ . '/../../includes/coding_engine.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!is_coding_platform_enabled($pdo)) {
+$stmtAdmin = $pdo->prepare("SELECT admin_id FROM students WHERE id = ?");
+$stmtAdmin->execute([$_SESSION['student_id']]);
+$student_admin_id = (int)$stmtAdmin->fetchColumn() ?: 1;
+
+if (!is_coding_platform_enabled($pdo, $student_admin_id)) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'error' => 'The Online Coding Platform is currently disabled by administration.']);
+    echo json_encode(['success' => false, 'error' => 'The Online Coding Platform is currently disabled for your institute.']);
     exit;
 }
 

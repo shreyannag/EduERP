@@ -191,8 +191,8 @@ function admin_has_feature(string $feature): bool {
     if (is_super_admin()) {
         return true;
     }
-    // Teachers inherently have access to batches, homework, and coding
-    if (($feature === 'batches' || $feature === 'homework' || $feature === 'coding') && is_teacher()) {
+    // Teachers inherently have access to batches and homework
+    if (($feature === 'batches' || $feature === 'homework') && is_teacher()) {
         return true;
     }
     // Accountants inherently have access to fees and payroll

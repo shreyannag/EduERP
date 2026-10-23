@@ -78,6 +78,163 @@ function save_class_monthly_fee($class_id, $amount, $pdo) {
 }
 
 /**
+ * Retrieve custom fee profile for a student if one exists.
+ */
+function get_student_custom_fee_profile($student_id, $pdo = null) {
+    if (!$pdo) {
+        $pdo = require __DIR__ . '/../config/db.php';
+    }
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM student_custom_fee_profiles WHERE student_id = ? AND is_active = 1");
+        $stmt->execute([$student_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (\Throwable $e) {
+        return null;
+    }
+}
+
+/**
+ * Calculates effective monthly fee for a student (accounting for custom fee profiles, scholarships, concessions).
+ */
+function get_student_effective_monthly_fee($student_id, $class_id = null, $month = null, $year = null, $pdo = null) {
+    if (!$pdo) {
+        $pdo = require __DIR__ . '/../config/db.php';
+    }
+
+    if ($class_id === null) {
+        $stmtC = $pdo->prepare("SELECT class_id FROM students WHERE id = ?");
+        $stmtC->execute([$student_id]);
+        $class_id = (int)$stmtC->fetchColumn();
+    }
+
+    $standardFee = get_class_monthly_fee($class_id, $pdo);
+    $profile = get_student_custom_fee_profile($student_id, $pdo);
+
+    if (!$profile) {
+        return [
+            'base_fee'       => $standardFee,
+            'effective_fee'  => $standardFee,
+            'is_custom'      => false,
+            'profile_type'   => 'standard',
+            'discount_desc'  => null,
+            'profile'        => null
+        ];
+    }
+
+    // Check date range if specified
+    if ($month !== null && $year !== null) {
+        $targetDate = sprintf('%04d-%02d-01', (int)$year, (int)$month);
+        if (!empty($profile['start_date']) && $targetDate < date('Y-m-01', strtotime($profile['start_date']))) {
+            return [
+                'base_fee'       => $standardFee,
+                'effective_fee'  => $standardFee,
+                'is_custom'      => false,
+                'profile_type'   => 'standard',
+                'discount_desc'  => null,
+                'profile'        => null
+            ];
+        }
+        if (!empty($profile['end_date']) && $targetDate > date('Y-m-01', strtotime($profile['end_date']))) {
+            return [
+                'base_fee'       => $standardFee,
+                'effective_fee'  => $standardFee,
+                'is_custom'      => false,
+                'profile_type'   => 'standard',
+                'discount_desc'  => null,
+                'profile'        => null
+            ];
+        }
+    }
+
+    $type = $profile['profile_type'] ?? 'fixed_amount';
+    $customAmount = (float)($profile['custom_amount'] ?? 0);
+    $discountPct = (float)($profile['discount_percent'] ?? 0);
+    $extraCharges = (float)($profile['additional_charges'] ?? 0);
+    $effective = $standardFee;
+    $desc = '';
+
+    switch ($type) {
+        case 'full_scholarship':
+            $effective = 0.00;
+            $desc = '100% Full Scholarship / Fee Exemption';
+            break;
+        case 'fixed_amount':
+            $effective = max(0.00, $customAmount + $extraCharges);
+            $desc = 'Special Negotiated Fixed Rate';
+            break;
+        case 'discount_percent':
+            $discountVal = ($standardFee * $discountPct) / 100.0;
+            $effective = max(0.00, ($standardFee - $discountVal) + $extraCharges);
+            $desc = number_format($discountPct, 0) . '% Special Concession';
+            break;
+        case 'discount_amount':
+            $effective = max(0.00, ($standardFee - $customAmount) + $extraCharges);
+            $desc = 'Flat Concession of ₹' . number_format($customAmount, 2);
+            break;
+        default:
+            $effective = $standardFee;
+            break;
+    }
+
+    if (!empty($profile['reason'])) {
+        $desc .= ' (' . $profile['reason'] . ')';
+    }
+
+    return [
+        'base_fee'       => $standardFee,
+        'effective_fee'  => $effective,
+        'is_custom'      => true,
+        'profile_type'   => $type,
+        'discount_desc'  => $desc,
+        'profile'        => $profile
+    ];
+}
+
+function save_student_custom_fee_profile($student_id, array $data, $pdo = null) {
+    if (!$pdo) {
+        $pdo = require __DIR__ . '/../config/db.php';
+    }
+
+    $profileType = $data['profile_type'] ?? 'fixed_amount';
+    $customAmount = (float)($data['custom_amount'] ?? 0);
+    $discountPct = (float)($data['discount_percent'] ?? 0);
+    $additionalCharges = (float)($data['additional_charges'] ?? 0);
+    $reason = trim($data['reason'] ?? '');
+    $startDate = !empty($data['start_date']) ? $data['start_date'] : null;
+    $endDate = !empty($data['end_date']) ? $data['end_date'] : null;
+    $isActive = isset($data['is_active']) ? (int)$data['is_active'] : 1;
+    $createdBy = !empty($data['created_by']) ? (int)$data['created_by'] : null;
+
+    $stmt = $pdo->prepare("
+        INSERT INTO student_custom_fee_profiles 
+        (student_id, profile_type, custom_amount, discount_percent, additional_charges, reason, start_date, end_date, is_active, created_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+            profile_type = VALUES(profile_type),
+            custom_amount = VALUES(custom_amount),
+            discount_percent = VALUES(discount_percent),
+            additional_charges = VALUES(additional_charges),
+            reason = VALUES(reason),
+            start_date = VALUES(start_date),
+            end_date = VALUES(end_date),
+            is_active = VALUES(is_active),
+            updated_at = NOW()
+    ");
+    return $stmt->execute([
+        $student_id, $profileType, $customAmount, $discountPct, $additionalCharges,
+        $reason, $startDate, $endDate, $isActive, $createdBy
+    ]);
+}
+
+function delete_student_custom_fee_profile($student_id, $pdo = null) {
+    if (!$pdo) {
+        $pdo = require __DIR__ . '/../config/db.php';
+    }
+    $stmt = $pdo->prepare("DELETE FROM student_custom_fee_profiles WHERE student_id = ?");
+    return $stmt->execute([$student_id]);
+}
+
+/**
  * Generate a unique receipt number: e.g. REC-202610-0012-7A9B
  */
 function generate_fee_receipt_number($student_id, $year, $month) {
@@ -112,7 +269,9 @@ function get_student_fee_ledger($student_id, $year = null, $pdo = null) {
         return null;
     }
 
-    $monthlyRate = get_class_monthly_fee($student['class_id'], $pdo);
+    $feeInfo = get_student_effective_monthly_fee($student_id, $student['class_id'], null, $year, $pdo);
+    $monthlyRate = $feeInfo['effective_fee'];
+    $student['custom_fee_profile'] = $feeInfo;
 
     // Fetch all recorded payments for this student in this year
     $stmtPayments = $pdo->prepare("
@@ -149,7 +308,8 @@ function get_student_fee_ledger($student_id, $year = null, $pdo = null) {
         // Is this month in the past/present relative to current date?
         $isPastOrCurrent = ($year < $currentYear) || ($year === $currentYear && $mNum <= $currentMonth);
 
-        $monthDue = $monthlyRate;
+        $mFeeInfo = get_student_effective_monthly_fee($student_id, $student['class_id'], $mNum, $year, $pdo);
+        $monthDue = $mFeeInfo['effective_fee'];
         $monthPaid = 0.00;
         $status = 'unpaid';
         $payDate = null;

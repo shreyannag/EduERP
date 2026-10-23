@@ -101,6 +101,7 @@ $csrf_token = generate_csrf_token();
         </p>
     </div>
     <div class="mt-3 mt-md-0 d-flex flex-wrap" style="gap: 10px;">
+        <a href="<?php echo BASE_URL; ?>/admin/admins/register_institute.php" class="btn btn-primary font-weight-bold shadow-sm rounded-pill px-3 mr-2"><i class="fas fa-university mr-2"></i>Onboard New Institute</a>
         <a href="<?php echo BASE_URL; ?>/admin/admins/billing.php" class="btn btn-outline-success font-weight-bold shadow-sm rounded-pill px-3">
             <i class="fas fa-file-invoice-dollar mr-2"></i>Tenant Billing & Payments
         </a>
@@ -361,6 +362,11 @@ $csrf_token = generate_csrf_token();
                                            title="View Subscriptions & Billing Records">
                                             <i class="fas fa-file-invoice-dollar mr-1"></i> Billing
                                         </a>
+                                        <button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-2 font-weight-bold shadow-xs" 
+                                                title="Configure Custom Pricing & Per-Feature Billing"
+                                                onclick='openBillingProfileModal(<?= $adm['id'] ?>, <?= $username_json_attr ?>, <?= json_encode($adm['institute_name']) ?>)'>
+                                            <i class="fas fa-tags mr-1"></i> Pricing
+                                        </button>
                                         <?php if (isset($bStatus) && $bStatus !== 'paid'): ?>
                                             <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 font-weight-bold shadow-xs" 
                                                     title="Send delayed payment reminder email to this admin"
@@ -701,6 +707,99 @@ $csrf_token = generate_csrf_token();
             <div class="modal-footer bg-light py-2 px-4">
                 <button type="button" class="btn btn-secondary btn-sm font-weight-bold rounded-pill px-3" data-dismiss="modal">Close</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- ================= MODAL: CONFIGURE CUSTOM PRICING & PER-FEATURE BILLING ================= -->
+<div class="modal fade" id="configurePricingModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg rounded-lg">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h5 class="modal-title font-weight-bold">
+                    <i class="fas fa-tags text-warning mr-2"></i>Configure Institute Pricing & Billing - <span id="modalInstituteName" class="text-warning"></span>
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            </div>
+            <form id="billingProfileForm" onsubmit="saveBillingProfile(event)">
+                <input type="hidden" name="csrf_token" value="<?= $csrf_token ?>">
+                <input type="hidden" name="admin_id" id="modalAdminId" value="">
+
+                <div class="modal-body p-4">
+                    <div id="modalBillingAlert"></div>
+
+                    <div class="alert alert-info border-0 shadow-xs rounded-lg p-3 mb-4 d-flex align-items-center">
+                        <i class="fas fa-info-circle fa-2x mr-3 text-primary"></i>
+                        <div class="small">
+                            Define custom subscription rates, per-feature add-on prices, or per-student fees for <strong><span id="modalAdminUsername"></span></strong>. Changes take effect immediately on current and future monthly invoices.
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-4">
+                        <label class="font-weight-bold text-dark small text-uppercase">Billing Calculation Model</label>
+                        <select name="billing_model" id="modalBillingModel" class="form-control custom-select" onchange="recalcModalPricing()">
+                            <option value="standard">Standard Global Flat Subscription (<?= $currency ?>1,500/mo)</option>
+                            <option value="custom_fixed">Custom Negotiated Fixed Monthly Fee</option>
+                            <option value="per_feature">Per-Feature Based Pricing (Billed solely for enabled modules)</option>
+                            <option value="hybrid">Hybrid (Base Fee + Feature Add-ons + Per-Student Tier)</option>
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3" id="modalBaseFeeGroup">
+                            <label class="font-weight-bold text-dark small text-uppercase">Base Monthly Fee (<?= $currency ?>)</label>
+                            <input type="number" step="0.01" min="0" name="base_monthly_fee" id="modalBaseFee" class="form-control font-weight-bold" value="1500.00" oninput="recalcModalPricing()">
+                        </div>
+                        <div class="col-md-4 mb-3" id="modalPerStudentGroup">
+                            <label class="font-weight-bold text-dark small text-uppercase">Per Student Fee (<?= $currency ?>)</label>
+                            <input type="number" step="0.01" min="0" name="per_student_fee" id="modalPerStudent" class="form-control font-weight-bold" value="0.00" oninput="recalcModalPricing()">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="font-weight-bold text-dark small text-uppercase">Monthly Payment Due Day</label>
+                            <input type="number" min="1" max="28" name="billing_due_day" id="modalDueDay" class="form-control font-weight-bold" value="10">
+                            <small class="text-muted">Day of month (1-28).</small>
+                        </div>
+                    </div>
+
+                    <!-- Per-Feature Price Configuration -->
+                    <div id="modalFeaturePricingSection" class="p-3 bg-light rounded border mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="font-weight-bold text-dark small text-uppercase">
+                                <i class="fas fa-tags text-primary mr-1"></i> Per-Feature Monthly Add-On Prices
+                            </span>
+                            <small class="text-muted">Only applies to features currently enabled for this tenant.</small>
+                        </div>
+                        <div class="row" id="modalFeaturePricesContainer">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold text-dark small text-uppercase">Monthly Discount / Concession (<?= $currency ?>)</label>
+                            <input type="number" step="0.01" min="0" name="discount_amount" id="modalDiscount" class="form-control font-weight-bold text-danger" value="0.00" oninput="recalcModalPricing()">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold text-dark small text-uppercase">Special Billing Notes / Terms</label>
+                            <input type="text" name="notes" id="modalNotes" class="form-control" placeholder="e.g. Sibling discount, first quarter promo">
+                        </div>
+                    </div>
+
+                    <!-- Live Calculation Card -->
+                    <div class="card border-primary bg-primary bg-opacity-10 shadow-xs rounded-lg p-3 text-center">
+                        <span class="small font-weight-bold text-primary text-uppercase">Projected Monthly Total Due</span>
+                        <h2 class="font-weight-bold text-dark mb-0 mt-1" id="modalProjectedTotal"><?= $currency ?>1,500.00</h2>
+                        <div class="small text-muted mt-1" id="modalProjectedBreakdown">Base: <?= $currency ?>1,500.00</div>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-3 px-4">
+                    <button type="button" class="btn btn-secondary font-weight-bold rounded-pill px-4" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary font-weight-bold rounded-pill px-4" id="saveBillingBtn">
+                        <i class="fas fa-save mr-1"></i> Save Pricing Profile
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -1347,6 +1446,164 @@ function quickSendReminder(adminId, username, enrolledStudents, amountDue, delay
                 if (j.error) err = j.error;
             } catch(e) {}
             alert(err);
+        }
+    });
+}
+
+// Open Billing Profile Modal
+function openBillingProfileModal(adminId, username, instituteName) {
+    $('#modalAdminId').val(adminId);
+    $('#modalAdminUsername').text(username);
+    $('#modalInstituteName').text(instituteName || username);
+    $('#modalBillingAlert').empty();
+
+    $.ajax({
+        url: 'get_billing_profile_ajax.php',
+        type: 'GET',
+        data: { admin_id: adminId },
+        dataType: 'json',
+        success: function(res) {
+            if (!res.success) {
+                alert(res.error || 'Failed to fetch billing profile.');
+                return;
+            }
+
+            const p = res.profile || {};
+            const calc = res.calculation || {};
+            const settings = res.settings || {};
+            const enabledFeats = res.enabled_features || [];
+            const allFeats = res.all_features || {};
+
+            $('#modalBillingModel').val(p.billing_model || 'standard');
+            $('#modalBaseFee').val(p.base_monthly_fee !== undefined ? p.base_monthly_fee : (settings.admin_default_monthly_fee || '1500.00'));
+            $('#modalPerStudent').val(p.per_student_fee !== undefined ? p.per_student_fee : '0.00');
+            $('#modalDueDay').val(p.billing_due_day !== undefined ? p.billing_due_day : (settings.admin_payment_due_day || 10));
+            $('#modalDiscount').val(p.discount_amount !== undefined ? p.discount_amount : '0.00');
+            $('#modalNotes').val(p.notes || '');
+
+            // Build feature inputs
+            let featHtml = '';
+            const featPrices = p.feature_prices || {};
+            
+            // Standard recommended add-on defaults if not yet customized
+            const defaults = { coding: '500.00', ai_generation: '300.00', homework: '200.00', messages: '100.00' };
+
+            for (const [k, meta] of Object.entries(allFeats)) {
+                const isEnabled = enabledFeats.includes(k);
+                const currentVal = featPrices[k] !== undefined ? featPrices[k] : (defaults[k] || '0.00');
+
+                featHtml += `
+                    <div class="col-md-6 mb-2">
+                        <div class="input-group input-group-sm">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text font-weight-bold bg-white ${!isEnabled ? 'text-muted' : ''}">
+                                    <i class="${meta.icon} text-primary mr-1"></i> ${meta.label}
+                                    ${!isEnabled ? ' <small class="text-danger ml-1">(Off)</small>' : ''}
+                                </span>
+                            </div>
+                            <input type="number" step="0.01" min="0" name="feature_prices[${k}]" 
+                                   class="form-control text-right modal-feat-price font-weight-bold" 
+                                   data-feat="${k}" data-enabled="${isEnabled ? '1' : '0'}"
+                                   value="${currentVal}" placeholder="0.00" oninput="recalcModalPricing()">
+                        </div>
+                    </div>
+                `;
+            }
+
+            $('#modalFeaturePricesContainer').html(featHtml);
+            recalcModalPricing();
+            $('#configurePricingModal').modal('show');
+        },
+        error: function() {
+            alert('Unable to load billing profile from server.');
+        }
+    });
+}
+
+function recalcModalPricing() {
+    const model = $('#modalBillingModel').val();
+    const baseGroup = $('#modalBaseFeeGroup');
+    const studentGroup = $('#modalPerStudentGroup');
+    const featSection = $('#modalFeaturePricingSection');
+
+    let base = parseFloat($('#modalBaseFee').val()) || 0;
+    let perStudent = parseFloat($('#modalPerStudent').val()) || 0;
+    let discount = parseFloat($('#modalDiscount').val()) || 0;
+
+    if (model === 'standard') {
+        baseGroup.show();
+        studentGroup.hide();
+        featSection.hide();
+    } else if (model === 'custom_fixed') {
+        baseGroup.show();
+        studentGroup.hide();
+        featSection.hide();
+    } else if (model === 'per_feature') {
+        baseGroup.hide();
+        studentGroup.hide();
+        featSection.show();
+    } else { // hybrid
+        baseGroup.show();
+        studentGroup.show();
+        featSection.show();
+    }
+
+    let featureTotal = 0;
+    if (model === 'per_feature' || model === 'hybrid') {
+        $('.modal-feat-price').each(function() {
+            const isEnabled = $(this).data('enabled') === '1' || $(this).data('enabled') === 1;
+            if (isEnabled) {
+                featureTotal += (parseFloat($(this).val()) || 0);
+            }
+        });
+    }
+
+    let total = 0;
+    let bText = '';
+    const curr = '₹';
+
+    if (model === 'standard') {
+        total = base;
+        bText = 'Standard Flat Fee: ' + curr + base.toFixed(2);
+    } else if (model === 'custom_fixed') {
+        total = Math.max(0, base - discount);
+        bText = 'Fixed Rate: ' + curr + base.toFixed(2) + (discount > 0 ? ' - Discount: ' + curr + discount.toFixed(2) : '');
+    } else if (model === 'per_feature') {
+        total = Math.max(0, featureTotal - discount);
+        bText = 'Feature Add-ons: ' + curr + featureTotal.toFixed(2) + (discount > 0 ? ' - Discount: ' + curr + discount.toFixed(2) : '');
+    } else { // hybrid
+        total = Math.max(0, base + featureTotal - discount);
+        bText = 'Base: ' + curr + base.toFixed(2) + ' + Features: ' + curr + featureTotal.toFixed(2) + (discount > 0 ? ' - Discount: ' + curr + discount.toFixed(2) : '');
+    }
+
+    $('#modalProjectedTotal').text(curr + total.toFixed(2));
+    $('#modalProjectedBreakdown').text(bText);
+}
+
+function saveBillingProfile(e) {
+    e.preventDefault();
+    const btn = $('#saveBillingBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Saving...');
+
+    $.ajax({
+        url: 'save_billing_profile_ajax.php',
+        type: 'POST',
+        data: $('#billingProfileForm').serialize(),
+        dataType: 'json',
+        success: function(res) {
+            btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i> Save Pricing Profile');
+            if (res.success) {
+                $('#configurePricingModal').modal('hide');
+                showNotification(res.message, 'success');
+                // Reload row if needed or reload page
+                setTimeout(function() { location.reload(); }, 1200);
+            } else {
+                $('#modalBillingAlert').html('<div class="alert alert-danger py-2 px-3 small">' + (res.error || 'Failed to save.') + '</div>');
+            }
+        },
+        error: function(xhr) {
+            btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i> Save Pricing Profile');
+            $('#modalBillingAlert').html('<div class="alert alert-danger py-2 px-3 small">Server communication error.</div>');
         }
     });
 }

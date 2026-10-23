@@ -27,7 +27,8 @@ $unread_msg_count = $stmt_msg->fetchColumn();
 
 // Check if Online Coding Platform is active
 require_once __DIR__ . '/coding_engine.php';
-$coding_platform_active = is_coding_platform_enabled($pdo);
+$student_admin_id = !empty($current_student['admin_id']) ? (int)$current_student['admin_id'] : 1;
+$coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
 ?>
 <!DOCTYPE html>
 <html lang="en">

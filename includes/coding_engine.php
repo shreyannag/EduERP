@@ -5,16 +5,50 @@
 require_once __DIR__ . '/../config/db.php';
 
 /**
- * Checks whether the Online Coding Platform is enabled by Super Administrator.
+ * Checks whether the Online Coding Platform is enabled globally and for a specific admin/institute.
  */
-function is_coding_platform_enabled(PDO $pdo): bool {
+function is_coding_platform_enabled(PDO $pdo, ?int $admin_id = null): bool {
     try {
+        // Check global platform switch
         $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'coding_platform_enabled'");
         $stmt->execute();
         $val = $stmt->fetchColumn();
-        return ($val === false || $val === null || (string)$val === '1');
+        $globalEnabled = ($val === false || $val === null || (string)$val === '1');
+        if (!$globalEnabled) {
+            return false;
+        }
+
+        // If specific admin ID is provided, check if that admin has 'coding' feature enabled
+        if ($admin_id !== null && $admin_id > 0) {
+            $stmtAdm = $pdo->prepare("SELECT role, parent_admin_id, features FROM admins WHERE id = ?");
+            $stmtAdm->execute([$admin_id]);
+            $adm = $stmtAdm->fetch(PDO::FETCH_ASSOC);
+
+            if (!$adm) {
+                return false;
+            }
+
+            // Super Admin always has access
+            if ($adm['role'] === 'super_admin') {
+                return true;
+            }
+
+            // If sub-admin, verify that the parent institute admin also has coding enabled
+            if ($adm['role'] === 'sub_admin' && !empty($adm['parent_admin_id']) && (int)$adm['parent_admin_id'] !== $admin_id) {
+                $parentHasCoding = is_coding_platform_enabled($pdo, (int)$adm['parent_admin_id']);
+                if (!$parentHasCoding) {
+                    return false;
+                }
+            }
+
+            $rawFeats = !empty($adm['features']) ? json_decode($adm['features'], true) : [];
+            $feats = is_array($rawFeats) ? $rawFeats : [];
+            return in_array('coding', $feats, true);
+        }
+
+        return true;
     } catch (\Throwable $e) {
-        return true; // Default to true if setting query fails
+        return true;
     }
 }
 

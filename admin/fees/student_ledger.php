@@ -42,6 +42,9 @@ $currency = $ledgerData['currency'];
         <a href="index.php" class="btn btn-outline-secondary font-weight-bold shadow-sm rounded-pill px-3 mr-2">
             <i class="fas fa-arrow-left mr-1"></i>Back
         </a>
+        <button type="button" class="btn btn-outline-dark font-weight-bold shadow-sm rounded-pill px-3 mr-2" onclick="openStudentCustomFeeModal(<?php echo $student_id; ?>, '<?php echo addslashes($student['full_name']); ?>')">
+            <i class="fas fa-user-tag mr-1"></i>Custom Fee Profile
+        </button>
         <button type="button" class="btn btn-outline-info font-weight-bold shadow-sm rounded-pill px-3 mr-2" onclick="window.print()">
             <i class="fas fa-print mr-1"></i>Print Statement
         </button>
@@ -65,7 +68,12 @@ $currency = $ledgerData['currency'];
                         <?php echo strtoupper(substr($student['full_name'], 0, 1)); ?>
                     </div>
                     <div>
-                        <h4 class="font-weight-bold text-dark mb-1"><?php echo h($student['full_name']); ?></h4>
+                        <div class="d-flex align-items-center flex-wrap">
+                            <h4 class="font-weight-bold text-dark mb-1 mr-2"><?php echo h($student['full_name']); ?></h4>
+                            <?php if (!empty($student['custom_fee_profile']['is_custom'])): ?>
+                                <span class="badge badge-success px-2 py-1 font-weight-bold mb-1" title="<?= h($student['custom_fee_profile']['discount_desc']) ?>"><i class="fas fa-tag mr-1"></i>Custom Profile Active</span>
+                            <?php endif; ?>
+                        </div>
                         <div class="text-muted small">
                             <span class="badge badge-light border text-primary font-weight-bold mr-2">Class <?php echo h($student['class_name']); ?></span>
                             <span class="badge badge-light border text-dark font-weight-bold mr-2"><?php echo h($student['board_name']); ?></span>
@@ -90,6 +98,30 @@ $currency = $ledgerData['currency'];
         </div>
     </div>
 </div>
+
+<?php if (!empty($student['custom_fee_profile']['is_custom'])): ?>
+<!-- Custom Fee Profile Alert Banner -->
+<div class="alert alert-success border-0 shadow-sm rounded-lg d-flex justify-content-between align-items-center mb-4 p-3 no-print">
+    <div class="d-flex align-items-center">
+        <div class="bg-success text-white rounded-circle d-flex align-items-center justify-content-center mr-3" style="width: 44px; height: 44px; min-width: 44px;">
+            <i class="fas fa-user-tag fa-lg"></i>
+        </div>
+        <div>
+            <h6 class="font-weight-bold text-success mb-1">Custom Fee Concession / Profile Active</h6>
+            <div class="text-dark small">
+                <strong><?php echo h($student['custom_fee_profile']['discount_desc']); ?></strong> • 
+                Standard Class Fee: <del class="text-muted"><?php echo h($currency) . number_format($student['custom_fee_profile']['base_fee'], 2); ?></del> &rarr; 
+                Effective Monthly Fee: <strong class="text-success"><?php echo h($currency) . number_format($student['custom_fee_profile']['effective_fee'], 2); ?></strong>
+            </div>
+        </div>
+    </div>
+    <div>
+        <button type="button" class="btn btn-sm btn-outline-success font-weight-bold rounded-pill px-3" onclick="openStudentCustomFeeModal(<?php echo $student_id; ?>, '<?php echo addslashes($student['full_name']); ?>')">
+            <i class="fas fa-edit mr-1"></i>Edit Concession
+        </button>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Financial Summary Strip -->
 <div class="row mb-4">
@@ -124,15 +156,23 @@ $currency = $ledgerData['currency'];
     </div>
 
     <div class="col-md-4">
-        <div class="card border-0 shadow-sm rounded-lg bg-light border-left border-primary" style="border-width: 4px !important;">
+        <div class="card border-0 shadow-sm rounded-lg bg-light border-left <?php echo !empty($student['custom_fee_profile']['is_custom']) ? 'border-success' : 'border-primary'; ?>" style="border-width: 4px !important;">
             <div class="card-body p-3 d-flex align-items-center justify-content-between">
                 <div>
-                    <span class="text-primary small font-weight-bold text-uppercase">Standard Monthly Rate</span>
+                    <span class="<?php echo !empty($student['custom_fee_profile']['is_custom']) ? 'text-success' : 'text-primary'; ?> small font-weight-bold text-uppercase">
+                        <?php echo !empty($student['custom_fee_profile']['is_custom']) ? 'Effective Monthly Rate' : 'Standard Monthly Rate'; ?>
+                    </span>
                     <h3 class="font-weight-bold text-dark mb-0"><?php echo h($currency) . number_format($ledgerData['monthly_rate'], 2); ?></h3>
-                    <span class="small text-muted">Per Curriculum Class <?php echo h($student['class_name']); ?></span>
+                    <span class="small text-muted">
+                        <?php if (!empty($student['custom_fee_profile']['is_custom'])): ?>
+                            <span class="text-success font-weight-bold"><i class="fas fa-tag mr-1"></i>Custom Concession</span> (Std: <?php echo h($currency) . number_format($student['custom_fee_profile']['base_fee'], 0); ?>)
+                        <?php else: ?>
+                            Per Curriculum Class <?php echo h($student['class_name']); ?>
+                        <?php endif; ?>
+                    </span>
                 </div>
-                <div class="bg-primary text-white rounded-circle p-3">
-                    <i class="fas fa-calendar-alt fa-2x"></i>
+                <div class="<?php echo !empty($student['custom_fee_profile']['is_custom']) ? 'bg-success' : 'bg-primary'; ?> text-white rounded-circle p-3">
+                    <i class="fas <?php echo !empty($student['custom_fee_profile']['is_custom']) ? 'fa-user-tag' : 'fa-calendar-alt'; ?> fa-2x"></i>
                 </div>
             </div>
         </div>
@@ -374,6 +414,274 @@ function sendStatementEmail(studentId, year) {
         }
     });
 }
+
+// Custom Fee Profiles Management JS
+let globalCurrentStdFee = <?php echo (float)($student['custom_fee_profile']['base_fee'] ?? 1500.00); ?>;
+const feeCurrSymbol = '<?php echo h($currency); ?>';
+
+function openStudentCustomFeeModal(studentId, studentName) {
+    $('#modalStuId').val(studentId);
+    $('#modalStuAlert').empty();
+    $('#modalStuName').text(studentName || 'Loading student...');
+    $('#deleteCustomProfileBtn').hide();
+
+    $.ajax({
+        url: 'custom_profile_ajax.php',
+        type: 'GET',
+        data: { action: 'get', student_id: studentId },
+        dataType: 'json',
+        success: function(res) {
+            if (!res.success) {
+                alert(res.error || 'Failed to fetch student data.');
+                return;
+            }
+
+            const stu = res.student || {};
+            const p = res.profile || {};
+            const feeInfo = res.fee_info || {};
+
+            $('#modalStuName').text(stu.name + ' (' + stu.username + ')');
+            $('#modalStuClass').text('Class ' + (stu.class_name || 'N/A') + ' • ' + (stu.institute_name || 'Campus'));
+            globalCurrentStdFee = parseFloat(res.standard_fee) || 1500.00;
+            $('#modalStandardFeeDisplay').text(feeCurrSymbol + globalCurrentStdFee.toFixed(2));
+
+            if (p && p.id) {
+                $('#modalProfileType').val(p.profile_type || 'fixed_amount');
+                $('#modalCustomAmount').val(p.custom_amount || '1000.00');
+                $('#modalDiscountPct').val(p.discount_percent || '25.00');
+                $('#modalAdditionalCharges').val(p.additional_charges || '0.00');
+                $('#modalReason').val(p.reason || '');
+                $('#modalStartDate').val(p.start_date || '');
+                $('#modalEndDate').val(p.end_date || '');
+                $('#deleteCustomProfileBtn').show();
+            } else {
+                $('#modalProfileType').val('fixed_amount');
+                $('#modalCustomAmount').val((globalCurrentStdFee * 0.8).toFixed(2));
+                $('#modalDiscountPct').val('20.00');
+                $('#modalAdditionalCharges').val('0.00');
+                $('#modalReason').val('');
+                $('#modalStartDate').val('');
+                $('#modalEndDate').val('');
+                $('#deleteCustomProfileBtn').hide();
+            }
+
+            recalcCustomFeeModal();
+            $('#studentCustomFeeModal').modal('show');
+        },
+        error: function() {
+            alert('Failed to connect to fee server.');
+        }
+    });
+}
+
+function recalcCustomFeeModal() {
+    const type = $('#modalProfileType').val();
+    const customAmtGroup = $('#modalCustomAmountGroup');
+    const discPctGroup = $('#modalDiscountPctGroup');
+    const amtLabel = $('#modalAmountLabel');
+
+    let customAmt = parseFloat($('#modalCustomAmount').val()) || 0;
+    let discPct = parseFloat($('#modalDiscountPct').val()) || 0;
+    let extra = parseFloat($('#modalAdditionalCharges').val()) || 0;
+
+    if (type === 'fixed_amount') {
+        customAmtGroup.show();
+        discPctGroup.hide();
+        amtLabel.text('Special Fixed Monthly Fee (' + feeCurrSymbol + ')');
+    } else if (type === 'discount_percent') {
+        customAmtGroup.hide();
+        discPctGroup.show();
+    } else if (type === 'discount_amount') {
+        customAmtGroup.show();
+        discPctGroup.hide();
+        amtLabel.text('Concession / Discount Amount (' + feeCurrSymbol + ')');
+    } else { // full_scholarship
+        customAmtGroup.hide();
+        discPctGroup.hide();
+    }
+
+    let effective = globalCurrentStdFee;
+    let desc = '';
+
+    if (type === 'full_scholarship') {
+        effective = 0.00;
+        desc = '100% Full Scholarship / Complete Exemption';
+    } else if (type === 'fixed_amount') {
+        effective = Math.max(0, customAmt + extra);
+        desc = 'Fixed Rate: ' + feeCurrSymbol + customAmt.toFixed(2) + (extra > 0 ? ' + Extra: ' + feeCurrSymbol + extra.toFixed(2) : '');
+    } else if (type === 'discount_percent') {
+        let discVal = (globalCurrentStdFee * discPct) / 100.0;
+        effective = Math.max(0, (globalCurrentStdFee - discVal) + extra);
+        desc = discPct.toFixed(0) + '% Concession (-' + feeCurrSymbol + discVal.toFixed(2) + ')' + (extra > 0 ? ' + Extra: ' + feeCurrSymbol + extra.toFixed(2) : '');
+    } else if (type === 'discount_amount') {
+        effective = Math.max(0, (globalCurrentStdFee - customAmt) + extra);
+        desc = 'Flat Concession of ' + feeCurrSymbol + customAmt.toFixed(2) + (extra > 0 ? ' + Extra: ' + feeCurrSymbol + extra.toFixed(2) : '');
+    }
+
+    $('#modalEffectiveFeeDisplay').text(feeCurrSymbol + effective.toFixed(2));
+    $('#modalEffectiveBreakdown').text(desc);
+}
+
+function saveStudentCustomFee(e) {
+    e.preventDefault();
+    const btn = $('#saveCustomProfileBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Saving...');
+
+    $.ajax({
+        url: 'custom_profile_ajax.php',
+        type: 'POST',
+        data: $('#studentCustomFeeForm').serialize(),
+        dataType: 'json',
+        success: function(res) {
+            btn.prop('disabled', false).html('<i class="fas fa-check-circle mr-1"></i> Save Profile');
+            if (res.success) {
+                $('#studentCustomFeeModal').modal('hide');
+                alert(res.message);
+                location.reload();
+            } else {
+                $('#modalStuAlert').html('<div class="alert alert-danger py-2 px-3 small">' + (res.error || 'Failed to save.') + '</div>');
+            }
+        },
+        error: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-check-circle mr-1"></i> Save Profile');
+            $('#modalStuAlert').html('<div class="alert alert-danger py-2 px-3 small">Server error while saving fee profile.</div>');
+        }
+    });
+}
+
+function deleteStudentCustomFee() {
+    const stuId = $('#modalStuId').val();
+    if (!stuId) return;
+
+    if (!confirm('Are you sure you want to remove this custom fee profile? The student will immediately return to standard class fee criteria.')) return;
+
+    const btn = $('#deleteCustomProfileBtn');
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Removing...');
+
+    $.ajax({
+        url: 'custom_profile_ajax.php',
+        type: 'POST',
+        data: {
+            action: 'delete',
+            student_id: stuId,
+            csrf_token: '<?php echo generate_csrf_token(); ?>'
+        },
+        dataType: 'json',
+        success: function(res) {
+            btn.prop('disabled', false).html('<i class="fas fa-trash-alt mr-1"></i> Remove Custom Profile');
+            if (res.success) {
+                $('#studentCustomFeeModal').modal('hide');
+                alert(res.message);
+                location.reload();
+            } else {
+                $('#modalStuAlert').html('<div class="alert alert-danger py-2 px-3 small">' + (res.error || 'Failed to remove.') + '</div>');
+            }
+        },
+        error: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-trash-alt mr-1"></i> Remove Custom Profile');
+            $('#modalStuAlert').html('<div class="alert alert-danger py-2 px-3 small">Server error while removing fee profile.</div>');
+        }
+    });
+}
 </script>
+
+<!-- ================= MODAL: CONFIGURE STUDENT CUSTOM FEE PROFILE ================= -->
+<div class="modal fade" id="studentCustomFeeModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg rounded-lg">
+            <div class="modal-header bg-dark text-white py-3 px-4">
+                <h5 class="modal-title font-weight-bold">
+                    <i class="fas fa-user-tag text-warning mr-2"></i>Configure Custom Fee Profile
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            </div>
+            <form id="studentCustomFeeForm" onsubmit="saveStudentCustomFee(event)">
+                <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+                <input type="hidden" name="action" value="save">
+                <input type="hidden" name="student_id" id="modalStuId" value="<?php echo $student_id; ?>">
+
+                <div class="modal-body p-4">
+                    <div id="modalStuAlert"></div>
+
+                    <div class="p-3 bg-light rounded border mb-4 d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="text-muted small text-uppercase font-weight-bold d-block">Student</span>
+                            <h5 class="font-weight-bold text-dark mb-0" id="modalStuName"><?php echo h($student['full_name']); ?></h5>
+                            <small class="text-muted" id="modalStuClass">Class <?php echo h($student['class_name']); ?></small>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-muted small text-uppercase font-weight-bold d-block">Standard Class Fee</span>
+                            <h4 class="font-weight-bold text-primary mb-0" id="modalStandardFeeDisplay"><?php echo h($currency) . number_format($student['custom_fee_profile']['base_fee'], 2); ?></h4>
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="font-weight-bold text-dark small text-uppercase">Fee Concession / Structure Type</label>
+                        <select name="profile_type" id="modalProfileType" class="form-control custom-select font-weight-bold" onchange="recalcCustomFeeModal()">
+                            <option value="fixed_amount">Special Fixed Monthly Amount (Direct Override)</option>
+                            <option value="discount_percent">Percentage Discount / Scholarship Concession (e.g. 25% off)</option>
+                            <option value="discount_amount">Flat Monthly Concession (e.g. ₹500 discount)</option>
+                            <option value="full_scholarship">100% Full Scholarship / Free Education Waiver</option>
+                        </select>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3" id="modalCustomAmountGroup">
+                            <label class="font-weight-bold text-dark small text-uppercase" id="modalAmountLabel">Custom Fixed Monthly Fee (<?php echo h($currency); ?>)</label>
+                            <input type="number" step="0.01" min="0" name="custom_amount" id="modalCustomAmount" class="form-control font-weight-bold" value="1000.00" oninput="recalcCustomFeeModal()">
+                        </div>
+                        <div class="col-md-6 mb-3" id="modalDiscountPctGroup" style="display: none;">
+                            <label class="font-weight-bold text-dark small text-uppercase">Discount Percentage (%)</label>
+                            <input type="number" step="0.01" min="0" max="100" name="discount_percent" id="modalDiscountPct" class="form-control font-weight-bold" value="25.00" oninput="recalcCustomFeeModal()">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold text-dark small text-uppercase">Additional Recurring Charges (<?php echo h($currency); ?>)</label>
+                            <input type="number" step="0.01" min="0" name="additional_charges" id="modalAdditionalCharges" class="form-control font-weight-bold" value="0.00" placeholder="e.g. Transport, Lab" oninput="recalcCustomFeeModal()">
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label class="font-weight-bold text-dark small text-uppercase">Reason / Concession Note <span class="text-danger">*</span></label>
+                        <input type="text" name="reason" id="modalReason" class="form-control font-weight-bold" required placeholder="e.g. Merit scholarship, Sibling discount (elder sibling in Class 12)">
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold text-dark small text-uppercase">Effective From (Optional)</label>
+                            <input type="date" name="start_date" id="modalStartDate" class="form-control">
+                            <small class="text-muted">Leave empty to apply to entire academic tenure.</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="font-weight-bold text-dark small text-uppercase">Effective Until (Optional)</label>
+                            <input type="date" name="end_date" id="modalEndDate" class="form-control">
+                            <small class="text-muted">Leave empty for open-ended profile.</small>
+                        </div>
+                    </div>
+
+                    <!-- Live Calculation Box -->
+                    <div class="card border-success bg-success bg-opacity-10 shadow-xs rounded-lg p-3 text-center mt-2">
+                        <span class="small font-weight-bold text-success text-uppercase">Effective Monthly Fee Payable</span>
+                        <h2 class="font-weight-bold text-dark mb-0 mt-1" id="modalEffectiveFeeDisplay"><?php echo h($currency); ?>1,000.00</h2>
+                        <small class="text-muted" id="modalEffectiveBreakdown">Special Negotiated Fixed Rate</small>
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light py-3 px-4 d-flex justify-content-between">
+                    <div>
+                        <button type="button" class="btn btn-outline-danger font-weight-bold rounded-pill px-3" id="deleteCustomProfileBtn" onclick="deleteStudentCustomFee()" style="display: none;">
+                            <i class="fas fa-trash-alt mr-1"></i>Remove Custom Profile
+                        </button>
+                    </div>
+                    <div>
+                        <button type="button" class="btn btn-secondary font-weight-bold rounded-pill px-4 mr-2" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary font-weight-bold rounded-pill px-4" id="saveCustomProfileBtn">
+                            <i class="fas fa-check-circle mr-1"></i>Save Profile
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <?php require_once '../../includes/admin_footer.php'; ?>

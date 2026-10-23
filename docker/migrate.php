@@ -189,7 +189,8 @@ $migrations = [
     "ALTER TABLE admins ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1",
     "ALTER TABLE admins ADD COLUMN IF NOT EXISTS features TEXT NULL",
     "ALTER TABLE admins ADD COLUMN IF NOT EXISTS created_by INT NULL",
-    "UPDATE admins SET role = 'super_admin', institute_name = 'Main Campus', is_active = 1 WHERE id = 1",
+    "UPDATE admins SET role = 'super_admin', is_active = 1 WHERE id = 1",
+    "UPDATE admins SET institute_name = 'Main Campus' WHERE id = 1 AND (institute_name IS NULL OR institute_name = '')",
 
     "ALTER TABLE students ADD COLUMN IF NOT EXISTS admin_id INT NULL",
     "UPDATE students SET admin_id = 1 WHERE admin_id IS NULL",
@@ -563,7 +564,78 @@ $migrations = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     // Clean up erroneous admin_payments generated for employees/subadmins
-    "DELETE FROM admin_payments WHERE admin_id IN (SELECT id FROM admins WHERE role = 'sub_admin' OR (parent_admin_id IS NOT NULL AND parent_admin_id != id))"
+    "DELETE FROM admin_payments WHERE admin_id IN (SELECT id FROM admins WHERE role = 'sub_admin' OR (parent_admin_id IS NOT NULL AND parent_admin_id != id))",
+
+    // --- Institute Profile & Onboarding Fields ---
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS institute_code VARCHAR(50) NULL",
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS contact_person VARCHAR(150) NULL",
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS address TEXT NULL",
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS city VARCHAR(100) NULL",
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS state VARCHAR(100) NULL",
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS pincode VARCHAR(20) NULL",
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS website VARCHAR(255) NULL",
+
+    // --- Institute Registration Applications ---
+    "CREATE TABLE IF NOT EXISTS institute_registrations (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        institute_name VARCHAR(200) NOT NULL,
+        institute_code VARCHAR(50) NULL,
+        contact_person VARCHAR(150) NOT NULL,
+        email VARCHAR(200) NOT NULL,
+        phone VARCHAR(30) NOT NULL,
+        address TEXT NULL,
+        city VARCHAR(100) NULL,
+        state VARCHAR(100) NULL,
+        pincode VARCHAR(20) NULL,
+        website VARCHAR(255) NULL,
+        requested_features JSON NULL,
+        status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+        admin_id INT NULL,
+        rejection_reason TEXT NULL,
+        notes TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_email (email),
+        INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // --- Custom Student Fee Profiles (Discounts, Scholarships & Concessions) ---
+    "CREATE TABLE IF NOT EXISTS student_custom_fee_profiles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        student_id INT NOT NULL UNIQUE,
+        profile_type ENUM('fixed_amount', 'discount_percent', 'discount_amount', 'full_scholarship') NOT NULL DEFAULT 'fixed_amount',
+        custom_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+        additional_charges DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        reason VARCHAR(255) NULL,
+        start_date DATE NULL,
+        end_date DATE NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_by INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_student (student_id),
+        INDEX idx_active (is_active),
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // --- Multi-Tenant Admin & Institute Custom Billing Profiles ---
+    "CREATE TABLE IF NOT EXISTS admin_billing_profiles (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        admin_id INT NOT NULL UNIQUE,
+        billing_model ENUM('standard', 'custom_fixed', 'per_feature', 'hybrid') NOT NULL DEFAULT 'standard',
+        base_monthly_fee DECIMAL(10,2) NOT NULL DEFAULT 1500.00,
+        per_student_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        feature_prices JSON NULL,
+        discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        billing_due_day INT NOT NULL DEFAULT 10,
+        notes TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_admin (admin_id),
+        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    "ALTER TABLE admin_payments ADD COLUMN IF NOT EXISTS itemized_breakdown JSON NULL"
 ];
 
 $successCount = 0;
