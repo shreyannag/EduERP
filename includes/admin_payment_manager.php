@@ -42,6 +42,33 @@ function get_or_create_admin_billing($admin_id, $month = null, $year = null, $pd
         $pdo = require __DIR__ . '/../config/db.php';
     }
 
+    // Sub-admins and staff under an institute are employees, completely exempt from monthly billing
+    $stmtRole = $pdo->prepare("SELECT role, parent_admin_id FROM admins WHERE id = ?");
+    $stmtRole->execute([$admin_id]);
+    $admInfo = $stmtRole->fetch(PDO::FETCH_ASSOC);
+    if ($admInfo && ($admInfo['role'] === 'sub_admin' || (!empty($admInfo['parent_admin_id']) && (int)$admInfo['parent_admin_id'] !== (int)$admin_id))) {
+        return [
+            'id'                => 0,
+            'admin_id'          => $admin_id,
+            'is_employee'       => true,
+            'billing_month'     => $month ? (int)$month : (int)date('n'),
+            'billing_year'      => $year ? (int)$year : (int)date('Y'),
+            'enrolled_students' => 0,
+            'plan_name'         => 'Staff / Employee (Payroll)',
+            'amount_due'        => 0.00,
+            'amount_paid'       => 0.00,
+            'status'            => 'exempt',
+            'due_date'          => null,
+            'payment_date'      => null,
+            'payment_method'    => 'N/A',
+            'transaction_ref'   => null,
+            'receipt_number'    => null,
+            'reminder_sent_at'  => null,
+            'reminder_count'    => 0,
+            'notes'             => 'Employees are on institute payroll and exempt from billing'
+        ];
+    }
+
     $month = $month ? (int)$month : (int)date('n');
     $year  = $year ? (int)$year : (int)date('Y');
     $settings = get_admin_billing_settings($pdo);
@@ -198,12 +225,17 @@ function send_admin_payment_reminder_email($admin_id, $month = null, $year = nul
     $year  = $year ? (int)$year : (int)date('Y');
 
     // Fetch admin details
-    $stmtAdm = $pdo->prepare("SELECT id, username, email, institute_name FROM admins WHERE id = ?");
+    $stmtAdm = $pdo->prepare("SELECT id, username, email, institute_name, role, parent_admin_id FROM admins WHERE id = ?");
     $stmtAdm->execute([$admin_id]);
     $admin = $stmtAdm->fetch(PDO::FETCH_ASSOC);
 
     if (!$admin) {
         return ['success' => false, 'error' => 'Administrator account not found.'];
+    }
+
+    // Subadmins/employees are exempt from tenant billing and reminders
+    if ($admin['role'] === 'sub_admin' || (!empty($admin['parent_admin_id']) && (int)$admin['parent_admin_id'] !== (int)$admin['id'])) {
+        return ['success' => false, 'error' => "Administrator '{$admin['username']}' is an employee/staff member and is exempt from monthly platform billing."];
     }
 
     $email = trim($admin['email'] ?? '');
@@ -335,11 +367,11 @@ function get_all_admins_billing_overview($month = null, $year = null, $pdo = nul
     $year  = $year ? (int)$year : (int)date('Y');
     $settings = get_admin_billing_settings($pdo);
 
-    // Fetch all tenant administrators (role = 'admin')
+    // Fetch all tenant administrators (role = 'admin', excluding employees/sub-admins)
     $stmtAdmins = $pdo->query("
         SELECT id, username, email, institute_name, is_active, created_at
         FROM admins
-        WHERE role = 'admin'
+        WHERE role = 'admin' AND (parent_admin_id IS NULL OR parent_admin_id = id)
         ORDER BY id ASC
     ");
     $admins = $stmtAdmins->fetchAll(PDO::FETCH_ASSOC);

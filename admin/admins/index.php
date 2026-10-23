@@ -199,6 +199,7 @@ $csrf_token = generate_csrf_token();
                     <?php foreach ($admins as $adm): 
                         $is_self = ((int)$adm['id'] === $current_admin_id);
                         $is_super = ($adm['role'] === 'super_admin');
+                        $is_subadmin = ($adm['role'] === 'sub_admin' || (!empty($adm['parent_admin_id']) && (int)$adm['parent_admin_id'] !== (int)$adm['id']));
                         $is_active = ((int)$adm['is_active'] === 1);
                         $raw_features = !empty($adm['features']) ? json_decode($adm['features'], true) : [];
                         $features_arr = is_array($raw_features) ? $raw_features : [];
@@ -208,14 +209,14 @@ $csrf_token = generate_csrf_token();
                         $features_json_attr = htmlspecialchars(json_encode($features_arr), ENT_QUOTES, 'UTF-8');
 
                         $billing = null;
-                        if (!$is_super) {
+                        if (!$is_super && !$is_subadmin) {
                             $billing = get_or_create_admin_billing($adm['id'], (int)date('n'), (int)date('Y'), $pdo);
                         }
                     ?>
                     <tr id="admin-row-<?= $adm['id'] ?>">
                         <td class="py-3 px-4">
                             <div class="d-flex align-items-center">
-                                <div class="rounded-circle <?= $is_super ? 'bg-warning text-dark' : 'bg-primary text-white' ?> d-flex align-items-center justify-content-center font-weight-bold shadow-sm mr-3" style="width: 40px; height: 40px; font-size: 1rem;">
+                                <div class="rounded-circle <?= $is_super ? 'bg-warning text-dark' : ($is_subadmin ? 'bg-info text-white' : 'bg-primary text-white') ?> d-flex align-items-center justify-content-center font-weight-bold shadow-sm mr-3" style="width: 40px; height: 40px; font-size: 1rem;">
                                     <?= strtoupper(substr($adm['username'], 0, 1)) ?>
                                 </div>
                                 <div>
@@ -235,6 +236,10 @@ $csrf_token = generate_csrf_token();
                             <?php if ($is_super): ?>
                                 <span class="badge badge-warning text-dark px-3 py-2 rounded-pill font-weight-bold shadow-sm">
                                     <i class="fas fa-crown mr-1"></i> Super Admin
+                                </span>
+                            <?php elseif ($is_subadmin): ?>
+                                <span class="badge badge-info px-3 py-2 rounded-pill font-weight-bold shadow-sm" title="Employee under <?= h($adm['institute_name'] ?? 'Institute') ?>">
+                                    <i class="fas fa-id-badge mr-1"></i> Staff (<?= h(ucfirst($adm['sub_role'] ?? 'Employee')) ?>)
                                 </span>
                             <?php else: ?>
                                 <span class="badge badge-primary px-3 py-2 rounded-pill font-weight-bold shadow-sm">
@@ -260,6 +265,10 @@ $csrf_token = generate_csrf_token();
                             <?php if ($is_super): ?>
                                 <span class="badge badge-light border text-muted px-2 py-1 font-weight-bold">
                                     <i class="fas fa-shield-alt mr-1"></i>Owner
+                                </span>
+                            <?php elseif ($is_subadmin): ?>
+                                <span class="badge badge-light border text-success px-2 py-1 font-weight-bold" title="Employees are on staff payroll and exempt from tenant billing">
+                                    <i class="fas fa-user-tie mr-1"></i>Payroll (Exempt)
                                 </span>
                             <?php else: 
                                 $bStatus = $billing['status'] ?? 'pending';
@@ -340,17 +349,25 @@ $csrf_token = generate_csrf_token();
                                        title="Direct Chat with Administrator <?= h($adm['username']) ?>">
                                         <i class="fas fa-comment-dots mr-1"></i> Chat
                                     </a>
-                                    <a href="<?php echo BASE_URL; ?>/admin/admins/billing.php?month=<?= (int)date('n') ?>&year=<?= (int)date('Y') ?>#admin-row-<?= $adm['id'] ?>" 
-                                       class="btn btn-sm btn-outline-secondary rounded-pill px-2 font-weight-bold shadow-xs" 
-                                       title="View Subscriptions & Billing Records">
-                                        <i class="fas fa-file-invoice-dollar mr-1"></i> Billing
-                                    </a>
-                                    <?php if (isset($bStatus) && $bStatus !== 'paid'): ?>
-                                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 font-weight-bold shadow-xs" 
-                                                title="Send delayed payment reminder email to this admin"
-                                                onclick='quickSendReminder(<?= $adm['id'] ?>, <?= $username_json_attr ?>, <?= (int)$adm['student_count'] ?>, <?= $bDue ?>, <?= $bDelay ?>, this)'>
-                                            <i class="fas fa-bell mr-1"></i> Remind
-                                        </button>
+                                    <?php if ($is_subadmin): ?>
+                                        <a href="<?php echo BASE_URL; ?>/admin/payroll/staff_ledger.php?sub_admin_id=<?= $adm['id'] ?>" 
+                                           class="btn btn-sm btn-outline-success rounded-pill px-2 font-weight-bold shadow-xs" 
+                                           title="View Staff Salary Ledger & Payroll">
+                                            <i class="fas fa-money-check-alt mr-1"></i> Payroll
+                                        </a>
+                                    <?php else: ?>
+                                        <a href="<?php echo BASE_URL; ?>/admin/admins/billing.php?month=<?= (int)date('n') ?>&year=<?= (int)date('Y') ?>#admin-row-<?= $adm['id'] ?>" 
+                                           class="btn btn-sm btn-outline-secondary rounded-pill px-2 font-weight-bold shadow-xs" 
+                                           title="View Subscriptions & Billing Records">
+                                            <i class="fas fa-file-invoice-dollar mr-1"></i> Billing
+                                        </a>
+                                        <?php if (isset($bStatus) && $bStatus !== 'paid'): ?>
+                                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 font-weight-bold shadow-xs" 
+                                                    title="Send delayed payment reminder email to this admin"
+                                                    onclick='quickSendReminder(<?= $adm['id'] ?>, <?= $username_json_attr ?>, <?= (int)$adm['student_count'] ?>, <?= $bDue ?>, <?= $bDelay ?>, this)'>
+                                                <i class="fas fa-bell mr-1"></i> Remind
+                                            </button>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 <?php endif; ?>
                                 <?php if (!$is_self): ?>

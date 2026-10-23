@@ -6,13 +6,13 @@ body {
 }
 
 /* Auth Pages Background */
-.student-login-bg {
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+body.student-login-bg {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #2563eb 100%) !important;
     min-height: 100vh;
 }
 
-.admin-login-bg {
-    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+body.admin-login-bg {
+    background: linear-gradient(135deg, #0b0f19 0%, #111827 50%, #1f2937 100%) !important;
     min-height: 100vh;
 }
 
@@ -568,7 +568,7 @@ body {
 /* Material Cards & Surfaces */
 .card {
     border-radius: 16px !important;
-    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
     background: #ffffff;
     box-shadow: var(--md-elevation-1) !important;
     transition: box-shadow 0.25s cubic-bezier(0.2, 0, 0, 1), transform 0.25s cubic-bezier(0.2, 0, 0, 1) !important;
@@ -576,16 +576,61 @@ body {
 .card:hover {
     box-shadow: var(--md-elevation-2) !important;
 }
-.card-header {
+
+/* Default transparent headers for standard layout cards */
+.card-header:not([class*="bg-"]) {
     background: transparent !important;
     border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
     padding: 1.15rem 1.5rem !important;
     font-weight: 700;
 }
 
-/* Material Buttons */
+/* Explicit high-contrast headers for branded/login/accent cards */
+.card-header.bg-dark {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-top-left-radius: 15px !important;
+    border-top-right-radius: 15px !important;
+}
+
+.card-header.bg-primary {
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+    border-top-left-radius: 15px !important;
+    border-top-right-radius: 15px !important;
+}
+
+.card-header.bg-gradient-primary {
+    background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%) !important;
+    color: #ffffff !important;
+    border-top-left-radius: 15px !important;
+    border-top-right-radius: 15px !important;
+}
+
+.card-header.bg-danger {
+    background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%) !important;
+    color: #ffffff !important;
+}
+
+.card-header.bg-dark *,
+.card-header.bg-primary *,
+.card-header.bg-gradient-primary *,
+.card-header.bg-danger * {
+    color: inherit;
+}
+
+.card-header.bg-dark .text-white-50,
+.card-header.bg-primary .text-white-50,
+.card-header.bg-gradient-primary .text-white-50,
+.card-header.bg-danger .text-white-50 {
+    color: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* Material & Action Buttons */
 .btn {
-    border-radius: 9999px !important;
+    border-radius: 9999px;
     font-weight: 600 !important;
     letter-spacing: 0.2px;
     padding: 0.5rem 1.35rem;
@@ -600,52 +645,121 @@ body {
     box-shadow: none !important;
     transform: translateY(0);
 }
+.btn-sm, .btn-group-sm > .btn {
+    padding: 0.3rem 0.85rem !important;
+    font-size: 0.825rem !important;
+    border-radius: 999px !important;
+    line-height: 1.4 !important;
+}
+.btn-lg {
+    padding: 0.75rem 1.5rem !important;
+    font-size: 1.05rem !important;
+}
+
 .btn-primary {
-    background-color: var(--md-primary) !important;
-    border-color: var(--md-primary) !important;
+    background-color: #2563eb !important;
+    border-color: #2563eb !important;
     color: #ffffff !important;
 }
 .btn-primary:hover {
-    background-color: #1557b0 !important;
-    border-color: #1557b0 !important;
+    background-color: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+    color: #ffffff !important;
 }
+
+.btn-dark {
+    background: #0f172a !important;
+    border-color: #0f172a !important;
+    color: #ffffff !important;
+}
+.btn-dark:hover {
+    background: #1e293b !important;
+    border-color: #1e293b !important;
+    color: #ffffff !important;
+}
+
 .btn-success {
-    background-color: #1e8e3e !important;
-    border-color: #1e8e3e !important;
+    background-color: #16a34a !important;
+    border-color: #16a34a !important;
+    color: #ffffff !important;
 }
+.btn-success:hover {
+    background-color: #15803d !important;
+    border-color: #15803d !important;
+}
+
 .btn-danger {
-    background-color: #d93025 !important;
-    border-color: #d93025 !important;
+    background-color: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: #ffffff !important;
 }
+.btn-danger:hover {
+    background-color: #b91c1c !important;
+    border-color: #b91c1c !important;
+}
+
 .btn-warning {
-    background-color: #f9ab00 !important;
-    border-color: #f9ab00 !important;
-    color: #202124 !important;
+    background-color: #f59e0b !important;
+    border-color: #f59e0b !important;
+    color: #0f172a !important;
 }
+
 .btn-outline-primary {
-    border-color: var(--md-outline-variant) !important;
-    color: var(--md-primary) !important;
+    border-color: #2563eb !important;
+    color: #2563eb !important;
+    background-color: transparent !important;
 }
 .btn-outline-primary:hover {
-    background-color: var(--md-primary-container) !important;
-    color: var(--md-on-primary-container) !important;
-    border-color: var(--md-primary) !important;
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+}
+
+.btn-outline-success {
+    border-color: #16a34a !important;
+    color: #16a34a !important;
+    background-color: transparent !important;
+}
+.btn-outline-success:hover {
+    background-color: #16a34a !important;
+    color: #ffffff !important;
+}
+
+.btn-outline-danger {
+    border-color: #dc2626 !important;
+    color: #dc2626 !important;
+    background-color: transparent !important;
+}
+.btn-outline-danger:hover {
+    background-color: #dc2626 !important;
+    color: #ffffff !important;
 }
 
 /* Material Form Inputs */
 .form-control, .custom-select {
     border-radius: 10px !important;
-    border: 1px solid #c4c7c5 !important;
+    border: 1.5px solid #cbd5e1 !important;
     padding: 0.65rem 1rem !important;
     height: auto !important;
     font-size: 0.95rem;
     transition: border-color 0.2s, box-shadow 0.2s;
     background-color: #ffffff;
+    color: #0f172a !important;
 }
 .form-control:focus, .custom-select:focus {
-    border-color: var(--md-primary) !important;
-    box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.2) !important;
+    border-color: #2563eb !important;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2) !important;
     outline: none !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+}
+.form-control::placeholder {
+    color: #94a3b8 !important;
+}
+
+/* Form labels high legibility */
+label.text-muted, .card-body label {
+    color: #334155 !important;
+    font-weight: 600 !important;
 }
 
 /* Material Badges & Chips */
@@ -655,30 +769,38 @@ body {
     padding: 0.35em 0.75em !important;
     letter-spacing: 0.2px;
 }
+.badge-pill, .badge.rounded-pill {
+    border-radius: 999px !important;
+}
 .badge-primary {
-    background-color: var(--md-primary-container) !important;
-    color: var(--md-on-primary-container) !important;
+    background-color: #2563eb !important;
+    color: #ffffff !important;
 }
 .badge-success {
-    background-color: var(--md-success-container) !important;
-    color: var(--md-on-success-container) !important;
+    background-color: #16a34a !important;
+    color: #ffffff !important;
 }
 .badge-danger {
-    background-color: var(--md-error-container) !important;
-    color: var(--md-on-error-container) !important;
+    background-color: #dc2626 !important;
+    color: #ffffff !important;
 }
 .badge-warning {
-    background-color: var(--md-warning-container) !important;
-    color: var(--md-on-warning-container) !important;
+    background-color: #f59e0b !important;
+    color: #0f172a !important;
 }
 .badge-info {
-    background-color: #c2e7ff !important;
-    color: #001d35 !important;
+    background-color: #0284c7 !important;
+    color: #ffffff !important;
 }
 .badge-secondary {
-    background-color: #e2e8f0 !important;
+    background-color: #64748b !important;
+    color: #ffffff !important;
+}
+.badge-light {
+    background-color: #f1f5f9 !important;
     color: #334155 !important;
 }
+
 
 /* Material M3 Bottom Navigation Pill Indicator */
 .student-mobile-nav-item .mobile-icon-wrapper {

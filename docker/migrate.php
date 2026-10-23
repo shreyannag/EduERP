@@ -560,7 +560,10 @@ $migrations = [
         INDEX idx_student (student_id),
         FOREIGN KEY (link_id) REFERENCES enrollment_links(id) ON DELETE CASCADE,
         FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // Clean up erroneous admin_payments generated for employees/subadmins
+    "DELETE FROM admin_payments WHERE admin_id IN (SELECT id FROM admins WHERE role = 'sub_admin' OR (parent_admin_id IS NOT NULL AND parent_admin_id != id))"
 ];
 
 $successCount = 0;

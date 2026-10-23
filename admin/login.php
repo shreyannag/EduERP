@@ -134,18 +134,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="<?php echo defined('BASE_URL') ? BASE_URL : '..'; ?>/assets/css/custom.css">
+    <link rel="stylesheet" href="<?php echo defined('BASE_URL') ? BASE_URL : '..'; ?>/assets/css/custom.css?v=<?php echo file_exists(__DIR__ . '/../assets/css/custom.css') ? filemtime(__DIR__ . '/../assets/css/custom.css') : time(); ?>">
 </head>
 <body class="admin-login-bg d-flex align-items-center">
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-5 col-lg-4">
-            <div class="card shadow-lg border-0 rounded-lg">
-                <div class="card-header bg-dark text-white text-center py-4 border-0">
-                    <h3 class="font-weight-bold mb-0">Admin Portal</h3>
+            <div class="card shadow-lg border-0 rounded-lg overflow-hidden">
+                <div class="card-header bg-dark text-white text-center py-4 border-0" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;">
+                    <h3 class="font-weight-bold mb-0 text-white">Admin Portal</h3>
                     <p class="mb-0 text-white-50 small">System Management</p>
                 </div>
-                <div class="card-body p-4">
+                <div class="card-body p-4 bg-white">
                     <?php if ($error): ?>
                         <div class="alert alert-danger shadow-sm py-2 px-3"><?php echo h($error); ?></div>
                     <?php endif; ?>
@@ -155,16 +155,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <form method="POST" class="needs-validation" novalidate>
                         <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
                         <div class="form-group mb-3">
-                            <label class="font-weight-bold text-muted small text-uppercase">Username</label>
-                            <input type="text" name="username" class="form-control form-control-lg bg-light" required autofocus>
+                            <label class="font-weight-bold text-dark small text-uppercase">Username</label>
+                            <input type="text" name="username" class="form-control form-control-lg" required autofocus placeholder="Enter username">
                             <div class="invalid-feedback">Please enter your username.</div>
                         </div>
                         <div class="form-group mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="font-weight-bold text-muted small text-uppercase mb-0">Password</label>
-                                <a href="forgot_password.php" class="small text-muted font-weight-bold">Forgot password?</a>
+                                <label class="font-weight-bold text-dark small text-uppercase mb-0">Password</label>
+                                <a href="forgot_password.php" class="small text-primary font-weight-bold">Forgot password?</a>
                             </div>
-                            <input type="password" name="password" class="form-control form-control-lg bg-light" required>
+                            <input type="password" name="password" class="form-control form-control-lg" required placeholder="Enter password">
                             <div class="invalid-feedback">Please enter your password.</div>
                         </div>
                         <button type="submit" class="btn btn-dark btn-lg btn-block shadow-sm font-weight-bold">Authenticate</button>

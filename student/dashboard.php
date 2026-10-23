@@ -50,26 +50,37 @@ foreach($assigned_exams as $ex) {
 
 <style>
 #dashboardTabs {
-    background: #e2e8f0;
+    background: #f1f5f9;
     padding: 6px;
-    border: 1px solid #cbd5e1;
+    border: 1px solid #e2e8f0;
+    border-radius: 999px;
 }
 #dashboardTabs .nav-link {
-    color: #475569;
+    color: #475569 !important;
     font-weight: 600;
     border-radius: 999px;
     border: none;
+    padding: 0.65rem 1.4rem !important;
     transition: all 0.2s ease;
+    background: transparent;
 }
 #dashboardTabs .nav-link:hover {
-    color: #0f172a;
-    background: rgba(255, 255, 255, 0.6);
+    color: #0f172a !important;
+    background: rgba(255, 255, 255, 0.8);
 }
 #dashboardTabs .nav-link.active {
     background: #1e3a8a !important;
     color: #ffffff !important;
-    box-shadow: 0 2px 8px rgba(30, 58, 138, 0.25);
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25) !important;
     font-weight: 700;
+}
+#dashboardTabs .nav-link.active i {
+    color: #ffffff !important;
+}
+#dashboardTabs .nav-link.active .badge {
+    background-color: rgba(255, 255, 255, 0.25) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.4) !important;
 }
 @media (max-width: 767.98px) {
     #dashboardTabs {
@@ -247,18 +258,13 @@ foreach($assigned_exams as $ex) {
 
 <script>
 $(document).ready(function(){
-    $('a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
-        $('.nav-link').removeClass('bg-primary text-white shadow').addClass('text-dark bg-white');
-        $(e.target).addClass('bg-primary text-white shadow').removeClass('text-dark bg-white');
-        
+    $('#dashboardTabs a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
         localStorage.setItem('studentDashboardTabNavMappingPoint', $(e.target).attr('href'));
     });
     
-    let lastTab = localStorage.getItem('studentDashboardTabNavMappingPoint');
-    if(lastTab) {
-        $('a[href="' + lastTab + '"]').tab('show');
-    } else {
-        $('a[href="#active"]').addClass('bg-primary text-white shadow').removeClass('text-dark bg-white');
+    var lastTab = localStorage.getItem('studentDashboardTabNavMappingPoint');
+    if (lastTab && $('#dashboardTabs a[href="' + lastTab + '"]').length) {
+        $('#dashboardTabs a[href="' + lastTab + '"]').tab('show');
     }
 });
 </script>

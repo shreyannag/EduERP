@@ -77,18 +77,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="../assets/css/custom.css">
+    <link rel="stylesheet" href="../assets/css/custom.css?v=<?php echo file_exists(__DIR__ . '/../assets/css/custom.css') ? filemtime(__DIR__ . '/../assets/css/custom.css') : time(); ?>">
 </head>
 <body class="student-login-bg d-flex align-items-center">
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-6 col-lg-5">
-            <div class="card shadow-lg border-0 rounded-lg">
-                <div class="card-header bg-primary text-white text-center py-4 border-0 bg-gradient-primary">
-                    <h3 class="mb-0 font-weight-bold">Student Portal</h3>
+            <div class="card shadow-lg border-0 rounded-lg overflow-hidden">
+                <div class="card-header bg-primary text-white text-center py-4 border-0" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;">
+                    <h3 class="mb-0 font-weight-bold text-white">Student Portal</h3>
                     <p class="mb-0 text-white-50">Online Examination System</p>
                 </div>
-                <div class="card-body p-4 p-md-5">
+                <div class="card-body p-4 p-md-5 bg-white">
                     <?php if ($error): ?>
                         <div class="alert alert-danger shadow-sm py-2"><?php echo h($error); ?></div>
                     <?php endif; ?>
@@ -98,13 +98,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <form method="POST" class="needs-validation" novalidate>
                         <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
                         <div class="form-group mb-4">
-                            <label class="font-weight-bold text-muted">Student ID (Username)</label>
-                            <input type="text" name="username" class="form-control form-control-lg bg-light" required autofocus>
+                            <label class="font-weight-bold text-dark small text-uppercase">Student ID (Username)</label>
+                            <input type="text" name="username" class="form-control form-control-lg" required autofocus placeholder="Enter your Student ID">
                             <div class="invalid-feedback">Please enter your username.</div>
                         </div>
                         <div class="form-group mb-5">
-                            <label class="font-weight-bold text-muted">Password</label>
-                            <input type="password" name="password" class="form-control form-control-lg bg-light" required>
+                            <label class="font-weight-bold text-dark small text-uppercase">Password</label>
+                            <input type="password" name="password" class="form-control form-control-lg" required placeholder="Enter your password">
                             <div class="invalid-feedback">Please enter your password.</div>
                         </div>
                         <button type="submit" class="btn btn-primary btn-lg btn-block shadow-sm font-weight-bold">Login to Dashboard</button>
