@@ -45,9 +45,16 @@ function showToast(message, type = 'success') {
 // ========================================================
 // GOOGLE MATERIAL DESIGN 3 - INK RIPPLE ENGINE
 // ========================================================
-function createMaterialRipple(event) {
-    var trigger = event.currentTarget;
-    if (trigger.classList.contains('disabled') || trigger.disabled) return;
+function createMaterialRipple(trigger, event) {
+    // If called with only an event (e.g. inline onclick handler)
+    if (trigger instanceof Event || (trigger && trigger.type && !trigger.tagName)) {
+        event = trigger;
+        trigger = (event.target && typeof event.target.closest === 'function') 
+            ? event.target.closest('.btn, .student-mobile-nav-item, .admin-mobile-nav-item, .drawer-link, .nav-pills .nav-link, .list-group-item-action, .ripple-effect, .card-clickable') 
+            : (event.currentTarget || event.target);
+    }
+
+    if (!trigger || !trigger.classList || trigger.classList.contains('disabled') || trigger.disabled) return;
 
     var computedPos = window.getComputedStyle(trigger).position;
     if (computedPos === 'static') {
@@ -58,8 +65,8 @@ function createMaterialRipple(event) {
     var ripple = document.createElement('span');
     ripple.className = 'md-ripple-ink';
 
-    var clientX = event.clientX || (event.touches && event.touches[0] ? event.touches[0].clientX : rect.left + rect.width / 2);
-    var clientY = event.clientY || (event.touches && event.touches[0] ? event.touches[0].clientY : rect.top + rect.height / 2);
+    var clientX = (event && event.clientX) || (event && event.touches && event.touches[0] ? event.touches[0].clientX : rect.left + rect.width / 2);
+    var clientY = (event && event.clientY) || (event && event.touches && event.touches[0] ? event.touches[0].clientY : rect.top + rect.height / 2);
 
     var x = clientX - rect.left;
     var y = clientY - rect.top;
@@ -88,8 +95,9 @@ function createMaterialRipple(event) {
 }
 
 document.addEventListener('pointerdown', function(e) {
+    if (!e || !e.target || typeof e.target.closest !== 'function') return;
     var target = e.target.closest('.btn, .student-mobile-nav-item, .admin-mobile-nav-item, .drawer-link, .nav-pills .nav-link, .list-group-item-action, .ripple-effect, .card-clickable');
     if (target) {
-        createMaterialRipple(e);
+        createMaterialRipple(target, e);
     }
 });
