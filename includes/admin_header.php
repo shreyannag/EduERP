@@ -6,22 +6,36 @@ require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/functions.php';
 
 // Auto-complete any expired exams
-update_exam_statuses($pdo);
+try {
+    update_exam_statuses($pdo);
+} catch (\Throwable $e) {
+    error_log("update_exam_statuses error: " . $e->getMessage());
+}
 
 // Get admin info
-$stmt = $pdo->prepare("SELECT username FROM admins WHERE id = ?");
-$stmt->execute([$_SESSION['admin_id']]);
-$adminUser = $stmt->fetchColumn();
+$adminUser = 'Admin';
+try {
+    $stmt = $pdo->prepare("SELECT username FROM admins WHERE id = ?");
+    $stmt->execute([$_SESSION['admin_id'] ?? 0]);
+    $adminUser = $stmt->fetchColumn() ?: 'Admin';
+} catch (\Throwable $e) {
+    error_log("Admin username fetch error: " . $e->getMessage());
+}
 
 // Get unread messages count
-$stmt_msg = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE sender_type = 'student' AND receiver_id = ? AND is_read = 0");
-$stmt_msg->execute([$_SESSION['admin_id']]);
-$unread_msg_count = (int)$stmt_msg->fetchColumn();
+$unread_msg_count = 0;
+$unread_admin_msg_count = 0;
+try {
+    $stmt_msg = $pdo->prepare("SELECT COUNT(*) FROM messages WHERE sender_type = 'student' AND receiver_id = ? AND is_read = 0");
+    $stmt_msg->execute([$_SESSION['admin_id'] ?? 0]);
+    $unread_msg_count = (int)$stmt_msg->fetchColumn();
 
-// Get unread admin-to-admin messages count
-$stmt_admin_msg = $pdo->prepare("SELECT COUNT(*) FROM admin_messages WHERE receiver_id = ? AND is_read = 0");
-$stmt_admin_msg->execute([$_SESSION['admin_id']]);
-$unread_admin_msg_count = (int)$stmt_admin_msg->fetchColumn();
+    $stmt_admin_msg = $pdo->prepare("SELECT COUNT(*) FROM admin_messages WHERE receiver_id = ? AND is_read = 0");
+    $stmt_admin_msg->execute([$_SESSION['admin_id'] ?? 0]);
+    $unread_admin_msg_count = (int)$stmt_admin_msg->fetchColumn();
+} catch (\Throwable $e) {
+    error_log("Unread messages fetch error: " . $e->getMessage());
+}
 $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
 ?>
 <!DOCTYPE html>
@@ -39,16 +53,7 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="EduERP">
     <script src="<?php echo BASE_URL; ?>/assets/js/pwa.js" defer></script>
-    <!-- PWA Progressive Web App Manifest & Meta Tags -->
-    <link rel="manifest" href="<?php echo BASE_URL; ?>/manifest.json">
-    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>/assets/icons/favicon.png">
-    <link rel="apple-touch-icon" href="<?php echo BASE_URL; ?>/assets/icons/icon-192.png">
-    <meta name="theme-color" content="#1e3a8a">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="EduERP">
-    <script src="<?php echo BASE_URL; ?>/assets/js/pwa.js" defer></script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Fonts & Icons -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

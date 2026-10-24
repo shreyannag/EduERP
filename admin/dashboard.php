@@ -42,24 +42,32 @@ $activeOnlineStudents = get_active_online_students(is_super_admin() ? null : $ad
 
 // Today's attendance summary
 $todayDate = date('Y-m-d');
-$attWhere = "ar.session_date = ?";
-$attParams = [$todayDate];
-if (!is_super_admin()) {
-    $attWhere .= " AND ar.admin_id = ?";
-    $attParams[] = $admin_id;
+$todayAtt = ['reg_count' => 0, 'total_recorded' => 0, 'count_offline' => 0, 'count_online' => 0, 'count_absent' => 0];
+try {
+    $attWhere = "ar.session_date = ?";
+    $attParams = [$todayDate];
+    if (!is_super_admin()) {
+        $attWhere .= " AND ar.admin_id = ?";
+        $attParams[] = $admin_id;
+    }
+    $stmtAtt = $pdo->prepare("
+        SELECT COUNT(DISTINCT ar.id) as reg_count,
+               COUNT(rec.id) as total_recorded,
+               SUM(CASE WHEN rec.status = 'offline' THEN 1 ELSE 0 END) as count_offline,
+               SUM(CASE WHEN rec.status = 'online' THEN 1 ELSE 0 END) as count_online,
+               SUM(CASE WHEN rec.status = 'absent' THEN 1 ELSE 0 END) as count_absent
+        FROM attendance_registers ar
+        LEFT JOIN attendance_records rec ON rec.register_id = ar.id
+        WHERE $attWhere
+    ");
+    $stmtAtt->execute($attParams);
+    $fetchedAtt = $stmtAtt->fetch(PDO::FETCH_ASSOC);
+    if ($fetchedAtt && !empty($fetchedAtt['reg_count'])) {
+        $todayAtt = $fetchedAtt;
+    }
+} catch (\Throwable $e) {
+    error_log("Dashboard attendance query notice: " . $e->getMessage());
 }
-$stmtAtt = $pdo->prepare("
-    SELECT COUNT(DISTINCT ar.id) as reg_count,
-           COUNT(rec.id) as total_recorded,
-           SUM(CASE WHEN rec.status = 'offline' THEN 1 ELSE 0 END) as count_offline,
-           SUM(CASE WHEN rec.status = 'online' THEN 1 ELSE 0 END) as count_online,
-           SUM(CASE WHEN rec.status = 'absent' THEN 1 ELSE 0 END) as count_absent
-    FROM attendance_registers ar
-    LEFT JOIN attendance_records rec ON rec.register_id = ar.id
-    WHERE $attWhere
-");
-$stmtAtt->execute($attParams);
-$todayAtt = $stmtAtt->fetch(PDO::FETCH_ASSOC) ?: ['reg_count' => 0, 'total_recorded' => 0, 'count_offline' => 0, 'count_online' => 0, 'count_absent' => 0];
 
 ?>
 

@@ -22,21 +22,38 @@ if (!is_super_admin()) {
 if ($filter_class) { $where .= " AND s.class_id = ?"; $params[] = $filter_class; }
 if ($filter_board) { $where .= " AND s.board_id = ?"; $params[] = $filter_board; }
 
-$stmt = $pdo->prepare("
-    SELECT s.*, c.name as class_name, b.name as board_name, a.institute_name, a.username as admin_username,
-    (SELECT COUNT(*) FROM enrolments WHERE student_id = s.id) as enrolled_count,
-    (SELECT COUNT(*) FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)) as is_online_now,
-    (SELECT device_type FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as online_device,
-    (SELECT browser FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as online_browser
-    FROM students s
-    JOIN classes c ON s.class_id = c.id
-    JOIN boards b ON s.board_id = b.id
-    LEFT JOIN admins a ON s.admin_id = a.id
-    WHERE $where
-    ORDER BY s.id DESC
-");
-$stmt->execute($params);
-$students = $stmt->fetchAll();
+try {
+    $stmt = $pdo->prepare("
+        SELECT s.*, c.name as class_name, b.name as board_name, a.institute_name, a.username as admin_username,
+        (SELECT COUNT(*) FROM enrolments WHERE student_id = s.id) as enrolled_count,
+        (SELECT COUNT(*) FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)) as is_online_now,
+        (SELECT device_type FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as online_device,
+        (SELECT browser FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as online_browser
+        FROM students s
+        JOIN classes c ON s.class_id = c.id
+        JOIN boards b ON s.board_id = b.id
+        LEFT JOIN admins a ON s.admin_id = a.id
+        WHERE $where
+        ORDER BY s.id DESC
+    ");
+    $stmt->execute($params);
+    $students = $stmt->fetchAll();
+} catch (\Throwable $e) {
+    error_log("Students list query notice: " . $e->getMessage());
+    $stmt = $pdo->prepare("
+        SELECT s.*, c.name as class_name, b.name as board_name, a.institute_name, a.username as admin_username,
+        (SELECT COUNT(*) FROM enrolments WHERE student_id = s.id) as enrolled_count,
+        0 as is_online_now, NULL as online_device, NULL as online_browser
+        FROM students s
+        JOIN classes c ON s.class_id = c.id
+        JOIN boards b ON s.board_id = b.id
+        LEFT JOIN admins a ON s.admin_id = a.id
+        WHERE $where
+        ORDER BY s.id DESC
+    ");
+    $stmt->execute($params);
+    $students = $stmt->fetchAll();
+}
 
 $classes = $pdo->query("SELECT id, name FROM classes ORDER BY CAST(name AS UNSIGNED)")->fetchAll();
 $boards = $pdo->query("SELECT id, name FROM boards ORDER BY name")->fetchAll();
