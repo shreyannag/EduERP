@@ -48,8 +48,7 @@ if (!$register) {
 $stmtAbs = $pdo->prepare("
     SELECT rec.id as record_id, rec.register_id, rec.student_id, rec.status, rec.remarks,
            rec.parent_notified, rec.parent_notified_at, rec.parent_notification_channel,
-           s.full_name, s.username, s.email, s.phone, s.parent_name, s.parent_phone, s.roll_no,
-           c.name as class_name
+           s.full_name, s.username, s.email, s.phone, s.parent_name, s.parent_phone,            c.name as class_name
     FROM attendance_records rec
     JOIN students s ON rec.student_id = s.id
     JOIN classes c ON s.class_id = c.id
@@ -188,9 +187,7 @@ $instituteTitle = !empty($register['institute_name']) ? $register['institute_nam
                             <td class="align-middle">
                                 <div class="font-weight-bold text-dark" style="font-size: 0.95rem;">
                                     <?= h($sName) ?>
-                                    <?php if (!empty($abs['roll_no'])): ?>
-                                        <span class="badge badge-light border text-muted ml-1">Roll #<?= h($abs['roll_no']) ?></span>
-                                    <?php endif; ?>
+                                    
                                 </div>
                                 <div class="small text-muted">
                                     <i class="fas fa-user text-muted mr-1"></i><?= h($abs['username']) ?> • Class <?= h($abs['class_name']) ?>

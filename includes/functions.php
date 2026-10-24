@@ -498,3 +498,50 @@ function get_online_students_count($adminId = null, $pdo = null) {
         return 0;
     }
 }
+/**
+ * Return relative time string (e.g. "5 mins ago", "2 hours ago", "yesterday")
+ */
+if (!function_exists('time_elapsed_string')) {
+    function time_elapsed_string($datetime, $full = false): string {
+        if (empty($datetime)) return 'Never';
+        $now = new DateTime;
+        try {
+            $ago = new DateTime($datetime);
+        } catch (\Exception $e) {
+            return (string)$datetime;
+        }
+        $diff = $now->diff($ago);
+
+        $diff->w = (int)floor($diff->d / 7);
+        $diff->d -= $diff->w * 7;
+
+        $string = [
+            'y' => 'year',
+            'm' => 'month',
+            'w' => 'week',
+            'd' => 'day',
+            'h' => 'hour',
+            'i' => 'min',
+            's' => 'sec',
+        ];
+        foreach ($string as $k => &$v) {
+            if ($diff->$k) {
+                $v = $diff->$k . ' ' . $v . ($diff->$k > 1 ? 's' : '');
+            } else {
+                unset($string[$k]);
+            }
+        }
+
+        if (!$full) $string = array_slice($string, 0, 1);
+        return $string ? implode(', ', $string) . ' ago' : 'just now';
+    }
+}
+
+/**
+ * Generate CSRF hidden input field
+ */
+if (!function_exists('csrf_field')) {
+    function csrf_field(): string {
+        return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+    }
+}

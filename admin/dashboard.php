@@ -61,31 +61,6 @@ $stmtAtt = $pdo->prepare("
 $stmtAtt->execute($attParams);
 $todayAtt = $stmtAtt->fetch(PDO::FETCH_ASSOC) ?: ['reg_count' => 0, 'total_recorded' => 0, 'count_offline' => 0, 'count_online' => 0, 'count_absent' => 0];
 
-
-$onlineStudentsCount = get_online_students_count(is_super_admin() ? null : $admin_id, $pdo);
-$activeOnlineStudents = get_active_online_students(is_super_admin() ? null : $admin_id, $pdo, 6);
-
-// Today's attendance summary
-$todayDate = date('Y-m-d');
-$attWhere = "ar.session_date = ?";
-$attParams = [$todayDate];
-if (!is_super_admin()) {
-    $attWhere .= " AND ar.admin_id = ?";
-    $attParams[] = $admin_id;
-}
-$stmtAtt = $pdo->prepare("
-    SELECT COUNT(DISTINCT ar.id) as reg_count,
-           COUNT(rec.id) as total_recorded,
-           SUM(CASE WHEN rec.status = 'offline' THEN 1 ELSE 0 END) as count_offline,
-           SUM(CASE WHEN rec.status = 'online' THEN 1 ELSE 0 END) as count_online,
-           SUM(CASE WHEN rec.status = 'absent' THEN 1 ELSE 0 END) as count_absent
-    FROM attendance_registers ar
-    LEFT JOIN attendance_records rec ON rec.register_id = ar.id
-    WHERE $attWhere
-");
-$stmtAtt->execute($attParams);
-$todayAtt = $stmtAtt->fetch(PDO::FETCH_ASSOC) ?: ['reg_count' => 0, 'total_recorded' => 0, 'count_offline' => 0, 'count_online' => 0, 'count_absent' => 0];
-
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4 border-bottom">
@@ -185,10 +160,6 @@ $todayAtt = $stmtAtt->fetch(PDO::FETCH_ASSOC) ?: ['reg_count' => 0, 'total_recor
                     <div>
                         <h6 class="text-uppercase text-muted font-weight-bold mb-2" style="font-size: 0.8rem;">Active Students</h6>
                         <h2 class="mb-0 font-weight-bold"><?php echo number_format($activeStudents); ?></h2>
-                        <div class="small text-success font-weight-bold mt-1">
-                            <span class="spinner-grow spinner-grow-sm text-success mr-1" style="width: 8px; height: 8px;" role="status"></span>
-                            <?= $onlineStudentsCount ?> online right now
-                        </div>
                         <div class="small text-success font-weight-bold mt-1">
                             <span class="spinner-grow spinner-grow-sm text-success mr-1" style="width: 8px; height: 8px;" role="status"></span>
                             <?= $onlineStudentsCount ?> online right now

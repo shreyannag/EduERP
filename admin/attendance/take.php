@@ -70,7 +70,7 @@ if ($selected_class > 0 || $selected_batch > 0) {
 
     if ($selected_batch > 0) {
         $studentsQuery = "
-            SELECT s.id, s.full_name, s.username, s.roll_no, s.phone, s.parent_name, s.parent_phone, s.last_seen, s.last_ip,
+            SELECT s.id, s.full_name, s.username, s.phone, s.parent_name, s.parent_phone, s.last_seen, s.last_ip,
                    c.name as class_name, b.name as batch_name,
                    (SELECT COUNT(*) FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)) as is_active_now,
                    (SELECT device_type FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as active_device,
@@ -86,7 +86,7 @@ if ($selected_class > 0 || $selected_batch > 0) {
         array_unshift($studentsParams, $selected_batch);
     } else {
         $studentsQuery = "
-            SELECT s.id, s.full_name, s.username, s.roll_no, s.phone, s.parent_name, s.parent_phone, s.last_seen, s.last_ip,
+            SELECT s.id, s.full_name, s.username, s.phone, s.parent_name, s.parent_phone, s.last_seen, s.last_ip,
                    c.name as class_name, '' as batch_name,
                    (SELECT COUNT(*) FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)) as is_active_now,
                    (SELECT device_type FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as active_device,
@@ -212,7 +212,7 @@ if ($selected_class > 0 || $selected_batch > 0) {
 
 <!-- Interactive Attendance Form -->
 <form id="attendanceForm" autocomplete="off">
-    <?= csrf_field() ?>
+    <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
     <input type="hidden" name="register_id" value="<?= $register_id ?>">
     <input type="hidden" name="session_date" value="<?= htmlspecialchars($selected_date) ?>">
     <input type="hidden" name="class_id" value="<?= $selected_class ?>">
@@ -334,9 +334,7 @@ if ($selected_class > 0 || $selected_batch > 0) {
                                     <div>
                                         <div class="font-weight-bold text-dark" style="font-size: 0.95rem;">
                                             <?= h($s['full_name']) ?>
-                                            <?php if (!empty($s['roll_no'])): ?>
-                                                <span class="badge badge-light border text-muted ml-1">Roll #<?= h($s['roll_no']) ?></span>
-                                            <?php endif; ?>
+                                            
                                         </div>
                                         <div class="small text-muted">
                                             <span><i class="fas fa-user text-muted mr-1"></i><?= h($s['username']) ?></span>
