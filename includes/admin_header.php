@@ -190,9 +190,6 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             <?php if (admin_has_feature('attendance')): ?>
             <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Class Attendance</a>
             <?php endif; ?>
-            <?php if (admin_has_feature('attendance')): ?>
-            <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Class Attendance</a>
-            <?php endif; ?>
             <?php if (admin_has_feature('batches')): ?>
             <a href="<?php echo BASE_URL; ?>/admin/batches/index.php" class="drawer-link"><i class="fas fa-layer-group text-warning"></i> Teaching Batches</a>
             <?php endif; ?>
@@ -449,11 +446,6 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                     <?php if (admin_has_feature('students')): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/students/index.php"><i class="fas fa-users mr-2 fa-fw"></i> Manage Students</a>
-                    </li>
-                    <?php endif; ?>
-                    <?php if (admin_has_feature('attendance')): ?>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/attendance/index.php"><i class="fas fa-clipboard-check mr-2 fa-fw text-success"></i> Class Attendance</a>
                     </li>
                     <?php endif; ?>
                     <?php if (admin_has_feature('attendance')): ?>

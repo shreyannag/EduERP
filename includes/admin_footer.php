@@ -100,9 +100,6 @@
                     <?php if (admin_has_feature('attendance')): ?>
                     <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Class Attendance</a>
                     <?php endif; ?>
-                    <?php if (admin_has_feature('attendance')): ?>
-                    <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Class Attendance</a>
-                    <?php endif; ?>
                     <?php if (admin_has_feature('batches')): ?>
                     <a href="<?php echo BASE_URL; ?>/admin/batches/index.php" class="drawer-link"><i class="fas fa-layer-group text-warning"></i> Teaching Batches</a>
                     <?php endif; ?>
