@@ -79,46 +79,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['records'])) {
     }
 }
 
+$selected_date = $_GET['date'] ?? date('Y-m-d');
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $selected_date)) {
+    $selected_date = date('Y-m-d');
+}
+
+// Fetch classes and batches first so dropdowns and pills have full metadata
+$classes = $pdo->query("SELECT id, name FROM classes ORDER BY CAST(name AS UNSIGNED)")->fetchAll(PDO::FETCH_ASSOC);
+
+$requested_class = !empty($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
+$requested_batch = !empty($_GET['batch_id']) ? (int)$_GET['batch_id'] : 0;
 $register_id = !empty($_GET['register_id']) ? (int)$_GET['register_id'] : 0;
+$is_new_session = !empty($_GET['new_session']);
 $existingRegister = null;
 
-if ($register_id > 0) {
+// If an explicit register_id was requested (e.g. from Index page "Edit Register"), inspect it
+if ($register_id > 0 && !$is_new_session) {
     $stmtReg = $pdo->prepare("SELECT * FROM attendance_registers WHERE id = ?" . (!is_super_admin() ? " AND admin_id = ?" : ""));
     $stmtReg->execute(!is_super_admin() ? [$register_id, $effective_admin_id] : [$register_id]);
     $existingRegister = $stmtReg->fetch(PDO::FETCH_ASSOC);
 
-    if (!$existingRegister) {
-        $_SESSION['flash_error'] = "Attendance register not found or you do not have permission to edit it.";
-        header("Location: index.php");
-        exit;
+    if ($existingRegister) {
+        // CRITICAL GUARD: If the user explicitly requested a DIFFERENT class than what this register belongs to,
+        // discard the stale register_id so the user can take attendance for the selected class!
+        if ($requested_class > 0 && (int)$existingRegister['class_id'] !== $requested_class) {
+            $register_id = 0;
+            $existingRegister = null;
+        } else {
+            $selected_date = $existingRegister['session_date'];
+            $selected_class = (int)$existingRegister['class_id'];
+            $selected_batch = (int)$existingRegister['batch_id'];
+            $session_title = $existingRegister['session_title'];
+            $session_start = $existingRegister['schedule_time_start'] ?? '';
+            $session_end = $existingRegister['schedule_time_end'] ?? '';
+            $notes = $existingRegister['notes'] ?? '';
+        }
+    } else {
+        $register_id = 0;
     }
+}
 
-    $selected_date = $existingRegister['session_date'];
-    $selected_class = (int)$existingRegister['class_id'];
-    $selected_batch = (int)$existingRegister['batch_id'];
-    $session_title = $existingRegister['session_title'];
-    $session_start = $existingRegister['schedule_time_start'];
-    $session_end = $existingRegister['schedule_time_end'];
-    $notes = $existingRegister['notes'];
-} else {
-    $selected_date = $_GET['date'] ?? date('Y-m-d');
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $selected_date)) {
-        $selected_date = date('Y-m-d');
-    }
-    $selected_class = !empty($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
-    $selected_batch = !empty($_GET['batch_id']) ? (int)$_GET['batch_id'] : 0;
+// If no existing register is loaded yet, set up class from request or default
+if (!$existingRegister) {
+    $selected_class = $requested_class;
+    $selected_batch = $requested_batch;
     $session_title = $_GET['title'] ?? 'Standard Lecture Session';
     $session_start = '';
     $session_end = '';
     $notes = '';
-}
 
-// Fetch classes and batches for selector dropdowns
-$classes = $pdo->query("SELECT id, name FROM classes ORDER BY CAST(name AS UNSIGNED)")->fetchAll(PDO::FETCH_ASSOC);
-
-// If no class or batch selected yet on new attendance, default to the first available class
-if (empty($register_id) && empty($selected_class) && empty($selected_batch) && !empty($classes)) {
-    $selected_class = (int)$classes[0]['id'];
+    // If no class chosen yet, default to first available class
+    if (empty($selected_class) && empty($selected_batch) && !empty($classes)) {
+        $selected_class = (int)$classes[0]['id'];
+    }
 }
 
 $batchWhere = is_super_admin() ? "is_active = 1" : "is_active = 1 AND admin_id = " . (int)$effective_admin_id;
@@ -134,8 +147,8 @@ if ($selected_batch > 0 && empty($selected_class)) {
     }
 }
 
-// Auto-detect existing register for this class & date if not explicitly passed in URL
-if ($register_id <= 0 && $selected_class > 0 && empty($_GET['new_session'])) {
+// Auto-detect if an attendance register ALREADY exists for THIS selected class and date (unless explicitly new session)
+if ($register_id <= 0 && $selected_class > 0 && !$is_new_session) {
     $chkRegSql = "SELECT * FROM attendance_registers WHERE class_id = ? AND session_date = ?" 
                . ($selected_batch > 0 ? " AND batch_id = " . (int)$selected_batch : "")
                . (!is_super_admin() ? " AND admin_id = " . (int)$effective_admin_id : "")
@@ -150,6 +163,15 @@ if ($register_id <= 0 && $selected_class > 0 && empty($_GET['new_session'])) {
         $session_start = $existingRegister['schedule_time_start'] ?? '';
         $session_end = $existingRegister['schedule_time_end'] ?? '';
         $notes = $existingRegister['notes'] ?? '';
+    }
+}
+
+// Identify active class display name
+$currentClassName = '';
+foreach ($classes as $c) {
+    if ($c['id'] == $selected_class) {
+        $currentClassName = $c['name'];
+        break;
     }
 }
 
@@ -286,13 +308,25 @@ if ($selected_class > 0 || $selected_batch > 0) {
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
     <div>
-        <div class="d-flex align-items-center">
-            <a href="index.php?date=<?= urlencode($selected_date) ?>" class="btn btn-outline-secondary rounded-pill btn-sm mr-3 font-weight-bold shadow-xs">
+        <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
+            <a href="index.php?date=<?= urlencode($selected_date) ?>" class="btn btn-outline-secondary rounded-pill btn-sm mr-2 font-weight-bold shadow-xs">
                 <i class="fas fa-arrow-left mr-1"></i> Back to Registers
             </a>
             <h2 class="font-weight-bold text-dark mb-0">
-                <?= $register_id > 0 ? '<i class="fas fa-edit text-primary mr-2"></i>Edit Attendance Register' : '<i class="fas fa-calendar-check text-success mr-2"></i>Take Class Attendance' ?>
+                <?= $register_id > 0 ? '<i class="fas fa-edit text-primary mr-2"></i>Class Attendance Register' : '<i class="fas fa-calendar-check text-success mr-2"></i>Take Class Attendance' ?>
             </h2>
+            <?php if ($register_id > 0): ?>
+                <span class="badge badge-primary px-3 py-2 font-weight-bold shadow-xs" style="font-size: 0.85rem;">
+                    <i class="fas fa-save mr-1"></i> Register #<?= $register_id ?> (Editing Record for Class <?= h($currentClassName) ?>)
+                </span>
+                <a href="take.php?date=<?= urlencode($selected_date) ?>&class_id=<?= $selected_class ?>&new_session=1" class="btn btn-sm btn-outline-success font-weight-bold rounded-pill shadow-xs" title="Record a second independent attendance session for this class today">
+                    <i class="fas fa-plus mr-1"></i> Start New Session for Class <?= h($currentClassName) ?>
+                </a>
+            <?php else: ?>
+                <span class="badge badge-success px-3 py-2 font-weight-bold shadow-xs" style="font-size: 0.85rem;">
+                    <i class="fas fa-plus-circle mr-1"></i> New Register for Class <?= h($currentClassName) ?>
+                </span>
+            <?php endif; ?>
         </div>
         <p class="text-muted small mb-0 mt-1">Record online & offline student presence, auto-detect portal logins, and prepare absentee notifications.</p>
     </div>
@@ -327,10 +361,6 @@ if ($selected_class > 0 || $selected_batch > 0) {
     </div>
     <div class="card-body p-4">
         <form method="GET" id="selectionForm" class="row">
-            <?php if ($register_id > 0): ?>
-                <input type="hidden" name="register_id" value="<?= $register_id ?>">
-            <?php endif; ?>
-
             <div class="col-md-3 mb-3">
                 <label class="font-weight-bold text-muted small text-uppercase">Session Date <span class="text-danger">*</span></label>
                 <div class="input-group shadow-xs">
@@ -375,7 +405,7 @@ if ($selected_class > 0 || $selected_batch > 0) {
         <div class="d-flex flex-wrap align-items-center" style="gap: 8px;">
             <span class="text-muted small font-weight-bold mr-1"><i class="fas fa-layer-group text-primary mr-1"></i>Switch Class:</span>
             <?php foreach ($classes as $c): ?>
-                <a href="take.php?date=<?= urlencode($selected_date) ?>&class_id=<?= $c['id'] ?><?= $register_id ? '&register_id='.$register_id : '' ?>" 
+                <a href="take.php?date=<?= urlencode($selected_date) ?>&class_id=<?= $c['id'] ?>" 
                    class="btn btn-sm <?= ($selected_class == $c['id']) ? 'btn-primary font-weight-bold shadow-xs' : 'btn-outline-secondary bg-white' ?> rounded-pill px-3">
                     Class <?= h($c['name']) ?>
                 </a>
@@ -390,8 +420,8 @@ if ($selected_class > 0 || $selected_batch > 0) {
         <div class="d-flex align-items-center">
             <i class="fas fa-exclamation-triangle fa-2x text-warning mr-3"></i>
             <div>
-                <h6 class="font-weight-bold mb-1">No Active Students Found</h6>
-                <p class="mb-0 small text-muted">There are no active enrolled students found for the selected Class/Batch. Choose another class from the tabs above or check student enrolments.</p>
+                <h6 class="font-weight-bold mb-1">No Active Students Found in Class <?= h($currentClassName) ?></h6>
+                <p class="mb-0 small text-muted">There are no active enrolled students found for Class <?= h($currentClassName) ?><?= $selected_batch > 0 ? ' in the selected batch' : '' ?>. Select another class from the tabs above or check student enrolments.</p>
             </div>
         </div>
     </div>
@@ -475,7 +505,7 @@ if ($selected_class > 0 || $selected_batch > 0) {
     <div class="card shadow-sm border-0 rounded-lg mb-4 bg-white">
         <div class="card-header bg-light border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
             <h6 class="font-weight-bold text-dark mb-0">
-                <i class="fas fa-list-ol text-primary mr-2"></i>Student Roster (<?= count($students) ?> Students in Class <?= h($students[0]['class_name'] ?? '') ?>)
+                <i class="fas fa-list-ol text-primary mr-2"></i>Student Roster (<?= count($students) ?> Students in Class <?= h($currentClassName) ?>)
             </h6>
             <div class="small text-muted">
                 <i class="fas fa-info-circle text-info mr-1"></i>Green pulsing badges indicate students active on the portal right now
