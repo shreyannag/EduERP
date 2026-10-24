@@ -383,11 +383,13 @@ function markNotifiedChannel(studentId, channel) {
 }
 
 $(document).ready(function() {
-    $('#absenteesTable').DataTable({
-        pageLength: 25,
-        order: [],
-        language: { search: "_INPUT_", searchPlaceholder: "Search absentees..." }
-    });
+    if ($('#absenteesTable').length) {
+        $('#absenteesTable').DataTable({
+            pageLength: 25,
+            order: [],
+            language: { search: "_INPUT_", searchPlaceholder: "Search absentees..." }
+        });
+    }
 });
 </script>
 

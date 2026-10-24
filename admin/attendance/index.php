@@ -200,34 +200,32 @@ $attendanceRate = ($metricTotal > 0) ? round(($presentTotal / $metricTotal) * 10
         </div>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive p-4">
-            <table class="table table-hover table-bordered mb-0" id="registersTable">
-                <thead class="bg-light text-muted small text-uppercase">
-                    <tr>
-                        <th>Class &amp; Batch</th>
-                        <th>Session Title / Schedule</th>
-                        <th class="text-center">Enrolled</th>
-                        <th class="text-center">🏢 Offline</th>
-                        <th class="text-center">💻 Online</th>
-                        <th class="text-center">❌ Absent</th>
-                        <th class="text-center">Attendance %</th>
-                        <th class="text-center">Parent Alerts</th>
-                        <th class="text-right px-4">Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($registers)): ?>
+        <?php if (empty($registers)): ?>
+            <div class="text-center py-5 text-muted px-4">
+                <i class="fas fa-clipboard-list fa-3x mb-3 text-black-50 d-block"></i>
+                <h5 class="font-weight-bold text-dark">No Attendance Recorded for <?= date('d M Y', strtotime($selected_date)) ?></h5>
+                <p class="small text-muted mb-3">Start by recording attendance for scheduled batches or classes today.</p>
+                <a href="take.php?date=<?= urlencode($selected_date) ?>" class="btn btn-success font-weight-bold rounded-pill px-4 shadow-sm">
+                    <i class="fas fa-plus mr-1"></i> Record Attendance Now
+                </a>
+            </div>
+        <?php else: ?>
+            <div class="table-responsive p-4">
+                <table class="table table-hover table-bordered mb-0" id="registersTable">
+                    <thead class="bg-light text-muted small text-uppercase">
                         <tr>
-                            <td colspan="9" class="text-center py-5 text-muted">
-                                <i class="fas fa-clipboard-list fa-3x mb-3 text-black-50 d-block"></i>
-                                <h6 class="font-weight-bold">No Attendance Recorded for <?= date('d M Y', strtotime($selected_date)) ?></h6>
-                                <p class="small text-muted mb-3">Start by recording attendance for scheduled batches or classes today.</p>
-                                <a href="take.php?date=<?= urlencode($selected_date) ?>" class="btn btn-success font-weight-bold rounded-pill px-4 shadow-sm">
-                                    <i class="fas fa-plus mr-1"></i> Record Attendance Now
-                                </a>
-                            </td>
+                            <th>Class &amp; Batch</th>
+                            <th>Session Title / Schedule</th>
+                            <th class="text-center">Enrolled</th>
+                            <th class="text-center">🏢 Offline</th>
+                            <th class="text-center">💻 Online</th>
+                            <th class="text-center">❌ Absent</th>
+                            <th class="text-center">Attendance %</th>
+                            <th class="text-center">Parent Alerts</th>
+                            <th class="text-right px-4">Actions</th>
                         </tr>
-                    <?php else: ?>
+                    </thead>
+                    <tbody>
                         <?php foreach ($registers as $reg): 
                             $regTotal = (int)$reg['total_recorded'];
                             $regPresent = (int)$reg['count_offline'] + (int)$reg['count_online'] + (int)$reg['count_late'];
@@ -291,16 +289,17 @@ $attendanceRate = ($metricTotal > 0) ? round(($presentTotal / $metricTotal) * 10
                             </td>
                         </tr>
                         <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 
 <script>
 $(document).ready(function() {
-    $('#registersTable').DataTable({
+    if ($('#registersTable').length) {
+        $('#registersTable').DataTable({
         pageLength: 25,
         order: [],
         language: {
@@ -308,6 +307,7 @@ $(document).ready(function() {
             searchPlaceholder: "Search registers..."
         }
     });
+    }
 });
 </script>
 
