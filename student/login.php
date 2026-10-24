@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (password_verify($password, $student['password_hash'])) {
                     $session_token = bin2hex(random_bytes(32));
                     $pdo->prepare("UPDATE students SET login_attempts = 0, locked_until = NULL, session_token = ? WHERE id = ?")->execute([$session_token, $student['id']]);
+                    record_user_login('student', $student['id'], $session_token, $pdo);
                     session_regenerate_id(true);
                     $_SESSION['student_id'] = $student['id'];
                     $_SESSION['role'] = 'student';

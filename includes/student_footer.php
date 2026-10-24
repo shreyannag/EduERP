@@ -118,5 +118,32 @@ $(document).ready(function() {
     });
 });
 </script>
+<script>
+// Real-time Presence & Multi-Login Session Guard
+(function() {
+    function pingStudentPresence() {
+        var pageTitle = document.title || 'Student Portal';
+        $.ajax({
+            url: '<?php echo BASE_URL; ?>/student/heartbeat.php',
+            method: 'POST',
+            data: { current_page: pageTitle },
+            dataType: 'json'
+        }).fail(function(xhr) {
+            if (xhr.status === 401) {
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    if (resp.error === 'concurrent') {
+                        alert("Session Terminated: Your account was logged in from another device. You will now be redirected to login.");
+                        window.location.href = '<?php echo BASE_URL; ?>/student/login.php?msg=concurrent';
+                        return;
+                    }
+                } catch(e) {}
+                window.location.href = '<?php echo BASE_URL; ?>/student/login.php?msg=timeout';
+            }
+        });
+    }
+    setInterval(pingStudentPresence, 25000);
+})();
+</script>
 </body>
 </html>

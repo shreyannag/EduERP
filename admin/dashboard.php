@@ -36,6 +36,56 @@ if (is_super_admin()) {
     $stmtRecent->execute([$admin_id]);
     $recentExams = $stmtRecent->fetchAll();
 }
+
+$onlineStudentsCount = get_online_students_count(is_super_admin() ? null : $admin_id, $pdo);
+$activeOnlineStudents = get_active_online_students(is_super_admin() ? null : $admin_id, $pdo, 6);
+
+// Today's attendance summary
+$todayDate = date('Y-m-d');
+$attWhere = "ar.session_date = ?";
+$attParams = [$todayDate];
+if (!is_super_admin()) {
+    $attWhere .= " AND ar.admin_id = ?";
+    $attParams[] = $admin_id;
+}
+$stmtAtt = $pdo->prepare("
+    SELECT COUNT(DISTINCT ar.id) as reg_count,
+           COUNT(rec.id) as total_recorded,
+           SUM(CASE WHEN rec.status = 'offline' THEN 1 ELSE 0 END) as count_offline,
+           SUM(CASE WHEN rec.status = 'online' THEN 1 ELSE 0 END) as count_online,
+           SUM(CASE WHEN rec.status = 'absent' THEN 1 ELSE 0 END) as count_absent
+    FROM attendance_registers ar
+    LEFT JOIN attendance_records rec ON rec.register_id = ar.id
+    WHERE $attWhere
+");
+$stmtAtt->execute($attParams);
+$todayAtt = $stmtAtt->fetch(PDO::FETCH_ASSOC) ?: ['reg_count' => 0, 'total_recorded' => 0, 'count_offline' => 0, 'count_online' => 0, 'count_absent' => 0];
+
+
+$onlineStudentsCount = get_online_students_count(is_super_admin() ? null : $admin_id, $pdo);
+$activeOnlineStudents = get_active_online_students(is_super_admin() ? null : $admin_id, $pdo, 6);
+
+// Today's attendance summary
+$todayDate = date('Y-m-d');
+$attWhere = "ar.session_date = ?";
+$attParams = [$todayDate];
+if (!is_super_admin()) {
+    $attWhere .= " AND ar.admin_id = ?";
+    $attParams[] = $admin_id;
+}
+$stmtAtt = $pdo->prepare("
+    SELECT COUNT(DISTINCT ar.id) as reg_count,
+           COUNT(rec.id) as total_recorded,
+           SUM(CASE WHEN rec.status = 'offline' THEN 1 ELSE 0 END) as count_offline,
+           SUM(CASE WHEN rec.status = 'online' THEN 1 ELSE 0 END) as count_online,
+           SUM(CASE WHEN rec.status = 'absent' THEN 1 ELSE 0 END) as count_absent
+    FROM attendance_registers ar
+    LEFT JOIN attendance_records rec ON rec.register_id = ar.id
+    WHERE $attWhere
+");
+$stmtAtt->execute($attParams);
+$todayAtt = $stmtAtt->fetch(PDO::FETCH_ASSOC) ?: ['reg_count' => 0, 'total_recorded' => 0, 'count_offline' => 0, 'count_online' => 0, 'count_absent' => 0];
+
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4 border-bottom">
@@ -135,6 +185,14 @@ if (is_super_admin()) {
                     <div>
                         <h6 class="text-uppercase text-muted font-weight-bold mb-2" style="font-size: 0.8rem;">Active Students</h6>
                         <h2 class="mb-0 font-weight-bold"><?php echo number_format($activeStudents); ?></h2>
+                        <div class="small text-success font-weight-bold mt-1">
+                            <span class="spinner-grow spinner-grow-sm text-success mr-1" style="width: 8px; height: 8px;" role="status"></span>
+                            <?= $onlineStudentsCount ?> online right now
+                        </div>
+                        <div class="small text-success font-weight-bold mt-1">
+                            <span class="spinner-grow spinner-grow-sm text-success mr-1" style="width: 8px; height: 8px;" role="status"></span>
+                            <?= $onlineStudentsCount ?> online right now
+                        </div>
                     </div>
                     <div class="text-success opacity-50"><i class="fas fa-user-graduate fa-3x"></i></div>
                 </div>
@@ -224,6 +282,125 @@ if (is_super_admin()) {
                     <p class="text-white-50 mb-4 px-2">Design an assessment, pick questions from your bank, and enroll students effortlessly.</p>
                     <a href="<?php echo BASE_URL; ?>/admin/exams/create.php" class="btn btn-light btn-lg font-weight-bold shadow px-4 py-2 text-primary rounded-pill transition-all">Get Started <i class="fas fa-arrow-right ml-2 opacity-50"></i></a>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Real-Time Online Students & Class Attendance Section -->
+<div class="row mt-4 mb-4">
+    <!-- Live Online Students -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm border-0 rounded-lg h-100">
+            <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0 font-weight-bold text-dark">
+                        <span class="spinner-grow spinner-grow-sm text-success mr-2" style="width: 10px; height: 10px;" role="status"></span>
+                        Students Online Right Now
+                    </h5>
+                    <small class="text-muted">Real-time portal sessions (last 5 minutes)</small>
+                </div>
+                <span class="badge badge-success px-3 py-2 font-weight-bold rounded-pill">
+                    <?= $onlineStudentsCount ?> Active Online
+                </span>
+            </div>
+            <div class="card-body p-0">
+                <?php if (empty($activeOnlineStudents)): ?>
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-user-clock fa-3x mb-3 text-black-50 d-block"></i>
+                        <h6 class="font-weight-bold">No Students Currently Online</h6>
+                        <p class="small text-muted mb-0">Students will appear here as soon as they log into their portal.</p>
+                    </div>
+                <?php else: ?>
+                    <div class="list-group list-group-flush">
+                        <?php foreach ($activeOnlineStudents as $st): ?>
+                        <div class="list-group-item px-4 py-3 d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-circle mr-3 font-weight-bold bg-light text-primary rounded-circle d-flex align-items-center justify-content-center border" style="width: 38px; height: 38px;">
+                                    <?= strtoupper(substr($st['full_name'], 0, 1)) ?>
+                                </div>
+                                <div>
+                                    <div class="font-weight-bold text-dark"><?= h($st['full_name']) ?></div>
+                                    <div class="small text-muted">
+                                        <span><i class="fas fa-layer-group mr-1 text-primary"></i>Class <?= h($st['class_name']) ?></span>
+                                        <?php if (!empty($st['current_page'])): ?>
+                                            <span class="ml-2 text-truncate d-inline-block" style="max-width: 180px;"><i class="fas fa-compass mr-1 text-info"></i><?= h(basename($st['current_page'])) ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-right">
+                                <span class="badge badge-light border text-muted px-2 py-1 font-weight-bold">
+                                    <i class="fas fa-<?= ($st['device_type'] === 'Mobile') ? 'mobile-alt' : (($st['device_type'] === 'Tablet') ? 'tablet-alt' : 'desktop') ?> mr-1 text-primary"></i>
+                                    <?= h($st['device_type'] ?: 'Web') ?>
+                                </span>
+                                <div class="small text-success mt-1 font-weight-bold">Active now</div>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div class="card-footer bg-white border-top py-2 px-4 text-center">
+                <a href="<?php echo BASE_URL; ?>/admin/students/index.php" class="text-primary font-weight-bold small">
+                    View All Students <i class="fas fa-arrow-right ml-1"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Today's Attendance Widget -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm border-0 rounded-lg h-100">
+            <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
+                <div>
+                    <h5 class="mb-0 font-weight-bold text-dark">
+                        <i class="fas fa-clipboard-check text-success mr-2"></i>Class Schedule Attendance
+                    </h5>
+                    <small class="text-muted">Today: <?= date('d M Y, l') ?></small>
+                </div>
+                <a href="<?php echo BASE_URL; ?>/admin/attendance/take.php" class="btn btn-sm btn-success font-weight-bold rounded-pill px-3 shadow-xs">
+                    <i class="fas fa-plus mr-1"></i> Take Attendance
+                </a>
+            </div>
+            <div class="card-body p-4">
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded-lg border">
+                            <span class="text-muted small text-uppercase font-weight-bold d-block">Registers</span>
+                            <h3 class="font-weight-bold text-dark mb-0 mt-1"><?= (int)$todayAtt['reg_count'] ?></h3>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded-lg border">
+                            <span class="text-muted small text-uppercase font-weight-bold d-block text-success">Present</span>
+                            <h3 class="font-weight-bold text-success mb-0 mt-1"><?= (int)$todayAtt['count_offline'] + (int)$todayAtt['count_online'] ?></h3>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded-lg border">
+                            <span class="text-muted small text-uppercase font-weight-bold d-block text-danger">Absent</span>
+                            <h3 class="font-weight-bold text-danger mb-0 mt-1"><?= (int)$todayAtt['count_absent'] ?></h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-light p-3 rounded-lg border d-flex justify-content-between align-items-center flex-wrap">
+                    <div>
+                        <div class="font-weight-bold text-dark">
+                            <i class="fas fa-bell text-danger mr-1"></i> Absentee Parent Notifications
+                        </div>
+                        <div class="small text-muted">Send automated absentee emails &amp; WhatsApp alerts to parents.</div>
+                    </div>
+                    <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="btn btn-sm btn-outline-danger font-weight-bold rounded-pill px-3 mt-2 mt-sm-0">
+                        View Absentees <i class="fas fa-arrow-right ml-1"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="card-footer bg-white border-top py-2 px-4 text-center">
+                <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="text-success font-weight-bold small">
+                    Open Attendance Management Portal <i class="fas fa-arrow-right ml-1"></i>
+                </a>
             </div>
         </div>
     </div>

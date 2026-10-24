@@ -284,6 +284,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $success = "Personal SMTP Server configuration saved successfully! Outbound student emails will now route directly through this account.";
     }
+
+    // ==========================================
+    // ACTION 6: SIGN OUT ALL OTHER SESSIONS
+    // ==========================================
+    elseif ($action === 'revoke_other_sessions') {
+        $default_tab = 'devices';
+        revoke_all_other_sessions('admin', $admin_id, $_SESSION['session_token'] ?? '', $pdo);
+        $success = "All other sessions have been signed out successfully! Your account is active only on this device.";
+    }
 }
 
 // Re-read current admin info if refreshed
@@ -294,6 +303,7 @@ if ($is_super) {
     $decoded = !empty($admin['features']) ? json_decode($admin['features'], true) : [];
     $assigned_features = is_array($decoded) ? $decoded : [];
 }
+$device_sessions = get_user_device_sessions('admin', $admin_id, $pdo, 25);
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4 border-bottom">
@@ -413,6 +423,10 @@ if ($is_super) {
                 </a>
                 <a class="list-group-item list-group-item-action font-weight-bold py-3" id="tab-security-link" data-toggle="pill" href="#tab-security" role="tab" aria-controls="tab-security" aria-selected="false">
                     <i class="fas fa-shield-alt fa-fw mr-2 text-success"></i> 2FA & Security
+                </a>
+                <a class="list-group-item list-group-item-action font-weight-bold py-3 <?= $default_tab === 'devices' ? 'active' : '' ?>" id="tab-devices-link" data-toggle="pill" href="#tab-devices" role="tab" aria-controls="tab-devices" aria-selected="<?= $default_tab === 'devices' ? 'true' : 'false' ?>">
+                    <i class="fas fa-laptop-house fa-fw mr-2 text-info"></i> Logged In Devices
+                    <span class="badge badge-success ml-auto font-weight-bold">Active</span>
                 </a>
             </div>
         </div>
@@ -1210,6 +1224,107 @@ if ($is_super) {
                                         <th class="bg-light text-muted">Inactivity Timeout</th>
                                         <td><span class="badge badge-light border">10 Minutes (Auto-logout)</span></td>
                                     </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ============================================== -->
+            <!-- TAB 5: LOGGED IN DEVICES & ACTIVE SESSIONS     -->
+            <!-- ============================================== -->
+            <div class="tab-pane fade <?= $default_tab === 'devices' ? 'show active' : '' ?>" id="tab-devices" role="tabpanel" aria-labelledby="tab-devices-link">
+                <div class="card shadow-sm border-0 rounded-lg mb-4">
+                    <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center flex-wrap">
+                        <div>
+                            <h5 class="font-weight-bold text-dark mb-0">
+                                <i class="fas fa-laptop-house text-info mr-2"></i>Logged In Devices & Previous Sessions
+                            </h5>
+                            <small class="text-muted">Review every device that has logged into your administrator account. Multi-login is prevented automatically.</small>
+                        </div>
+                        <form method="POST" action="" onsubmit="return confirm('Sign out all other devices immediately?');" class="mt-2 mt-md-0">
+                            <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
+                            <input type="hidden" name="action" value="revoke_other_sessions">
+                            <button type="submit" class="btn btn-outline-danger btn-sm font-weight-bold rounded-pill px-3 shadow-xs">
+                                <i class="fas fa-sign-out-alt mr-1"></i>Sign Out All Other Devices
+                            </button>
+                        </form>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="alert alert-info border-info rounded-lg mb-4 shadow-xs">
+                            <i class="fas fa-shield-alt fa-lg text-info mr-2"></i>
+                            <strong>Single-Session Protection Active:</strong> To protect administrative authority and student data, only one device can be actively logged into your account at any time. When you log in from a new computer, phone, or browser, previous devices are automatically logged out.
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover table-bordered mb-0">
+                                <thead class="bg-light text-muted small text-uppercase">
+                                    <tr>
+                                        <th>Device &amp; Platform</th>
+                                        <th>Browser &amp; OS</th>
+                                        <th>IP Address</th>
+                                        <th>Login Time</th>
+                                        <th>Last Active</th>
+                                        <th class="text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (empty($device_sessions)): ?>
+                                        <tr><td colspan="6" class="text-center py-4 text-muted">No session history recorded yet.</td></tr>
+                                    <?php else: ?>
+                                        <?php foreach ($device_sessions as $sess): 
+                                            $isThisDevice = (!empty($_SESSION['session_token']) && $sess['session_token'] === $_SESSION['session_token']);
+                                            $devType = strtolower($sess['device_type'] ?? 'desktop');
+                                            $devIcon = ($devType === 'mobile') ? 'fas fa-mobile-alt text-primary' : (($devType === 'tablet') ? 'fas fa-tablet-alt text-info' : 'fas fa-laptop text-dark');
+                                        ?>
+                                        <tr class="<?= $isThisDevice ? 'table-success bg-opacity-25' : '' ?>">
+                                            <td class="align-middle font-weight-bold">
+                                                <i class="<?= $devIcon ?> fa-lg mr-2"></i>
+                                                <?= h($sess['device_type'] ?: 'Desktop') ?>
+                                                <?php if ($isThisDevice): ?>
+                                                    <span class="badge badge-success ml-2 font-weight-bold px-2 py-1"><i class="fas fa-check-circle mr-1"></i>Current Device</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="align-middle">
+                                                <span class="font-weight-bold text-dark"><?= h($sess['browser'] ?: 'Unknown Browser') ?></span>
+                                                <div class="small text-muted font-family-monospace"><?= h($sess['os'] ?: 'Unknown OS') ?></div>
+                                            </td>
+                                            <td class="align-middle font-family-monospace small font-weight-bold text-muted">
+                                                <?= h($sess['ip_address'] ?: '—') ?>
+                                            </td>
+                                            <td class="align-middle small">
+                                                <?= !empty($sess['login_time']) ? date('d M Y, h:i A', strtotime($sess['login_time'])) : '—' ?>
+                                            </td>
+                                            <td class="align-middle small">
+                                                <?= !empty($sess['last_activity']) ? date('d M Y, h:i A', strtotime($sess['last_activity'])) : '—' ?>
+                                                <?php if (!empty($sess['current_page'])): ?>
+                                                    <div class="text-truncate text-muted small" style="max-width: 180px;" title="<?= h($sess['current_page']) ?>">
+                                                        <i class="fas fa-location-arrow mr-1 text-primary"></i><?= h($sess['current_page']) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td class="align-middle text-center">
+                                                <?php if ($isThisDevice): ?>
+                                                    <span class="badge badge-success px-3 py-2 rounded-pill font-weight-bold shadow-xs">
+                                                        <i class="fas fa-circle text-white mr-1" style="font-size:7px;"></i> Active Now
+                                                    </span>
+                                                <?php elseif (!empty($sess['is_active'])): ?>
+                                                    <span class="badge badge-primary px-3 py-2 rounded-pill font-weight-bold shadow-xs">
+                                                        Active
+                                                    </span>
+                                                <?php else: 
+                                                    $reason = $sess['revoked_reason'] ?? '';
+                                                    $reasonLabel = ($reason === 'new_login_superseded') ? 'Logged Out (New Login)' : (($reason === 'user_revoked_all_other') ? 'Signed Out by User' : 'Logged Out');
+                                                ?>
+                                                    <span class="badge badge-secondary px-3 py-1 rounded-pill font-weight-bold opacity-75" title="<?= h($sess['revoked_at'] ? 'Revoked on ' . $sess['revoked_at'] : '') ?>">
+                                                        <?= h($reasonLabel) ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>

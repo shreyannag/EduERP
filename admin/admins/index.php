@@ -349,6 +349,10 @@ $currency = '₹';
                                         onclick='openEditModal(<?= $adm_json_attr ?>)' title="Edit Administrator & Modular Permissions">
                                     <i class="fas fa-edit mr-1"></i> Edit
                                 </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-2 font-weight-bold shadow-xs" 
+                                        onclick='openAdminDevicesModal(<?= $adm['id'] ?>, <?= $username_json_attr ?>)' title="View Login Devices & Session History">
+                                    <i class="fas fa-laptop mr-1"></i> Devices
+                                </button>
                                 <?php if (!$is_super): ?>
                                     <a href="<?php echo BASE_URL; ?>/admin/messages.php?channel=admin&target_admin_id=<?= $adm['id'] ?>" 
                                        class="btn btn-sm btn-outline-info rounded-pill px-2 font-weight-bold shadow-xs" 
@@ -857,6 +861,34 @@ $currency = '₹';
     </div>
 </div>
 
+<!-- ============================================== -->
+<!-- MODAL: ADMIN LOGIN DEVICES & SESSION HISTORY   -->
+<!-- ============================================== -->
+<div class="modal fade" id="adminDevicesModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg rounded-lg">
+            <div class="modal-header bg-dark text-white border-0 py-3">
+                <h5 class="modal-title font-weight-bold">
+                    <i class="fas fa-laptop-house mr-2 text-info"></i>Login Devices & Session History: <span id="adminDevicesModalUsername" class="text-warning"></span>
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body p-4 bg-light">
+                <div class="alert alert-info border-info p-3 rounded-lg mb-3 shadow-xs">
+                    <i class="fas fa-shield-alt text-info mr-2"></i>
+                    <strong>Single-Session Enforcement Active:</strong> When an administrator logs in from a new device, any older active session is automatically terminated.
+                </div>
+                <div id="adminDevicesContent">
+                    <div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading device history...</div>
+                </div>
+            </div>
+            <div class="modal-footer bg-white border-top-0 py-3">
+                <button type="button" class="btn btn-secondary font-weight-bold rounded-pill px-4" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Available features catalog in JS
 const ALL_FEATURES_CATALOG = <?= json_encode(ALL_ADMIN_FEATURES) ?>;
@@ -883,6 +915,55 @@ function generateRandomPass(elementId) {
         pass += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     document.getElementById(elementId).value = pass;
+}
+
+function openAdminDevicesModal(adminId, username) {
+    $('#adminDevicesModalUsername').text(username);
+    $('#adminDevicesContent').html('<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i><br>Loading device history...</div>');
+    $('#adminDevicesModal').modal('show');
+
+    $.getJSON('get_admin_devices_ajax.php', { admin_id: adminId }, function(res) {
+        if (!res.success) {
+            $('#adminDevicesContent').html('<div class="alert alert-danger shadow-sm">' + (res.error || 'Failed to load sessions') + '</div>');
+            return;
+        }
+
+        if (!res.sessions || res.sessions.length === 0) {
+            $('#adminDevicesContent').html('<div class="text-center py-4 text-muted font-weight-bold">No login sessions recorded yet for this administrator.</div>');
+            return;
+        }
+
+        var html = '<div class="table-responsive"><table class="table table-hover table-bordered bg-white shadow-xs rounded">';
+        html += '<thead class="bg-light text-muted small text-uppercase"><tr>';
+        html += '<th>Device / Platform</th><th>Browser & OS</th><th>IP Address</th><th>Login Time</th><th>Last Active</th><th class="text-center">Status</th>';
+        html += '</tr></thead><tbody>';
+
+        res.sessions.forEach(function(sess) {
+            var devType = (sess.device_type || 'Desktop').toLowerCase();
+            var devIcon = (devType === 'mobile') ? 'fas fa-mobile-alt text-primary' : ((devType === 'tablet') ? 'fas fa-tablet-alt text-info' : 'fas fa-laptop text-dark');
+            var statusBadge = '';
+            if (parseInt(sess.is_active) === 1) {
+                statusBadge = '<span class="badge badge-success px-3 py-1 rounded-pill font-weight-bold shadow-xs"><i class="fas fa-circle text-white mr-1" style="font-size:7px;"></i> Active Session</span>';
+            } else {
+                var reasonLabel = (sess.revoked_reason === 'new_login_superseded') ? 'Logged Out (New Login)' : 'Logged Out';
+                statusBadge = '<span class="badge badge-secondary px-2 py-1 rounded-pill font-weight-bold opacity-75">' + reasonLabel + '</span>';
+            }
+
+            html += '<tr>';
+            html += '<td class="align-middle font-weight-bold"><i class="' + devIcon + ' fa-lg mr-2"></i>' + (sess.device_type || 'Desktop') + '</td>';
+            html += '<td class="align-middle font-weight-bold text-dark">' + (sess.browser || '—') + '<br><small class="text-muted font-family-monospace">' + (sess.os || '—') + '</small></td>';
+            html += '<td class="align-middle font-family-monospace small text-muted font-weight-bold">' + (sess.ip_address || '—') + '</td>';
+            html += '<td class="align-middle small">' + (sess.login_time || '—') + '</td>';
+            html += '<td class="align-middle small">' + (sess.last_activity || '—') + '</td>';
+            html += '<td class="align-middle text-center">' + statusBadge + '</td>';
+            html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        $('#adminDevicesContent').html(html);
+    }).fail(function() {
+        $('#adminDevicesContent').html('<div class="alert alert-danger shadow-sm">Server error while loading device history.</div>');
+    });
 }
 
 function toggleFeatureSection(prefix) {

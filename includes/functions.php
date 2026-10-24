@@ -119,6 +119,7 @@ if (!defined('ALL_ADMIN_FEATURES')) {
         'coding'        => ['label' => 'Online Coding & Competitions', 'icon' => 'fas fa-laptop-code', 'desc' => 'Online code editor, multi-language execution engine & coding competitions'],
         'image_storage' => ['label' => 'Image Storage & CDN', 'icon' => 'fas fa-images', 'desc' => 'Compressed image bank, WebP conversion & Cloudinary CDN'],
         'ai_settings'   => ['label' => 'AI Settings', 'icon' => 'fas fa-cogs', 'desc' => 'Configure OpenRouter API keys, model presets & temperature'],
+        'attendance'    => ['label' => 'Attendance Management', 'icon' => 'fas fa-clipboard-check', 'desc' => 'Online & offline class attendance tracking with parent absentee alerts'],
     ]);
 }
 
@@ -243,3 +244,257 @@ function reset_ip_rate_limit($ip, $action, $pdo) {
 }
 
 
+
+
+/**
+ * Parse HTTP user agent into device type, operating system, and browser
+ */
+function parse_user_agent($ua = null) {
+    if ($ua === null) {
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    }
+    
+    $deviceType = 'Desktop';
+    if (preg_match('/(tablet|ipad|playbook|silk)|(android(?!.*mobi))/i', $ua)) {
+        $deviceType = 'Tablet';
+    } elseif (preg_match('/(up.browser|up.link|mmp|symbian|smartphone|midp|wap|phone|android|iemobile|mobile)/i', $ua)) {
+        $deviceType = 'Mobile';
+    }
+
+    // Operating System
+    $os = 'Unknown OS';
+    $osRules = [
+        'Windows 11'  => '/windows nt 10\.0.*(?:arm|x64)/i',
+        'Windows 10'  => '/windows nt 10\.0/i',
+        'Windows 8.1' => '/windows nt 6\.3/i',
+        'Windows 8'   => '/windows nt 6\.2/i',
+        'Windows 7'   => '/windows nt 6\.1/i',
+        'macOS'       => '/macintosh|mac os x/i',
+        'iOS'         => '/iphone|ipad|ipod/i',
+        'Android'     => '/android/i',
+        'Linux'       => '/linux/i',
+        'ChromeOS'    => '/cros/i'
+    ];
+    foreach ($osRules as $name => $pattern) {
+        if (preg_match($pattern, $ua)) {
+            $os = $name;
+            break;
+        }
+    }
+
+    // Browser
+    $browser = 'Unknown Browser';
+    if (preg_match('/edg(?:e)?\/([0-9.]+)/i', $ua, $matches)) {
+        $browser = 'Edge ' . explode('.', $matches[1])[0];
+    } elseif (preg_match('/opr\/([0-9.]+)/i', $ua, $matches)) {
+        $browser = 'Opera ' . explode('.', $matches[1])[0];
+    } elseif (preg_match('/chrome\/([0-9.]+)/i', $ua, $matches)) {
+        $browser = 'Chrome ' . explode('.', $matches[1])[0];
+    } elseif (preg_match('/firefox\/([0-9.]+)/i', $ua, $matches)) {
+        $browser = 'Firefox ' . explode('.', $matches[1])[0];
+    } elseif (preg_match('/safari\/([0-9.]+)/i', $ua, $matches) && !preg_match('/chrome/i', $ua)) {
+        $browser = 'Safari';
+    }
+
+    return [
+        'device_type' => $deviceType,
+        'os'          => $os,
+        'browser'     => $browser,
+        'raw_ua'      => substr($ua, 0, 500)
+    ];
+}
+
+/**
+ * Record a new login session and revoke all previous sessions for this user (Single-session enforcement)
+ */
+function record_user_login($userType, $userId, $sessionToken, $pdo) {
+    try {
+        $ip = get_client_ip();
+        $parsed = parse_user_agent();
+
+        // 1. Invalidate all previous active sessions for this user
+        $stmtRevoke = $pdo->prepare("
+            UPDATE user_sessions 
+            SET is_active = 0, revoked_at = NOW(), revoked_reason = 'new_login_superseded' 
+            WHERE user_type = ? AND user_id = ? AND is_active = 1
+        ");
+        $stmtRevoke->execute([$userType, $userId]);
+
+        // 2. Insert new session
+        $stmtIns = $pdo->prepare("
+            INSERT INTO user_sessions 
+            (user_type, user_id, session_token, ip_address, user_agent, device_type, browser, os, login_time, last_activity, current_page, is_active)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), 'Dashboard', 1)
+        ");
+        $stmtIns->execute([
+            $userType,
+            $userId,
+            $sessionToken,
+            $ip,
+            $parsed['raw_ua'],
+            $parsed['device_type'],
+            $parsed['browser'],
+            $parsed['os']
+        ]);
+
+        // 3. Update last_seen and last_ip on user table
+        $table = ($userType === 'admin') ? 'admins' : 'students';
+        $stmtUser = $pdo->prepare("UPDATE {$table} SET session_token = ?, last_seen = NOW(), last_ip = ? WHERE id = ?");
+        $stmtUser->execute([$sessionToken, $ip, $userId]);
+
+        return true;
+    } catch (\Throwable $e) {
+        error_log("record_user_login error: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Update activity timestamp and current page on active session
+ */
+function touch_user_session($userType, $userId, $sessionToken, $page, $pdo) {
+    try {
+        $cleanPage = substr(trim($page), 0, 200);
+        $stmt = $pdo->prepare("
+            UPDATE user_sessions 
+            SET last_activity = NOW(), current_page = ? 
+            WHERE user_type = ? AND user_id = ? AND session_token = ? AND is_active = 1
+        ");
+        $stmt->execute([$cleanPage, $userType, $userId, $sessionToken]);
+
+        $table = ($userType === 'admin') ? 'admins' : 'students';
+        $pdo->prepare("UPDATE {$table} SET last_seen = NOW() WHERE id = ?")->execute([$userId]);
+    } catch (\Throwable $e) {}
+}
+
+/**
+ * Check if the session token is active and valid (Single-session enforcement check)
+ */
+function is_user_session_active($userType, $userId, $sessionToken, $pdo) {
+    try {
+        $table = ($userType === 'admin') ? 'admins' : 'students';
+        $stmt = $pdo->prepare("SELECT session_token FROM {$table} WHERE id = ?");
+        $stmt->execute([$userId]);
+        $dbToken = $stmt->fetchColumn();
+
+        if (!$dbToken || empty($sessionToken) || !hash_equals($dbToken, $sessionToken)) {
+            return false;
+        }
+
+        $stmtSess = $pdo->prepare("SELECT is_active FROM user_sessions WHERE user_type = ? AND user_id = ? AND session_token = ?");
+        $stmtSess->execute([$userType, $userId, $sessionToken]);
+        $sess = $stmtSess->fetch();
+        if ($sess && (int)$sess['is_active'] === 0) {
+            return false;
+        }
+
+        return true;
+    } catch (\Throwable $e) {
+        return true;
+    }
+}
+
+/**
+ * Get device sessions history for a user
+ */
+function get_user_device_sessions($userType, $userId, $pdo, $limit = 25) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT * FROM user_sessions 
+            WHERE user_type = ? AND user_id = ? 
+            ORDER BY id DESC 
+            LIMIT ?
+        ");
+        $stmt->bindValue(1, $userType);
+        $stmt->bindValue(2, $userId, PDO::PARAM_INT);
+        $stmt->bindValue(3, $limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Revoke all other active sessions for this user
+ */
+function revoke_all_other_sessions($userType, $userId, $currentSessionToken, $pdo) {
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE user_sessions 
+            SET is_active = 0, revoked_at = NOW(), revoked_reason = 'user_revoked_all_other' 
+            WHERE user_type = ? AND user_id = ? AND session_token != ? AND is_active = 1
+        ");
+        return $stmt->execute([$userType, $userId, $currentSessionToken]);
+    } catch (\Throwable $e) {
+        return false;
+    }
+}
+
+/**
+ * Get students currently active online (activity within last 5 minutes)
+ */
+function get_active_online_students($adminId = null, $pdo = null, $limit = 50) {
+    if (!$pdo) global $pdo;
+    try {
+        $where = "s.is_active = 1 AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)";
+        $params = [];
+
+        if ($adminId !== null && !is_super_admin()) {
+            $where .= " AND s.admin_id = ?";
+            $params[] = (int)$adminId;
+        }
+
+        $sql = "
+            SELECT s.id, s.full_name, s.username, s.class_id, s.board_id, s.admin_id, s.last_seen,
+                   c.name as class_name, b.name as board_name,
+                   us.device_type, us.browser, us.os, us.ip_address, us.last_activity, us.current_page,
+                   TIMESTAMPDIFF(MINUTE, us.last_activity, NOW()) as minutes_ago
+            FROM user_sessions us
+            JOIN students s ON us.user_id = s.id AND us.user_type = 'student'
+            LEFT JOIN classes c ON s.class_id = c.id
+            LEFT JOIN boards b ON s.board_id = b.id
+            WHERE $where
+            ORDER BY us.last_activity DESC
+            LIMIT ?
+        ";
+        $stmt = $pdo->prepare($sql);
+        $idx = 1;
+        foreach ($params as $p) {
+            $stmt->bindValue($idx++, $p);
+        }
+        $stmt->bindValue($idx, (int)$limit, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Get count of students online within last 5 minutes
+ */
+function get_online_students_count($adminId = null, $pdo = null) {
+    if (!$pdo) global $pdo;
+    try {
+        $where = "s.is_active = 1 AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)";
+        $params = [];
+
+        if ($adminId !== null && !is_super_admin()) {
+            $where .= " AND s.admin_id = ?";
+            $params[] = (int)$adminId;
+        }
+
+        $sql = "
+            SELECT COUNT(DISTINCT s.id) 
+            FROM user_sessions us
+            JOIN students s ON us.user_id = s.id AND us.user_type = 'student'
+            WHERE $where
+        ";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return (int)$stmt->fetchColumn();
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}

@@ -1,0 +1,528 @@
+<?php
+// admin/attendance/take.php
+require_once '../../includes/admin_header.php';
+
+require_admin_feature('attendance');
+
+$effective_admin_id = is_super_admin() ? null : get_effective_admin_id();
+
+$register_id = !empty($_GET['register_id']) ? (int)$_GET['register_id'] : 0;
+$existingRegister = null;
+
+if ($register_id > 0) {
+    $stmtReg = $pdo->prepare("SELECT * FROM attendance_registers WHERE id = ?" . (!is_super_admin() ? " AND admin_id = ?" : ""));
+    $stmtReg->execute(!is_super_admin() ? [$register_id, $effective_admin_id] : [$register_id]);
+    $existingRegister = $stmtReg->fetch(PDO::FETCH_ASSOC);
+
+    if (!$existingRegister) {
+        $_SESSION['flash_error'] = "Attendance register not found or you do not have permission to edit it.";
+        header("Location: index.php");
+        exit;
+    }
+
+    $selected_date = $existingRegister['session_date'];
+    $selected_class = (int)$existingRegister['class_id'];
+    $selected_batch = (int)$existingRegister['batch_id'];
+    $session_title = $existingRegister['session_title'];
+    $session_start = $existingRegister['schedule_time_start'];
+    $session_end = $existingRegister['schedule_time_end'];
+    $notes = $existingRegister['notes'];
+} else {
+    $selected_date = $_GET['date'] ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $selected_date)) {
+        $selected_date = date('Y-m-d');
+    }
+    $selected_class = !empty($_GET['class_id']) ? (int)$_GET['class_id'] : 0;
+    $selected_batch = !empty($_GET['batch_id']) ? (int)$_GET['batch_id'] : 0;
+    $session_title = $_GET['title'] ?? 'Standard Lecture Session';
+    $session_start = '';
+    $session_end = '';
+    $notes = '';
+}
+
+// Fetch classes and batches for selector dropdowns
+$classes = $pdo->query("SELECT id, name FROM classes ORDER BY CAST(name AS UNSIGNED)")->fetchAll(PDO::FETCH_ASSOC);
+
+$batchWhere = is_super_admin() ? "is_active = 1" : "is_active = 1 AND admin_id = " . (int)$effective_admin_id;
+$batches = $pdo->query("SELECT id, name, class_id, schedule_desc FROM batches WHERE $batchWhere ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+
+// Auto-fill class if batch was picked and class not yet specified
+if ($selected_batch > 0 && empty($selected_class)) {
+    foreach ($batches as $b) {
+        if ($b['id'] == $selected_batch && !empty($b['class_id'])) {
+            $selected_class = (int)$b['class_id'];
+            break;
+        }
+    }
+}
+
+// Fetch students for attendance roster
+$students = [];
+$existingRecords = [];
+
+if ($selected_class > 0 || $selected_batch > 0) {
+    $studentsWhere = "s.is_active = 1";
+    $studentsParams = [];
+    if (!is_super_admin()) {
+        $studentsWhere .= " AND s.admin_id = ?";
+        $studentsParams[] = $effective_admin_id;
+    }
+
+    if ($selected_batch > 0) {
+        $studentsQuery = "
+            SELECT s.id, s.full_name, s.username, s.roll_no, s.phone, s.parent_name, s.parent_phone, s.last_seen, s.last_ip,
+                   c.name as class_name, b.name as batch_name,
+                   (SELECT COUNT(*) FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)) as is_active_now,
+                   (SELECT device_type FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as active_device,
+                   (SELECT browser FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as active_browser,
+                   (SELECT current_page FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as active_page
+            FROM students s
+            JOIN batch_students bs ON bs.student_id = s.id
+            JOIN batches b ON bs.batch_id = b.id
+            JOIN classes c ON s.class_id = c.id
+            WHERE bs.batch_id = ? AND $studentsWhere
+            ORDER BY s.full_name ASC
+        ";
+        array_unshift($studentsParams, $selected_batch);
+    } else {
+        $studentsQuery = "
+            SELECT s.id, s.full_name, s.username, s.roll_no, s.phone, s.parent_name, s.parent_phone, s.last_seen, s.last_ip,
+                   c.name as class_name, '' as batch_name,
+                   (SELECT COUNT(*) FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)) as is_active_now,
+                   (SELECT device_type FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as active_device,
+                   (SELECT browser FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as active_browser,
+                   (SELECT current_page FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as active_page
+            FROM students s
+            JOIN classes c ON s.class_id = c.id
+            WHERE s.class_id = ? AND $studentsWhere
+            ORDER BY s.full_name ASC
+        ";
+        array_unshift($studentsParams, $selected_class);
+    }
+
+    $stmtSt = $pdo->prepare($studentsQuery);
+    $stmtSt->execute($studentsParams);
+    $students = $stmtSt->fetchAll(PDO::FETCH_ASSOC);
+
+    // If existing register, load marked records
+    if ($register_id > 0) {
+        $stmtRec = $pdo->prepare("SELECT student_id, status, remarks, auto_detected, parent_notified FROM attendance_records WHERE register_id = ?");
+        $stmtRec->execute([$register_id]);
+        foreach ($stmtRec->fetchAll(PDO::FETCH_ASSOC) as $rec) {
+            $existingRecords[$rec['student_id']] = $rec;
+        }
+    }
+}
+?>
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
+    <div>
+        <div class="d-flex align-items-center">
+            <a href="index.php?date=<?= urlencode($selected_date) ?>" class="btn btn-outline-secondary rounded-pill btn-sm mr-3 font-weight-bold shadow-xs">
+                <i class="fas fa-arrow-left mr-1"></i> Back to Registers
+            </a>
+            <h2 class="font-weight-bold text-dark mb-0">
+                <?= $register_id > 0 ? '<i class="fas fa-edit text-primary mr-2"></i>Edit Attendance Register' : '<i class="fas fa-calendar-check text-success mr-2"></i>Take Class Attendance' ?>
+            </h2>
+        </div>
+        <p class="text-muted small mb-0 mt-1">Record online & offline student presence, auto-detect portal logins, and prepare absentee notifications.</p>
+    </div>
+    <?php if ($register_id > 0): ?>
+    <div class="mt-2 mt-md-0">
+        <a href="absentees.php?register_id=<?= $register_id ?>" class="btn btn-outline-danger font-weight-bold rounded-pill px-4 shadow-sm">
+            <i class="fas fa-bell mr-1"></i> Absentee Alerts Roster
+        </a>
+    </div>
+    <?php endif; ?>
+</div>
+
+<!-- Class / Batch / Date Selection Card -->
+<div class="card shadow-sm border-0 rounded-lg mb-4 bg-white">
+    <div class="card-header bg-light border-bottom py-3">
+        <h6 class="font-weight-bold text-dark mb-0">
+            <i class="fas fa-sliders-h text-primary mr-2"></i>Step 1: Select Session Details
+        </h6>
+    </div>
+    <div class="card-body p-4">
+        <form method="GET" id="selectionForm" class="row">
+            <?php if ($register_id > 0): ?>
+                <input type="hidden" name="register_id" value="<?= $register_id ?>">
+            <?php endif; ?>
+
+            <div class="col-md-3 mb-3">
+                <label class="font-weight-bold text-muted small text-uppercase">Session Date <span class="text-danger">*</span></label>
+                <div class="input-group shadow-xs">
+                    <div class="input-group-prepend"><span class="input-group-text bg-light border-right-0"><i class="fas fa-calendar-alt text-primary"></i></span></div>
+                    <input type="date" name="date" class="form-control font-weight-bold border-left-0" value="<?= htmlspecialchars($selected_date) ?>" required onchange="this.form.submit()">
+                </div>
+            </div>
+
+            <div class="col-md-3 mb-3">
+                <label class="font-weight-bold text-muted small text-uppercase">Academic Class <span class="text-danger">*</span></label>
+                <select name="class_id" class="form-control custom-select shadow-xs font-weight-bold" onchange="this.form.submit()" required>
+                    <option value="">-- Choose Class --</option>
+                    <?php foreach ($classes as $c): ?>
+                        <option value="<?= $c['id'] ?>" <?= $selected_class == $c['id'] ? 'selected' : '' ?>>Class <?= h($c['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <label class="font-weight-bold text-muted small text-uppercase">Teaching Batch (Recommended)</label>
+                <select name="batch_id" class="form-control custom-select shadow-xs font-weight-bold" onchange="this.form.submit()">
+                    <option value="">All Students in Class (No Batch Filter)</option>
+                    <?php foreach ($batches as $b): ?>
+                        <?php if (empty($selected_class) || $b['class_id'] == $selected_class): ?>
+                            <option value="<?= $b['id'] ?>" <?= $selected_batch == $b['id'] ? 'selected' : '' ?>>
+                                <?= h($b['name']) ?> <?= !empty($b['schedule_desc']) ? '(' . h($b['schedule_desc']) . ')' : '' ?>
+                            </option>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+
+            <div class="col-md-2 mb-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary btn-block font-weight-bold rounded-pill shadow-xs">
+                    <i class="fas fa-sync-alt mr-1"></i> Load Roster
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<?php if (empty($selected_class) && empty($selected_batch)): ?>
+    <div class="card border-0 shadow-sm rounded-lg text-center py-5 bg-white">
+        <div class="card-body">
+            <i class="fas fa-user-check fa-4x text-muted mb-3 opacity-50"></i>
+            <h5 class="font-weight-bold text-dark">Please Select a Class or Batch to Load Attendance Roster</h5>
+            <p class="text-muted small">Choose the academic class and teaching batch from the filters above to populate the student list.</p>
+        </div>
+    </div>
+<?php elseif (empty($students)): ?>
+    <div class="alert alert-warning border-0 shadow-sm rounded-lg p-4 mb-4">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle fa-2x text-warning mr-3"></i>
+            <div>
+                <h6 class="font-weight-bold mb-1">No Active Students Found</h6>
+                <p class="mb-0 small text-muted">There are no active enrolled students found for the selected Class/Batch. Please check student enrolments.</p>
+            </div>
+        </div>
+    </div>
+<?php else: ?>
+
+<!-- Interactive Attendance Form -->
+<form id="attendanceForm" autocomplete="off">
+    <?= csrf_field() ?>
+    <input type="hidden" name="register_id" value="<?= $register_id ?>">
+    <input type="hidden" name="session_date" value="<?= htmlspecialchars($selected_date) ?>">
+    <input type="hidden" name="class_id" value="<?= $selected_class ?>">
+    <input type="hidden" name="batch_id" value="<?= $selected_batch ?>">
+
+    <!-- Session Metadata Card -->
+    <div class="card shadow-sm border-0 rounded-lg mb-4 bg-white">
+        <div class="card-body p-4">
+            <div class="row align-items-center">
+                <div class="col-md-4 mb-3 mb-md-0">
+                    <label class="font-weight-bold text-muted small text-uppercase">Session Title</label>
+                    <input type="text" name="session_title" class="form-control font-weight-bold shadow-xs" placeholder="e.g. Physics Mechanics Chapter 4" value="<?= htmlspecialchars($session_title) ?>">
+                </div>
+                <div class="col-md-2 mb-3 mb-md-0">
+                    <label class="font-weight-bold text-muted small text-uppercase">Start Time</label>
+                    <input type="time" name="schedule_time_start" class="form-control shadow-xs" value="<?= htmlspecialchars($session_start) ?>">
+                </div>
+                <div class="col-md-2 mb-3 mb-md-0">
+                    <label class="font-weight-bold text-muted small text-uppercase">End Time</label>
+                    <input type="time" name="schedule_time_end" class="form-control shadow-xs" value="<?= htmlspecialchars($session_end) ?>">
+                </div>
+                <div class="col-md-4">
+                    <label class="font-weight-bold text-muted small text-uppercase">Session Notes (Optional)</label>
+                    <input type="text" name="notes" class="form-control shadow-xs" placeholder="Topics covered or remarks..." value="<?= htmlspecialchars($notes) ?>">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions & Real-Time Counters Bar -->
+    <div class="card shadow-sm border-0 rounded-lg mb-4 bg-white sticky-top" style="top: 15px; z-index: 1020;">
+        <div class="card-body py-3 px-4">
+            <div class="d-flex flex-wrap align-items-center justify-content-between" style="gap: 12px;">
+                <!-- Live KPI Chips -->
+                <div class="d-flex flex-wrap align-items-center" style="gap: 10px;">
+                    <span class="badge badge-light border px-3 py-2 text-dark font-weight-bold" style="font-size: 0.85rem;">
+                        <i class="fas fa-users mr-1 text-primary"></i> Total: <span id="kpiTotal"><?= count($students) ?></span>
+                    </span>
+                    <span class="badge badge-success px-3 py-2 font-weight-bold" style="font-size: 0.85rem;">
+                        <i class="fas fa-building mr-1"></i> Offline: <span id="kpiOffline">0</span>
+                    </span>
+                    <span class="badge badge-info px-3 py-2 font-weight-bold" style="font-size: 0.85rem;">
+                        <i class="fas fa-laptop mr-1"></i> Online: <span id="kpiOnline">0</span>
+                    </span>
+                    <span class="badge badge-danger px-3 py-2 font-weight-bold" style="font-size: 0.85rem;">
+                        <i class="fas fa-user-times mr-1"></i> Absent: <span id="kpiAbsent">0</span>
+                    </span>
+                    <span class="badge badge-warning text-dark px-3 py-2 font-weight-bold" style="font-size: 0.85rem;">
+                        <i class="fas fa-clock mr-1"></i> Late: <span id="kpiLate">0</span>
+                    </span>
+                </div>
+
+                <!-- Quick Bulk Marking Actions -->
+                <div class="d-flex flex-wrap align-items-center" style="gap: 8px;">
+                    <button type="button" class="btn btn-sm btn-outline-success font-weight-bold rounded-pill shadow-xs" onclick="markAll('offline')">
+                        <i class="fas fa-check-double mr-1"></i> All Offline
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-info font-weight-bold rounded-pill shadow-xs" onclick="markAll('online')">
+                        <i class="fas fa-laptop mr-1"></i> All Online
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger font-weight-bold rounded-pill shadow-xs" onclick="markAll('absent')">
+                        <i class="fas fa-times-circle mr-1"></i> All Absent
+                    </button>
+                    <button type="button" class="btn btn-sm btn-dark font-weight-bold rounded-pill shadow-xs" onclick="autoDetectOnline()">
+                        <i class="fas fa-bolt text-warning mr-1"></i> Auto-Detect Online
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Student Attendance Roster Table -->
+    <div class="card shadow-sm border-0 rounded-lg mb-4 bg-white">
+        <div class="card-header bg-light border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
+            <h6 class="font-weight-bold text-dark mb-0">
+                <i class="fas fa-list-ol text-primary mr-2"></i>Student Roster (<?= count($students) ?> Students)
+            </h6>
+            <div class="small text-muted">
+                <i class="fas fa-info-circle text-info mr-1"></i>Green pulsing badges indicate students active on the portal right now
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light text-muted small text-uppercase">
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th style="min-width: 200px;">Student Information</th>
+                            <th style="min-width: 140px;">Portal Status</th>
+                            <th style="min-width: 320px;" class="text-center">Attendance Status</th>
+                            <th style="min-width: 180px;">Remarks / Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        $idx = 0;
+                        foreach ($students as $s): 
+                            $idx++;
+                            $sId = (int)$s['id'];
+                            $isOnlineNow = ((int)$s['is_active_now'] > 0);
+
+                            // Determine initial status
+                            if (isset($existingRecords[$sId])) {
+                                $currentStatus = $existingRecords[$sId]['status'];
+                                $currentRemarks = $existingRecords[$sId]['remarks'] ?? '';
+                            } else {
+                                // Default status: if active online now, preselect 'online'; otherwise 'offline'
+                                $currentStatus = $isOnlineNow ? 'online' : 'offline';
+                                $currentRemarks = '';
+                            }
+                        ?>
+                        <tr class="student-row" data-student-id="<?= $sId ?>" data-is-online="<?= $isOnlineNow ? '1' : '0' ?>">
+                            <td class="font-weight-bold text-muted align-middle"><?= $idx ?></td>
+                            <td class="align-middle">
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar-circle mr-3 font-weight-bold bg-primary text-white rounded-circle d-flex align-items-center justify-content-center shadow-xs" style="width: 40px; height: 40px; font-size: 1rem;">
+                                        <?= strtoupper(substr($s['full_name'], 0, 1)) ?>
+                                    </div>
+                                    <div>
+                                        <div class="font-weight-bold text-dark" style="font-size: 0.95rem;">
+                                            <?= h($s['full_name']) ?>
+                                            <?php if (!empty($s['roll_no'])): ?>
+                                                <span class="badge badge-light border text-muted ml-1">Roll #<?= h($s['roll_no']) ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div class="small text-muted">
+                                            <span><i class="fas fa-user text-muted mr-1"></i><?= h($s['username']) ?></span>
+                                            <?php if (!empty($s['phone'])): ?>
+                                                <span class="ml-2"><i class="fas fa-phone text-muted mr-1"></i><?= h($s['phone']) ?></span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php if (!empty($s['parent_name'])): ?>
+                                            <div class="small text-muted" style="font-size: 0.75rem;">
+                                                <i class="fas fa-user-friends mr-1"></i>Parent: <?= h($s['parent_name']) ?> <?= !empty($s['parent_phone']) ? '('.h($s['parent_phone']).')' : '' ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="align-middle">
+                                <?php if ($isOnlineNow): ?>
+                                    <span class="badge badge-success px-2 py-1 font-weight-bold shadow-xs">
+                                        <span class="spinner-grow spinner-grow-sm text-light mr-1" style="width: 8px; height: 8px;" role="status"></span>
+                                        Active Online
+                                    </span>
+                                    <div class="small text-muted mt-1" style="font-size: 0.75rem;">
+                                        <i class="fas fa-<?= ($s['active_device'] === 'Mobile') ? 'mobile-alt' : (($s['active_device'] === 'Tablet') ? 'tablet-alt' : 'desktop') ?> mr-1"></i>
+                                        <?= h($s['active_device'] ?: 'Web') ?> (<?= h($s['active_browser'] ?: 'Browser') ?>)
+                                    </div>
+                                <?php elseif (!empty($s['last_seen'])): ?>
+                                    <span class="badge badge-light border text-muted px-2 py-1">
+                                        <i class="far fa-clock mr-1"></i>Seen <?= time_elapsed_string($s['last_seen']) ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge badge-light text-muted border px-2 py-1">Offline</span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="align-middle text-center">
+                                <div class="btn-group btn-group-toggle shadow-xs" data-toggle="buttons" style="border-radius: 20px; overflow: hidden; border: 1px solid #dee2e6;">
+                                    <label class="btn btn-sm btn-outline-success font-weight-bold px-3 <?= $currentStatus === 'offline' ? 'active' : '' ?>">
+                                        <input type="radio" name="records[<?= $sId ?>][status]" value="offline" <?= $currentStatus === 'offline' ? 'checked' : '' ?> onchange="updateCounters()"> 
+                                        <i class="fas fa-school mr-1"></i> Offline
+                                    </label>
+                                    <label class="btn btn-sm btn-outline-info font-weight-bold px-3 <?= $currentStatus === 'online' ? 'active' : '' ?>">
+                                        <input type="radio" name="records[<?= $sId ?>][status]" value="online" <?= $currentStatus === 'online' ? 'checked' : '' ?> onchange="updateCounters()"> 
+                                        <i class="fas fa-laptop mr-1"></i> Online
+                                    </label>
+                                    <label class="btn btn-sm btn-outline-danger font-weight-bold px-3 <?= $currentStatus === 'absent' ? 'active' : '' ?>">
+                                        <input type="radio" name="records[<?= $sId ?>][status]" value="absent" <?= $currentStatus === 'absent' ? 'checked' : '' ?> onchange="updateCounters()"> 
+                                        <i class="fas fa-times-circle mr-1"></i> Absent
+                                    </label>
+                                    <label class="btn btn-sm btn-outline-warning font-weight-bold px-3 <?= $currentStatus === 'late' ? 'active' : '' ?>">
+                                        <input type="radio" name="records[<?= $sId ?>][status]" value="late" <?= $currentStatus === 'late' ? 'checked' : '' ?> onchange="updateCounters()"> 
+                                        <i class="fas fa-clock mr-1"></i> Late
+                                    </label>
+                                </div>
+                                <input type="hidden" name="records[<?= $sId ?>][auto_detected]" value="<?= $isOnlineNow ? '1' : '0' ?>" id="auto_<?= $sId ?>">
+                            </td>
+                            <td class="align-middle">
+                                <input type="text" name="records[<?= $sId ?>][remarks]" class="form-control form-control-sm" placeholder="Optional remark..." value="<?= htmlspecialchars($currentRemarks) ?>">
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer bg-light py-3 px-4 d-flex justify-content-between align-items-center flex-wrap">
+            <span class="text-muted small">
+                All records will be permanently saved to the institute's attendance ledger.
+            </span>
+            <div class="mt-2 mt-md-0 d-flex" style="gap: 10px;">
+                <button type="button" class="btn btn-light border font-weight-bold rounded-pill px-4" onclick="window.history.back()">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-success font-weight-bold rounded-pill px-5 shadow-sm" id="saveRegisterBtn">
+                    <i class="fas fa-save mr-2"></i> Save Attendance Register
+                </button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<?php endif; ?>
+
+<script>
+function updateCounters() {
+    let offline = 0;
+    let online = 0;
+    let absent = 0;
+    let late = 0;
+
+    $('input[type="radio"]:checked').each(function() {
+        const val = $(this).val();
+        if (val === 'offline') offline++;
+        else if (val === 'online') online++;
+        else if (val === 'absent') absent++;
+        else if (val === 'late') late++;
+    });
+
+    $('#kpiOffline').text(offline);
+    $('#kpiOnline').text(online);
+    $('#kpiAbsent').text(absent);
+    $('#kpiLate').text(late);
+}
+
+function markAll(status) {
+    $('.student-row').each(function() {
+        const radio = $(this).find('input[type="radio"][value="' + status + '"]');
+        radio.prop('checked', true);
+        $(this).find('.btn-group-toggle label').removeClass('active');
+        radio.closest('label').addClass('active');
+    });
+    updateCounters();
+}
+
+function autoDetectOnline() {
+    let detectedCount = 0;
+    $('.student-row').each(function() {
+        const isOnline = $(this).data('is-online') == 1;
+        if (isOnline) {
+            const radio = $(this).find('input[type="radio"][value="online"]');
+            radio.prop('checked', true);
+            $(this).find('.btn-group-toggle label').removeClass('active');
+            radio.closest('label').addClass('active');
+            detectedCount++;
+        }
+    });
+    updateCounters();
+    Swal.fire({
+        icon: 'success',
+        title: 'Auto-Detection Complete',
+        text: detectedCount + ' student(s) currently active on the portal were marked Online.',
+        timer: 2000,
+        showConfirmButton: false
+    });
+}
+
+$(document).ready(function() {
+    updateCounters();
+
+    $('#attendanceForm').on('submit', function(e) {
+        e.preventDefault();
+        const $btn = $('#saveRegisterBtn');
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Saving Register...');
+
+        $.ajax({
+            url: 'save_ajax.php',
+            method: 'POST',
+            data: $(this).serialize(),
+            dataType: 'json',
+            success: function(resp) {
+                if (resp && resp.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Attendance Saved!',
+                        html: resp.message || 'Attendance register has been recorded successfully.',
+                        showCancelButton: resp.count_absent > 0,
+                        confirmButtonText: resp.count_absent > 0 ? '<i class="fas fa-bell mr-1"></i> View Absentees & Alert Parents' : 'OK',
+                        cancelButtonText: 'Return to Register List',
+                        confirmButtonColor: '#28a745',
+                        cancelButtonColor: '#6c757d'
+                    }).then((result) => {
+                        if (result.isConfirmed && resp.count_absent > 0) {
+                            window.location.href = 'absentees.php?register_id=' + resp.register_id;
+                        } else {
+                            window.location.href = 'index.php?date=' + encodeURIComponent($('input[name="session_date"]').val());
+                        }
+                    });
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Save Failed',
+                        text: resp.error || 'Unable to save attendance register. Please try again.'
+                    });
+                    $btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i> Save Attendance Register');
+                }
+            },
+            error: function(xhr) {
+                let msg = 'Server communication error while saving attendance.';
+                try {
+                    const json = JSON.parse(xhr.responseText);
+                    if (json.error) msg = json.error;
+                } catch(e) {}
+                Swal.fire({ icon: 'error', title: 'Error', text: msg });
+                $btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i> Save Attendance Register');
+            }
+        });
+    });
+});
+</script>
+
+<?php require_once '../../includes/admin_footer.php'; ?>

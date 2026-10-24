@@ -24,7 +24,10 @@ if ($filter_board) { $where .= " AND s.board_id = ?"; $params[] = $filter_board;
 
 $stmt = $pdo->prepare("
     SELECT s.*, c.name as class_name, b.name as board_name, a.institute_name, a.username as admin_username,
-    (SELECT COUNT(*) FROM enrolments WHERE student_id = s.id) as enrolled_count
+    (SELECT COUNT(*) FROM enrolments WHERE student_id = s.id) as enrolled_count,
+    (SELECT COUNT(*) FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE)) as is_online_now,
+    (SELECT device_type FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as online_device,
+    (SELECT browser FROM user_sessions us WHERE us.user_type = 'student' AND us.user_id = s.id AND us.is_active = 1 AND us.last_activity >= (NOW() - INTERVAL 5 MINUTE) ORDER BY last_activity DESC LIMIT 1) as online_browser
     FROM students s
     JOIN classes c ON s.class_id = c.id
     JOIN boards b ON s.board_id = b.id
@@ -38,6 +41,9 @@ $students = $stmt->fetchAll();
 $classes = $pdo->query("SELECT id, name FROM classes ORDER BY CAST(name AS UNSIGNED)")->fetchAll();
 $boards = $pdo->query("SELECT id, name FROM boards ORDER BY name")->fetchAll();
 $all_admins = is_super_admin() ? $pdo->query("SELECT id, username, institute_name FROM admins ORDER BY institute_name ASC")->fetchAll() : [];
+
+$totalOnline = count(array_filter($students, function($st) { return !empty($st['is_online_now']); }));
+$totalActive = count(array_filter($students, function($st) { return !empty($st['is_active']); }));
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
@@ -67,6 +73,45 @@ $all_admins = is_super_admin() ? $pdo->query("SELECT id, username, institute_nam
         <button type="button" class="close" data-dismiss="alert">&times;</button>
     </div>
 <?php endif; ?>
+
+<!-- Quick KPI Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-2 mb-md-0">
+        <div class="card border-0 shadow-sm rounded-lg p-3 bg-white border-left border-primary" style="border-left-width: 5px !important;">
+            <div class="text-muted small text-uppercase font-weight-bold">Total Students</div>
+            <h4 class="font-weight-bold text-dark mb-0 mt-1"><?= count($students) ?></h4>
+        </div>
+    </div>
+    <div class="col-md-3 mb-2 mb-md-0">
+        <div class="card border-0 shadow-sm rounded-lg p-3 bg-white border-left border-success" style="border-left-width: 5px !important;">
+            <div class="text-muted small text-uppercase font-weight-bold">Active Accounts</div>
+            <h4 class="font-weight-bold text-success mb-0 mt-1"><?= $totalActive ?></h4>
+        </div>
+    </div>
+    <div class="col-md-3 mb-2 mb-md-0">
+        <div class="card border-0 shadow-sm rounded-lg p-3 bg-white border-left border-info" style="border-left-width: 5px !important;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-muted small text-uppercase font-weight-bold">Online Now</div>
+                    <h4 class="font-weight-bold text-info mb-0 mt-1"><?= $totalOnline ?></h4>
+                </div>
+                <?php if ($totalOnline > 0): ?>
+                    <span class="spinner-grow text-success" role="status" style="width: 24px; height: 24px;"></span>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-2 mb-md-0">
+        <div class="card border-0 shadow-sm rounded-lg p-3 bg-white border-left border-warning" style="border-left-width: 5px !important;">
+            <div class="text-muted small text-uppercase font-weight-bold">Class Attendance</div>
+            <div class="mt-1">
+                <a href="../attendance/index.php" class="btn btn-sm btn-outline-warning font-weight-bold rounded-pill">
+                    <i class="fas fa-clipboard-check mr-1"></i> Open Register
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Filters -->
 <div class="card shadow-sm border-0 mb-4 bg-light rounded-lg">
@@ -156,7 +201,19 @@ $all_admins = is_super_admin() ? $pdo->query("SELECT id, username, institute_nam
                                 <label class="custom-control-label" for="chk<?php echo $s['id']; ?>"></label>
                             </div>
                         </td>
-                        <td class="align-middle font-weight-bold text-dark px-4"><?php echo h($s['full_name']); ?></td>
+                        <td class="align-middle font-weight-bold text-dark px-4">
+    <div class="d-flex align-items-center justify-content-between">
+        <span><?php echo h($s['full_name']); ?></span>
+        <?php if (!empty($s['is_online_now'])): ?>
+            <span class="badge badge-success px-2 py-1 shadow-xs ml-2 rounded-pill font-weight-bold" title="Active on <?php echo h($s['online_device'] ?: 'Web'); ?> (<?php echo h($s['online_browser'] ?: 'Browser'); ?>)">
+                <span class="spinner-grow spinner-grow-sm mr-1" style="width: 6px; height: 6px;" role="status"></span>Online
+            </span>
+        <?php endif; ?>
+    </div>
+    <?php if (!empty($s['roll_no'])): ?>
+        <small class="text-muted d-block font-weight-normal">Roll No: <?php echo h($s['roll_no']); ?></small>
+    <?php endif; ?>
+</td>
                         <td class="align-middle">
                             <span class="font-family-monospace font-weight-bold text-primary px-2 py-1 rounded bg-light border border-light"><?php echo h($s['username']); ?></span>
                         </td>

@@ -97,6 +97,12 @@
                     <?php if (admin_has_feature('students')): ?>
                     <a href="<?php echo BASE_URL; ?>/admin/students/index.php" class="drawer-link"><i class="fas fa-user-graduate text-info"></i> Manage Students</a>
                     <?php endif; ?>
+                    <?php if (admin_has_feature('attendance')): ?>
+                    <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Class Attendance</a>
+                    <?php endif; ?>
+                    <?php if (admin_has_feature('attendance')): ?>
+                    <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Class Attendance</a>
+                    <?php endif; ?>
                     <?php if (admin_has_feature('batches')): ?>
                     <a href="<?php echo BASE_URL; ?>/admin/batches/index.php" class="drawer-link"><i class="fas fa-layer-group text-warning"></i> Teaching Batches</a>
                     <?php endif; ?>
@@ -199,6 +205,29 @@ $(document).ready(function() {
         $('#adminMenuModal').modal('show');
     });
 });
+</script>
+<script>
+// Real-time Session Guard & Presence for Admin
+(function() {
+    function pingAdminPresence() {
+        var pageTitle = document.title || 'Admin Portal';
+        $.ajax({
+            url: '<?php echo BASE_URL; ?>/admin/heartbeat.php',
+            method: 'POST',
+            data: { current_page: pageTitle },
+            dataType: 'json'
+        }).fail(function(xhr) {
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                if (resp && resp.error && resp.error.indexOf('logged in from another') !== -1) {
+                    alert("Session Terminated: Your administrator account was accessed from another device. You will now be redirected to login.");
+                    window.location.href = '<?php echo BASE_URL; ?>/admin/?msg=concurrent';
+                }
+            } catch(e) {}
+        });
+    }
+    setInterval(pingAdminPresence, 35000);
+})();
 </script>
 </body>
 </html>

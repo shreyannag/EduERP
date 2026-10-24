@@ -635,7 +635,75 @@ $migrations = [
         FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
-    "ALTER TABLE admin_payments ADD COLUMN IF NOT EXISTS itemized_breakdown JSON NULL"
+    "ALTER TABLE admin_payments ADD COLUMN IF NOT EXISTS itemized_breakdown JSON NULL",
+
+    // --- Multi-Login Prevention, Active Devices & Real-Time Presence ---
+    "CREATE TABLE IF NOT EXISTS user_sessions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_type ENUM('admin', 'student') NOT NULL,
+        user_id INT NOT NULL,
+        session_token VARCHAR(64) NOT NULL,
+        ip_address VARCHAR(45) NULL,
+        user_agent TEXT NULL,
+        device_type VARCHAR(30) NULL,
+        browser VARCHAR(50) NULL,
+        os VARCHAR(50) NULL,
+        login_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_activity DATETIME DEFAULT CURRENT_TIMESTAMP,
+        current_page VARCHAR(255) NULL,
+        is_active TINYINT(1) DEFAULT 1,
+        revoked_at DATETIME NULL,
+        revoked_reason VARCHAR(100) NULL,
+        INDEX idx_user (user_type, user_id),
+        INDEX idx_token (session_token),
+        INDEX idx_active (is_active, last_activity)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS last_seen DATETIME NULL",
+    "ALTER TABLE admins ADD COLUMN IF NOT EXISTS last_ip VARCHAR(45) NULL",
+    "ALTER TABLE students ADD COLUMN IF NOT EXISTS last_seen DATETIME NULL",
+    "ALTER TABLE students ADD COLUMN IF NOT EXISTS last_ip VARCHAR(45) NULL",
+
+    // --- Scheduled Class Attendance System (Online & Offline) ---
+    "CREATE TABLE IF NOT EXISTS attendance_registers (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        admin_id INT NOT NULL,
+        class_id INT NOT NULL,
+        batch_id INT NULL,
+        session_date DATE NOT NULL,
+        session_title VARCHAR(200) NULL,
+        schedule_time_start TIME NULL,
+        schedule_time_end TIME NULL,
+        recorded_by_id INT NOT NULL,
+        notes TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_admin (admin_id),
+        INDEX idx_class_date (class_id, session_date),
+        INDEX idx_batch (batch_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    "CREATE TABLE IF NOT EXISTS attendance_records (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        register_id INT NOT NULL,
+        student_id INT NOT NULL,
+        status ENUM('online', 'offline', 'absent', 'late') NOT NULL DEFAULT 'absent',
+        marked_by_id INT NOT NULL,
+        auto_detected TINYINT(1) NOT NULL DEFAULT 0,
+        parent_notified TINYINT(1) NOT NULL DEFAULT 0,
+        parent_notified_at DATETIME NULL,
+        parent_notification_channel VARCHAR(30) NULL,
+        remarks VARCHAR(255) NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_reg_student (register_id, student_id),
+        INDEX idx_student (student_id),
+        INDEX idx_status (status),
+        FOREIGN KEY (register_id) REFERENCES attendance_registers(id) ON DELETE CASCADE,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // Automatically enable attendance module for full admins
+    "UPDATE admins SET features = REPLACE(features, '\"coding\"]', '\"coding\",\"attendance\"]') WHERE features LIKE '%coding%' AND features NOT LIKE '%attendance%'"
 ];
 
 $successCount = 0;

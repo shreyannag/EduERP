@@ -95,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $session_token = bin2hex(random_bytes(32));
             $pdo->prepare("UPDATE admins SET login_attempts = 0, locked_until = NULL, session_token = ? WHERE id = ?")
                 ->execute([$session_token, $admin_id]);
+            record_user_login('admin', $admin_id, $session_token, $pdo);
 
             session_regenerate_id(true);
             $_SESSION['admin_id'] = $admin_id;

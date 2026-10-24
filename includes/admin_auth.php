@@ -31,6 +31,7 @@ if (!defined('ALL_ADMIN_FEATURES')) {
         'coding'        => ['label' => 'Online Coding & Competitions', 'icon' => 'fas fa-laptop-code', 'desc' => 'Online code editor, multi-language execution engine & coding competitions'],
         'image_storage' => ['label' => 'Image Storage & CDN', 'icon' => 'fas fa-images', 'desc' => 'Compressed image bank, WebP conversion & Cloudinary CDN'],
         'ai_settings'   => ['label' => 'AI Settings', 'icon' => 'fas fa-cogs', 'desc' => 'Configure OpenRouter API keys, model presets & temperature'],
+        'attendance'    => ['label' => 'Attendance Management', 'icon' => 'fas fa-clipboard-check', 'desc' => 'Online & offline class attendance tracking with parent absentee alerts'],
     ]);
 }
 
@@ -67,7 +68,7 @@ $stmt = $pdo->prepare("SELECT session_token, role, sub_role, full_name, phone, s
 $stmt->execute([$_SESSION['admin_id']]);
 $current_admin = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$current_admin || empty($current_admin['session_token']) || !isset($_SESSION['session_token']) || $_SESSION['session_token'] !== $current_admin['session_token']) {
+if (!$current_admin || empty($current_admin['session_token']) || !isset($_SESSION['session_token']) || $_SESSION['session_token'] !== $current_admin['session_token'] || !is_user_session_active('admin', (int)$_SESSION['admin_id'], $_SESSION['session_token'], $pdo)) {
     session_unset();
     session_destroy();
     if ($isAjax) {
@@ -78,6 +79,9 @@ if (!$current_admin || empty($current_admin['session_token']) || !isset($_SESSIO
     header('Location: ' . BASE_URL . '/admin/?msg=concurrent');
     exit;
 }
+
+// Touch active session for presence & device tracking
+touch_user_session('admin', (int)$_SESSION['admin_id'], $_SESSION['session_token'], $_SERVER['REQUEST_URI'] ?? '', $pdo);
 
 // Check if account has been deactivated / suspended
 if (empty($current_admin['is_active'])) {
@@ -192,7 +196,7 @@ function admin_has_feature(string $feature): bool {
         return true;
     }
     // Teachers inherently have access to batches and homework
-    if (($feature === 'batches' || $feature === 'homework') && is_teacher()) {
+    if (($feature === 'batches' || $feature === 'homework' || $feature === 'attendance') && is_teacher()) {
         return true;
     }
     // Accountants inherently have access to fees and payroll

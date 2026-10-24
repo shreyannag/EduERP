@@ -187,6 +187,12 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             <?php if (admin_has_feature('students')): ?>
             <a href="<?php echo BASE_URL; ?>/admin/students/index.php" class="drawer-link"><i class="fas fa-user-graduate text-info"></i> Manage Students</a>
             <?php endif; ?>
+            <?php if (admin_has_feature('attendance')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Class Attendance</a>
+            <?php endif; ?>
+            <?php if (admin_has_feature('attendance')): ?>
+            <a href="<?php echo BASE_URL; ?>/admin/attendance/index.php" class="drawer-link"><i class="fas fa-clipboard-check text-success"></i> Class Attendance</a>
+            <?php endif; ?>
             <?php if (admin_has_feature('batches')): ?>
             <a href="<?php echo BASE_URL; ?>/admin/batches/index.php" class="drawer-link"><i class="fas fa-layer-group text-warning"></i> Teaching Batches</a>
             <?php endif; ?>
@@ -435,7 +441,7 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                 </ul>
                 <?php endif; ?>
 
-                <?php if (admin_has_feature('students') || admin_has_feature('batches') || admin_has_feature('homework') || admin_has_feature('fees') || admin_has_feature('enrolments') || admin_has_feature('messages')): ?>
+                <?php if (admin_has_feature('students') || admin_has_feature('attendance') || admin_has_feature('batches') || admin_has_feature('homework') || admin_has_feature('fees') || admin_has_feature('enrolments') || admin_has_feature('messages')): ?>
                 <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mb-2 text-white-50 font-weight-bold">
                     <span>Students & Academics</span>
                 </h6>
@@ -443,6 +449,16 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                     <?php if (admin_has_feature('students')): ?>
                     <li class="nav-item">
                         <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/students/index.php"><i class="fas fa-users mr-2 fa-fw"></i> Manage Students</a>
+                    </li>
+                    <?php endif; ?>
+                    <?php if (admin_has_feature('attendance')): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/attendance/index.php"><i class="fas fa-clipboard-check mr-2 fa-fw text-success"></i> Class Attendance</a>
+                    </li>
+                    <?php endif; ?>
+                    <?php if (admin_has_feature('attendance')): ?>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/attendance/index.php"><i class="fas fa-clipboard-check mr-2 fa-fw text-success"></i> Class Attendance</a>
                     </li>
                     <?php endif; ?>
                     <?php if (admin_has_feature('batches')): ?>
