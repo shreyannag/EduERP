@@ -55,6 +55,19 @@ $all_admins = is_super_admin() ? $pdo->query("SELECT id, username, institute_nam
     </div>
 </div>
 
+<?php if (!empty($_SESSION['flash_success'])): ?>
+    <div class="alert alert-success alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-check-circle mr-2"></i><?php echo h($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
+<?php if (!empty($_SESSION['flash_error'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-exclamation-circle mr-2"></i><?php echo h($_SESSION['flash_error']); unset($_SESSION['flash_error']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
+
 <!-- Filters -->
 <div class="card shadow-sm border-0 mb-4 bg-light rounded-lg">
     <div class="card-body p-4">
@@ -187,12 +200,15 @@ $all_admins = is_super_admin() ? $pdo->query("SELECT id, username, institute_nam
                             
                             <button class="btn btn-sm btn-light text-warning border shadow-sm mx-1 rounded-circle edit-btn transition" 
                                 data-id="<?php echo $s['id']; ?>" 
+                                data-username="<?php echo h($s['username']); ?>"
                                 data-name="<?php echo h($s['full_name']); ?>" 
-                                data-email="<?php echo h($s['email']); ?>" 
+                                data-email="<?php echo h($s['email'] ?? ''); ?>" 
+                                data-phone="<?php echo h($s['phone'] ?? ''); ?>"
                                 data-cid="<?php echo $s['class_id']; ?>" 
                                 data-bid="<?php echo $s['board_id']; ?>" 
                                 data-enrollment="<?php echo h(date('Y-m-d', strtotime($s['enrollment_date'] ?? $s['created_at']))); ?>" 
                                 data-active="<?php echo $s['is_active']; ?>" 
+                                data-admin-id="<?php echo $s['admin_id'] ?? ''; ?>"
                                 data-toggle="tooltip" title="Edit Student">
                                 <i class="fas fa-user-edit"></i>
                             </button>
@@ -222,47 +238,82 @@ $all_admins = is_super_admin() ? $pdo->query("SELECT id, username, institute_nam
         <button type="button" class="close text-dark" data-dismiss="modal">&times;</button>
       </div>
       <form method="POST" action="edit.php">
-          <div class="modal-body p-5 bg-light">
+          <div class="modal-body p-4 p-md-5 bg-light">
             <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
             <input type="hidden" name="id" id="edit-id">
             
-            <div class="form-group mb-4">
-                <label class="font-weight-bold text-muted small text-uppercase">Full Name</label>
-                <input type="text" id="edit-name" name="full_name" class="form-control font-weight-bold shadow-sm border-0" required>
+            <!-- Student Header Info Card -->
+            <div class="d-flex align-items-center justify-content-between p-3 bg-white rounded shadow-sm mb-4">
+                <div>
+                    <span class="text-muted small text-uppercase font-weight-bold d-block">Username / Student ID</span>
+                    <span class="font-family-monospace font-weight-bold text-primary h6 mb-0" id="edit-username">-</span>
+                </div>
+                <div class="custom-control custom-switch custom-control-lg">
+                    <input type="checkbox" class="custom-control-input" id="edit-active" name="is_active" value="1">
+                    <label class="custom-control-label font-weight-bold text-dark" style="padding-top:2px;" for="edit-active">Account Active</label>
+                </div>
             </div>
-            <div class="form-group mb-4">
-                <label class="font-weight-bold text-muted small text-uppercase">Email Address</label>
-                <input type="email" id="edit-email" name="email" class="form-control shadow-sm border-0">
+
+            <div class="row">
+                <div class="col-md-7 form-group mb-4">
+                    <label class="font-weight-bold text-muted small text-uppercase">Full Name <span class="text-danger">*</span></label>
+                    <input type="text" id="edit-name" name="full_name" class="form-control font-weight-bold shadow-sm border-0" required>
+                </div>
+                <div class="col-md-5 form-group mb-4">
+                    <label class="font-weight-bold text-muted small text-uppercase">Phone Number</label>
+                    <input type="text" id="edit-phone" name="phone" class="form-control shadow-sm border-0" placeholder="e.g. 9876543210">
+                </div>
             </div>
+
+            <div class="row">
+                <div class="col-md-7 form-group mb-4">
+                    <label class="font-weight-bold text-muted small text-uppercase">Email Address</label>
+                    <input type="email" id="edit-email" name="email" class="form-control shadow-sm border-0" placeholder="student@example.com">
+                </div>
+                <div class="col-md-5 form-group mb-4">
+                    <label class="font-weight-bold text-muted small text-uppercase"><i class="fas fa-calendar-alt text-primary mr-1"></i> Joining Date <span class="text-danger">*</span></label>
+                    <input type="date" id="edit-enrollment" name="enrollment_date" class="form-control font-weight-bold shadow-sm border-0" required>
+                    <small class="form-text text-muted">Fee ledger calculates starting from this month.</small>
+                </div>
+            </div>
+
             <div class="row pt-2 border-top">
                 <div class="col-md-6 form-group mb-4 mt-3">
-                    <label class="font-weight-bold text-muted small text-uppercase">Class</label>
+                    <label class="font-weight-bold text-muted small text-uppercase">Class <span class="text-danger">*</span></label>
                     <select id="edit-cid" name="class_id" class="form-control custom-select shadow-sm border-0" required>
                         <?php foreach($classes as $c): ?><option value="<?php echo $c['id']; ?>">Class <?php echo h($c['name']); ?></option><?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-6 form-group mb-4 mt-3">
-                    <label class="font-weight-bold text-muted small text-uppercase">Board</label>
+                    <label class="font-weight-bold text-muted small text-uppercase">Board <span class="text-danger">*</span></label>
                     <select id="edit-bid" name="board_id" class="form-control custom-select shadow-sm border-0" required>
                         <?php foreach($boards as $b): ?><option value="<?php echo $b['id']; ?>"><?php echo h($b['name']); ?></option><?php endforeach; ?>
                     </select>
                 </div>
             </div>
 
+            <?php if (is_super_admin()): ?>
             <div class="form-group mb-4">
-                <label class="font-weight-bold text-muted small text-uppercase"><i class="fas fa-calendar-alt text-primary mr-1"></i> Joining / Enrollment Date</label>
-                <input type="date" id="edit-enrollment" name="enrollment_date" class="form-control font-weight-bold shadow-sm border-0" required>
-                <small class="form-text text-muted">
-                    <i class="fas fa-history text-info mr-1"></i>
-                    Student fee ledger calculates starting from this month. Months prior will owe ₹0.
-                </small>
+                <label class="font-weight-bold text-muted small text-uppercase"><i class="fas fa-university text-primary mr-1"></i> Assigned Institute</label>
+                <select id="edit-admin-id" name="admin_id" class="form-control custom-select shadow-sm border-0">
+                    <?php foreach($all_admins as $adm): ?>
+                        <option value="<?php echo $adm['id']; ?>">
+                            <?php echo h(!empty($adm['institute_name']) ? $adm['institute_name'] : $adm['username']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
-            
-            <div class="form-group mb-0 p-3 bg-white rounded shadow-sm d-flex align-items-center">
-                <div class="custom-control custom-switch custom-control-lg d-inline-block">
-                    <input type="checkbox" class="custom-control-input" id="edit-active" name="is_active" value="1">
-                    <label class="custom-control-label font-weight-bold text-dark" style="padding-top:2px;" for="edit-active">Account is active</label>
+            <?php endif; ?>
+
+            <div class="form-group mb-2 pt-2 border-top">
+                <label class="font-weight-bold text-muted small text-uppercase"><i class="fas fa-key text-warning mr-1"></i> Reset Password (Optional)</label>
+                <div class="input-group shadow-sm">
+                    <input type="password" id="edit-password" name="new_password" class="form-control bg-white border-0" placeholder="Leave blank to retain current password" autocomplete="new-password">
+                    <div class="input-group-append">
+                        <button class="btn btn-light toggle-modal-pass border-0" type="button" tabindex="-1"><i class="fas fa-eye text-muted"></i></button>
+                    </div>
                 </div>
+                <small class="form-text text-muted">Enter a new password only if you wish to reset it for this student.</small>
             </div>
           </div>
           <div class="modal-footer bg-white border-top-0 py-3 px-5 rounded-bottom">
@@ -310,8 +361,8 @@ $(document).ready(function() {
     });
     $(document).on('change', '.s-checkbox', toggleBulkBtns);
     
-    // Toggle
-    $('.toggle-pass').click(function() {
+    // Toggle password in table (delegated so works across all pages & searches)
+    $(document).on('click', '.toggle-pass', function() {
         let input = $(this).closest('.input-group').find('input');
         let icon = $(this).find('i');
         if (input.attr('type') === 'password') {
@@ -322,16 +373,41 @@ $(document).ready(function() {
             icon.removeClass('fa-eye-slash text-danger').addClass('fa-eye');
         }
     });
+
+    // Toggle password in edit modal
+    $(document).on('click', '.toggle-modal-pass', function() {
+        let input = $('#edit-password');
+        let icon = $(this).find('i');
+        if (input.attr('type') === 'password') {
+            input.attr('type', 'text');
+            icon.removeClass('fa-eye').addClass('fa-eye-slash text-danger');
+        } else {
+            input.attr('type', 'password');
+            icon.removeClass('fa-eye-slash text-danger').addClass('fa-eye');
+        }
+    });
     
-    // Binding
-    $('.edit-btn').click(function() {
-        $('#edit-id').val($(this).data('id'));
-        $('#edit-name').val($(this).data('name'));
-        $('#edit-email').val($(this).data('email'));
-        $('#edit-cid').val($(this).data('cid'));
-        $('#edit-bid').val($(this).data('bid'));
-        $('#edit-enrollment').val($(this).data('enrollment'));
-        $('#edit-active').prop('checked', $(this).data('active') == 1);
+    // Edit Student Button Click - Delegated handler for DataTables pagination/search/sort
+    $(document).on('click', '.edit-btn', function() {
+        let btn = $(this);
+        $('#edit-id').val(btn.data('id'));
+        $('#edit-username').text(btn.data('username') || '-');
+        $('#edit-name').val(btn.data('name'));
+        $('#edit-email').val(btn.data('email') || '');
+        $('#edit-phone').val(btn.data('phone') || '');
+        $('#edit-cid').val(btn.data('cid'));
+        $('#edit-bid').val(btn.data('bid'));
+        $('#edit-enrollment').val(btn.data('enrollment'));
+        $('#edit-active').prop('checked', btn.data('active') == 1);
+        $('#edit-password').val('');
+        
+        let modalPassIcon = $('.toggle-modal-pass i');
+        $('#edit-password').attr('type', 'password');
+        modalPassIcon.removeClass('fa-eye-slash text-danger').addClass('fa-eye text-muted');
+
+        if ($('#edit-admin-id').length && btn.data('admin-id')) {
+            $('#edit-admin-id').val(btn.data('admin-id'));
+        }
         $('#editModal').modal('show');
     });
 });
