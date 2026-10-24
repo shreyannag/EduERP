@@ -64,6 +64,8 @@ $pendingCount = max(0, $totalAbsent - $notifiedCount);
 $instituteTitle = !empty($register['institute_name']) ? $register['institute_name'] : 'EduERP Institute';
 ?>
 
+<!-- SweetAlert2 CDN -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
     <div>
         <div class="d-flex align-items-center">
@@ -282,7 +284,7 @@ function notifySingleParent(studentId, studentName) {
                     <div class="small text-muted mt-1" style="font-size: 0.75rem;">Just now <span class="badge badge-light border text-uppercase ml-1">email</span></div>
                 `);
                 $btn.prop('disabled', false).html('<i class="fas fa-check mr-1"></i> Resend Email');
-                Swal.fire({
+                if (window.Swal) Swal.fire({
                     icon: 'success',
                     title: 'Email Sent!',
                     text: 'Absentee alert sent to parent of ' + studentName,
@@ -291,7 +293,7 @@ function notifySingleParent(studentId, studentName) {
                 });
             } else {
                 $btn.prop('disabled', false).html('<i class="fas fa-envelope mr-1"></i> Send Email');
-                Swal.fire({
+                if (window.Swal) Swal.fire({
                     icon: 'error',
                     title: 'Sending Failed',
                     text: resp.error || 'Unable to send absentee email.'
@@ -302,13 +304,13 @@ function notifySingleParent(studentId, studentName) {
             $btn.prop('disabled', false).html('<i class="fas fa-envelope mr-1"></i> Send Email');
             let msg = 'Failed to connect to notification mailer.';
             try { const j = JSON.parse(xhr.responseText); if (j.error) msg = j.error; } catch(e){}
-            Swal.fire({ icon: 'error', title: 'Error', text: msg });
+            if (window.Swal) Swal.fire({ icon: 'error', title: 'Error', text: msg });
         }
     });
 }
 
 function notifyAllParents() {
-    Swal.fire({
+    if (window.Swal) Swal.fire({
         title: 'Dispatch Absentee Alerts?',
         text: 'This will send official absence notification emails to all pending parents of this session.',
         icon: 'question',
@@ -333,7 +335,7 @@ function notifyAllParents() {
             dataType: 'json',
             success: function(resp) {
                 if (resp && resp.success) {
-                    Swal.fire({
+                    if (window.Swal) Swal.fire({
                         icon: 'success',
                         title: 'All Alerts Dispatched!',
                         html: resp.message || 'Notification emails have been dispatched successfully.',
@@ -343,7 +345,7 @@ function notifyAllParents() {
                     });
                 } else {
                     $btn.prop('disabled', false).html('<i class="fas fa-paper-plane mr-1"></i> Retry Dispatching');
-                    Swal.fire({
+                    if (window.Swal) Swal.fire({
                         icon: 'error',
                         title: 'Dispatch Incomplete',
                         text: resp.error || 'Some or all alerts could not be sent.'
@@ -354,7 +356,7 @@ function notifyAllParents() {
                 $btn.prop('disabled', false).html('<i class="fas fa-paper-plane mr-1"></i> Retry Dispatching');
                 let msg = 'Server error during batch dispatching.';
                 try { const j = JSON.parse(xhr.responseText); if (j.error) msg = j.error; } catch(e){}
-                Swal.fire({ icon: 'error', title: 'Error', text: msg });
+                if (window.Swal) Swal.fire({ icon: 'error', title: 'Error', text: msg });
             }
         });
     });

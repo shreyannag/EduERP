@@ -6,6 +6,79 @@ require_admin_feature('attendance');
 
 $effective_admin_id = is_super_admin() ? null : get_effective_admin_id();
 
+// --- Direct Form POST Fallback (Guarantees attendance is saved even if JS is blocked) ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['records'])) {
+    verify_csrf_token($_POST['csrf_token'] ?? '');
+
+    $p_reg_id = (int)($_POST['register_id'] ?? 0);
+    $p_date = trim($_POST['session_date'] ?? date('Y-m-d'));
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $p_date)) {
+        $p_date = date('Y-m-d');
+    }
+    $p_class = (int)($_POST['class_id'] ?? 0);
+    $p_batch = !empty($_POST['batch_id']) ? (int)$_POST['batch_id'] : null;
+    $p_title = trim($_POST['session_title'] ?? 'Standard Lecture Session');
+    $p_start = !empty($_POST['schedule_time_start']) ? trim($_POST['schedule_time_start']) : null;
+    $p_end = !empty($_POST['schedule_time_end']) ? trim($_POST['schedule_time_end']) : null;
+    $p_notes = trim($_POST['notes'] ?? '');
+    $p_records = $_POST['records'] ?? [];
+
+    $current_user_id = (int)($_SESSION['admin_id'] ?? 1);
+    $scoped_admin_id = is_super_admin() ? (int)($_SESSION['admin_id'] ?? 1) : get_effective_admin_id();
+
+    if ($p_class > 0 && !empty($p_records)) {
+        $pdo->beginTransaction();
+        try {
+            if ($p_reg_id > 0) {
+                $stmtUp = $pdo->prepare("
+                    UPDATE attendance_registers 
+                    SET session_date=?, class_id=?, batch_id=?, session_title=?, schedule_time_start=?, schedule_time_end=?, notes=?, recorded_by_id=? 
+                    WHERE id=?
+                ");
+                $stmtUp->execute([$p_date, $p_class, $p_batch ?: null, $p_title, $p_start ?: null, $p_end ?: null, $p_notes, $current_user_id, $p_reg_id]);
+            } else {
+                $stmtIns = $pdo->prepare("
+                    INSERT INTO attendance_registers 
+                    (admin_id, class_id, batch_id, session_date, session_title, schedule_time_start, schedule_time_end, recorded_by_id, notes) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+                $stmtIns->execute([$scoped_admin_id, $p_class, $p_batch ?: null, $p_date, $p_title, $p_start ?: null, $p_end ?: null, $current_user_id, $p_notes]);
+                $p_reg_id = (int)$pdo->lastInsertId();
+            }
+
+            $stmtRecord = $pdo->prepare("
+                INSERT INTO attendance_records (register_id, student_id, status, marked_by_id, auto_detected, remarks)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE status = VALUES(status), marked_by_id = VALUES(marked_by_id), auto_detected = VALUES(auto_detected), remarks = VALUES(remarks)
+            ");
+
+            $cntOffline = 0; $cntOnline = 0; $cntAbsent = 0; $cntLate = 0;
+            foreach ($p_records as $sId => $d) {
+                $st = in_array($d['status'] ?? '', ['offline', 'online', 'absent', 'late']) ? $d['status'] : 'offline';
+                $ad = !empty($d['auto_detected']) ? 1 : 0;
+                $rem = trim($d['remarks'] ?? '');
+                $stmtRecord->execute([$p_reg_id, (int)$sId, $st, $current_user_id, $ad, $rem]);
+                if ($st === 'offline') $cntOffline++;
+                elseif ($st === 'online') $cntOnline++;
+                elseif ($st === 'absent') $cntAbsent++;
+                elseif ($st === 'late') $cntLate++;
+            }
+            $pdo->commit();
+
+            $_SESSION['flash_success'] = "Attendance recorded successfully! (Offline: {$cntOffline}, Online: {$cntOnline}, Absent: {$cntAbsent}" . ($cntLate > 0 ? ", Late: {$cntLate}" : "") . ")";
+            if ($cntAbsent > 0) {
+                header("Location: absentees.php?register_id=" . $p_reg_id);
+            } else {
+                header("Location: index.php?date=" . urlencode($p_date));
+            }
+            exit;
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            $_SESSION['flash_error'] = "Failed to save attendance: " . $e->getMessage();
+        }
+    }
+}
+
 $register_id = !empty($_GET['register_id']) ? (int)$_GET['register_id'] : 0;
 $existingRegister = null;
 
@@ -42,6 +115,11 @@ if ($register_id > 0) {
 
 // Fetch classes and batches for selector dropdowns
 $classes = $pdo->query("SELECT id, name FROM classes ORDER BY CAST(name AS UNSIGNED)")->fetchAll(PDO::FETCH_ASSOC);
+
+// If no class or batch selected yet on new attendance, default to the first available class
+if (empty($register_id) && empty($selected_class) && empty($selected_batch) && !empty($classes)) {
+    $selected_class = (int)$classes[0]['id'];
+}
 
 $batchWhere = is_super_admin() ? "is_active = 1" : "is_active = 1 AND admin_id = " . (int)$effective_admin_id;
 $batches = $pdo->query("SELECT id, name, class_id, schedule_desc FROM batches WHERE $batchWhere ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
@@ -115,6 +193,9 @@ if ($selected_class > 0 || $selected_batch > 0) {
 }
 ?>
 
+<!-- Ensure SweetAlert2 is always loaded -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
     <div>
         <div class="d-flex align-items-center">
@@ -135,6 +216,19 @@ if ($selected_class > 0 || $selected_batch > 0) {
     </div>
     <?php endif; ?>
 </div>
+
+<?php if (!empty($_SESSION['flash_success'])): ?>
+    <div class="alert alert-success alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-check-circle mr-2"></i><?= h($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
+<?php if (!empty($_SESSION['flash_error'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-exclamation-circle mr-2"></i><?= h($_SESSION['flash_error']); unset($_SESSION['flash_error']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
 
 <!-- Class / Batch / Date Selection Card -->
 <div class="card shadow-sm border-0 rounded-lg mb-4 bg-white">
@@ -160,7 +254,6 @@ if ($selected_class > 0 || $selected_batch > 0) {
             <div class="col-md-3 mb-3">
                 <label class="font-weight-bold text-muted small text-uppercase">Academic Class <span class="text-danger">*</span></label>
                 <select name="class_id" class="form-control custom-select shadow-xs font-weight-bold" onchange="this.form.submit()" required>
-                    <option value="">-- Choose Class --</option>
                     <?php foreach ($classes as $c): ?>
                         <option value="<?= $c['id'] ?>" <?= $selected_class == $c['id'] ? 'selected' : '' ?>>Class <?= h($c['name']) ?></option>
                     <?php endforeach; ?>
@@ -168,7 +261,7 @@ if ($selected_class > 0 || $selected_batch > 0) {
             </div>
 
             <div class="col-md-4 mb-3">
-                <label class="font-weight-bold text-muted small text-uppercase">Teaching Batch (Recommended)</label>
+                <label class="font-weight-bold text-muted small text-uppercase">Teaching Batch</label>
                 <select name="batch_id" class="form-control custom-select shadow-xs font-weight-bold" onchange="this.form.submit()">
                     <option value="">All Students in Class (No Batch Filter)</option>
                     <?php foreach ($batches as $b): ?>
@@ -183,35 +276,41 @@ if ($selected_class > 0 || $selected_batch > 0) {
 
             <div class="col-md-2 mb-3 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary btn-block font-weight-bold rounded-pill shadow-xs">
-                    <i class="fas fa-sync-alt mr-1"></i> Load Roster
+                    <i class="fas fa-sync-alt mr-1"></i> Refresh
                 </button>
             </div>
         </form>
+
+        <!-- 1-Click Class Switcher Pills -->
+        <?php if (!empty($classes)): ?>
+        <hr class="my-3">
+        <div class="d-flex flex-wrap align-items-center" style="gap: 8px;">
+            <span class="text-muted small font-weight-bold mr-1"><i class="fas fa-layer-group text-primary mr-1"></i>Switch Class:</span>
+            <?php foreach ($classes as $c): ?>
+                <a href="take.php?date=<?= urlencode($selected_date) ?>&class_id=<?= $c['id'] ?><?= $register_id ? '&register_id='.$register_id : '' ?>" 
+                   class="btn btn-sm <?= ($selected_class == $c['id']) ? 'btn-primary font-weight-bold shadow-xs' : 'btn-outline-secondary bg-white' ?> rounded-pill px-3">
+                    Class <?= h($c['name']) ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
 
-<?php if (empty($selected_class) && empty($selected_batch)): ?>
-    <div class="card border-0 shadow-sm rounded-lg text-center py-5 bg-white">
-        <div class="card-body">
-            <i class="fas fa-user-check fa-4x text-muted mb-3 opacity-50"></i>
-            <h5 class="font-weight-bold text-dark">Please Select a Class or Batch to Load Attendance Roster</h5>
-            <p class="text-muted small">Choose the academic class and teaching batch from the filters above to populate the student list.</p>
-        </div>
-    </div>
-<?php elseif (empty($students)): ?>
+<?php if (empty($students)): ?>
     <div class="alert alert-warning border-0 shadow-sm rounded-lg p-4 mb-4">
         <div class="d-flex align-items-center">
             <i class="fas fa-exclamation-triangle fa-2x text-warning mr-3"></i>
             <div>
                 <h6 class="font-weight-bold mb-1">No Active Students Found</h6>
-                <p class="mb-0 small text-muted">There are no active enrolled students found for the selected Class/Batch. Please check student enrolments.</p>
+                <p class="mb-0 small text-muted">There are no active enrolled students found for the selected Class/Batch. Choose another class from the tabs above or check student enrolments.</p>
             </div>
         </div>
     </div>
 <?php else: ?>
 
-<!-- Interactive Attendance Form -->
-<form id="attendanceForm" autocomplete="off">
+<!-- Interactive Attendance Form (supports both AJAX and regular POST fallback) -->
+<form id="attendanceForm" method="POST" action="take.php" autocomplete="off">
     <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
     <input type="hidden" name="register_id" value="<?= $register_id ?>">
     <input type="hidden" name="session_date" value="<?= htmlspecialchars($selected_date) ?>">
@@ -288,7 +387,7 @@ if ($selected_class > 0 || $selected_batch > 0) {
     <div class="card shadow-sm border-0 rounded-lg mb-4 bg-white">
         <div class="card-header bg-light border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
             <h6 class="font-weight-bold text-dark mb-0">
-                <i class="fas fa-list-ol text-primary mr-2"></i>Student Roster (<?= count($students) ?> Students)
+                <i class="fas fa-list-ol text-primary mr-2"></i>Student Roster (<?= count($students) ?> Students in Class <?= h($students[0]['class_name'] ?? '') ?>)
             </h6>
             <div class="small text-muted">
                 <i class="fas fa-info-circle text-info mr-1"></i>Green pulsing badges indicate students active on the portal right now
@@ -334,7 +433,6 @@ if ($selected_class > 0 || $selected_batch > 0) {
                                     <div>
                                         <div class="font-weight-bold text-dark" style="font-size: 0.95rem;">
                                             <?= h($s['full_name']) ?>
-                                            
                                         </div>
                                         <div class="small text-muted">
                                             <span><i class="fas fa-user text-muted mr-1"></i><?= h($s['username']) ?></span>
@@ -460,23 +558,34 @@ function autoDetectOnline() {
         }
     });
     updateCounters();
-    Swal.fire({
-        icon: 'success',
-        title: 'Auto-Detection Complete',
-        text: detectedCount + ' student(s) currently active on the portal were marked Online.',
-        timer: 2000,
-        showConfirmButton: false
-    });
+    if (window.Swal) {
+        Swal.fire({
+            icon: 'success',
+            title: 'Auto-Detection Complete',
+            text: detectedCount + ' student(s) currently active on the portal were marked Online.',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } else {
+        alert(detectedCount + ' student(s) marked Online.');
+    }
 }
 
 $(document).ready(function() {
     updateCounters();
 
+    // Delegate radio change event so it fires across all rows
+    $(document).on('change', 'input[type="radio"]', function() {
+        $(this).closest('.btn-group-toggle').find('label').removeClass('active');
+        $(this).closest('label').addClass('active');
+        updateCounters();
+    });
+
     $('#attendanceForm').on('submit', function(e) {
-        e.preventDefault();
         const $btn = $('#saveRegisterBtn');
         $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-2"></i>Saving Register...');
 
+        // AJAX submit with standard fallback
         $.ajax({
             url: 'save_ajax.php',
             method: 'POST',
@@ -484,41 +593,46 @@ $(document).ready(function() {
             dataType: 'json',
             success: function(resp) {
                 if (resp && resp.success) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Attendance Saved!',
-                        html: resp.message || 'Attendance register has been recorded successfully.',
-                        showCancelButton: resp.count_absent > 0,
-                        confirmButtonText: resp.count_absent > 0 ? '<i class="fas fa-bell mr-1"></i> View Absentees & Alert Parents' : 'OK',
-                        cancelButtonText: 'Return to Register List',
-                        confirmButtonColor: '#28a745',
-                        cancelButtonColor: '#6c757d'
-                    }).then((result) => {
-                        if (result.isConfirmed && resp.count_absent > 0) {
-                            window.location.href = 'absentees.php?register_id=' + resp.register_id;
-                        } else {
-                            window.location.href = 'index.php?date=' + encodeURIComponent($('input[name="session_date"]').val());
-                        }
-                    });
+                    if (window.Swal) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Attendance Saved!',
+                            html: resp.message || 'Attendance register has been recorded successfully.',
+                            showCancelButton: resp.count_absent > 0,
+                            confirmButtonText: resp.count_absent > 0 ? '<i class="fas fa-bell mr-1"></i> View Absentees & Alert Parents' : 'OK',
+                            cancelButtonText: 'Return to Register List',
+                            confirmButtonColor: '#28a745',
+                            cancelButtonColor: '#6c757d'
+                        }).then((result) => {
+                            if (result.isConfirmed && resp.count_absent > 0) {
+                                window.location.href = 'absentees.php?register_id=' + resp.register_id;
+                            } else {
+                                window.location.href = 'index.php?date=' + encodeURIComponent($('input[name="session_date"]').val());
+                            }
+                        });
+                    } else {
+                        alert(resp.message || 'Attendance saved successfully!');
+                        window.location.href = 'index.php?date=' + encodeURIComponent($('input[name="session_date"]').val());
+                    }
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Save Failed',
-                        text: resp.error || 'Unable to save attendance register. Please try again.'
-                    });
+                    const errMsg = (resp && resp.error) ? resp.error : 'Unable to save attendance register. Please try again.';
+                    if (window.Swal) {
+                        Swal.fire({ icon: 'error', title: 'Save Failed', text: errMsg });
+                    } else {
+                        alert('Save Failed: ' + errMsg);
+                    }
                     $btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i> Save Attendance Register');
                 }
             },
             error: function(xhr) {
-                let msg = 'Server communication error while saving attendance.';
-                try {
-                    const json = JSON.parse(xhr.responseText);
-                    if (json.error) msg = json.error;
-                } catch(e) {}
-                Swal.fire({ icon: 'error', title: 'Error', text: msg });
-                $btn.prop('disabled', false).html('<i class="fas fa-save mr-2"></i> Save Attendance Register');
+                // If AJAX failed, allow regular form submission as fallback
+                console.warn('AJAX save failed, falling back to direct POST submit');
+                $('#attendanceForm').off('submit').submit();
             }
         });
+
+        // Prevent default submit unless AJAX error triggers direct fallback
+        e.preventDefault();
     });
 });
 </script>
