@@ -298,6 +298,10 @@ $currency = '₹';
                                 <span class="badge badge-light border text-muted px-2 py-1 font-weight-bold" title="Super Administrator master account">
                                     <i class="fas fa-crown text-warning mr-1"></i>Master
                                 </span>
+                            <?php elseif ($is_subadmin): ?>
+                                <span class="badge badge-light border text-info px-2 py-1 font-weight-bold" title="Sub-Admin / Staff under Institute Management (Settings controlled directly by Admin)">
+                                    <i class="fas fa-user-check mr-1"></i> Direct Access
+                                </span>
                             <?php else: ?>
                                 <?php if (!empty($adm['support_permission'])): ?>
                                     <span class="badge badge-success px-2 py-1 rounded-pill font-weight-bold" title="Support Allowed: Super Admin can troubleshoot settings & Cloudinary CDN">
@@ -617,6 +621,7 @@ $currency = '₹';
                             <label class="font-weight-bold text-dark small text-uppercase">Account Role <span class="text-danger">*</span></label>
                             <select name="role" id="editRoleSelect" class="form-control" onchange="toggleFeatureSection('edit')">
                                 <option value="admin">Institute Administrator (Standard Tenant)</option>
+                                <option value="sub_admin">Sub-Administrator / Staff (Employee)</option>
                                 <option value="super_admin">Super Administrator (Full Platform Control)</option>
                             </select>
                         </div>
@@ -1002,10 +1007,25 @@ function openEditModal(admin) {
 
     // Check support permission and individual ownership status
     const currentUserId = <?= (int)$current_admin_id ?>;
-    const isTargetTenant = (parseInt(admin.id) !== currentUserId && admin.role !== 'super_admin');
+    const isSubAdmin = (admin.role === 'sub_admin' || (admin.parent_admin_id && parseInt(admin.parent_admin_id) > 0));
+    const isTargetTenant = (parseInt(admin.id) !== currentUserId && admin.role !== 'super_admin' && !isSubAdmin);
     const hasSupport = (parseInt(admin.support_permission) === 1);
 
-    if (isTargetTenant) {
+    if (isSubAdmin) {
+        $('#editAdminSupportStatus').html(`
+            <div class="alert alert-info border-info p-3 rounded-lg mb-0 shadow-xs">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-id-badge fa-lg text-info mr-3"></i>
+                    <div>
+                        <strong>Sub-Admin / Staff Member:</strong> Sub-admins are subordinate employees under direct institute control. Admins and Super Admins have full administrative authority to edit their username, email, password, and modular permissions directly without requiring external permissions.
+                    </div>
+                </div>
+            </div>
+        `);
+        $('#editInstituteName, #editEmail, #editPasswordInput').prop('readonly', false).removeClass('bg-light').css('cursor', 'text');
+        $('#editGenPassBtn').prop('disabled', false);
+        $('#editLockedNoteInstitute, #editLockedNoteEmail, #editLockedNotePassword').addClass('d-none');
+    } else if (isTargetTenant) {
         if (hasSupport) {
             $('#editAdminSupportStatus').html(`
                 <div class="alert alert-success border-success p-3 rounded-lg mb-0 shadow-xs">

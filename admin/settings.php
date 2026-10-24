@@ -50,7 +50,7 @@ $success = '';
 $admin_id = (int)$_SESSION['admin_id'];
 
 // Fetch current administrator details
-$stmt = $pdo->prepare("SELECT id, username, email, role, institute_name, is_active, features, must_change_password, two_factor_enabled, cloudinary_settings, openrouter_settings, smtp_settings, support_permission, support_permission_updated_at, created_at FROM admins WHERE id = ?");
+$stmt = $pdo->prepare("SELECT id, username, email, role, parent_admin_id, institute_name, is_active, features, must_change_password, two_factor_enabled, cloudinary_settings, openrouter_settings, smtp_settings, support_permission, support_permission_updated_at, created_at FROM admins WHERE id = ?");
 $stmt->execute([$admin_id]);
 $admin = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -60,6 +60,7 @@ if (!$admin) {
 }
 
 $is_super = ($admin['role'] === 'super_admin');
+$is_subadmin = ($admin['role'] === 'sub_admin' || (!empty($admin['parent_admin_id']) && (int)$admin['parent_admin_id'] !== (int)$admin['id']));
 $must_change_pwd = !empty($admin['must_change_password']);
 $default_tab = ($must_change_pwd || isset($_GET['first_login'])) ? 'password' : (isset($_GET['tab']) ? trim($_GET['tab']) : 'password');
 
@@ -150,7 +151,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if (!$error) {
-                        $final_institute = !empty($new_institute) ? $new_institute : ($admin['institute_name'] ?: 'Main Campus');
+                        // Sub-admins cannot alter their parent institute branding name
+                        if ($is_subadmin) {
+                            $final_institute = !empty($admin['institute_name']) ? $admin['institute_name'] : 'Main Campus';
+                        } else {
+                            $final_institute = !empty($new_institute) ? $new_institute : ($admin['institute_name'] ?: 'Main Campus');
+                        }
                         $final_email = !empty($new_email) ? $new_email : null;
 
                         $upd_prof = $pdo->prepare("UPDATE admins SET institute_name = ?, email = ? WHERE id = ?");
@@ -160,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $admin['institute_name'] = $final_institute;
                         $admin['email'] = $final_email;
 
-                        $success = "Account profile and institute branding updated successfully!";
+                        $success = $is_subadmin ? "Staff account profile updated successfully!" : "Account profile and institute branding updated successfully!";
                     }
                 }
             }
@@ -171,30 +177,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ACTION 3: TOGGLE SUPER ADMIN SUPPORT ACCESS
     // ==========================================
     elseif ($action === 'toggle_support_permission') {
-        $default_tab = 'ownership';
-        $grant_support = !empty($_POST['grant_support']) ? 1 : 0;
-        $auth_password = $_POST['auth_password'] ?? '';
-
-        if (empty($auth_password)) {
-            $error = "Please enter your account password to authorize support permission changes.";
+        if ($is_subadmin) {
+            $error = "Sub-administrators and staff members cannot alter ownership or support locks. Your account is administered directly by your institute administrator.";
         } else {
-            // Verify password
-            $hash_stmt = $pdo->prepare("SELECT password_hash FROM admins WHERE id = ?");
-            $hash_stmt->execute([$admin_id]);
-            $current_hash = $hash_stmt->fetchColumn();
+            $default_tab = 'ownership';
+            $grant_support = !empty($_POST['grant_support']) ? 1 : 0;
+            $auth_password = $_POST['auth_password'] ?? '';
 
-            if (!$current_hash || !password_verify($auth_password, $current_hash)) {
-                $error = "Authentication failed: Incorrect password provided.";
+            if (empty($auth_password)) {
+                $error = "Please enter your account password to authorize support permission changes.";
             } else {
-                $stmtUp = $pdo->prepare("UPDATE admins SET support_permission = ?, support_permission_updated_at = NOW() WHERE id = ?");
-                $stmtUp->execute([$grant_support, $admin_id]);
-                $admin['support_permission'] = $grant_support;
-                $admin['support_permission_updated_at'] = date('Y-m-d H:i:s');
+                // Verify password
+                $hash_stmt = $pdo->prepare("SELECT password_hash FROM admins WHERE id = ?");
+                $hash_stmt->execute([$admin_id]);
+                $current_hash = $hash_stmt->fetchColumn();
 
-                if ($grant_support) {
-                    $success = "Support permission granted! The Super Administrator is now authorized to assist in configuring your settings and resolving technical issues.";
+                if (!$current_hash || !password_verify($auth_password, $current_hash)) {
+                    $error = "Authentication failed: Incorrect password provided.";
                 } else {
-                    $success = "Support permission revoked. Your account settings and Cloudinary keys are now strictly private under your individual ownership.";
+                    $stmtUp = $pdo->prepare("UPDATE admins SET support_permission = ?, support_permission_updated_at = NOW() WHERE id = ?");
+                    $stmtUp->execute([$grant_support, $admin_id]);
+                    $admin['support_permission'] = $grant_support;
+                    $admin['support_permission_updated_at'] = date('Y-m-d H:i:s');
+
+                    if ($grant_support) {
+                        $success = "Support permission granted! The Super Administrator is now authorized to assist in configuring your settings and resolving technical issues.";
+                    } else {
+                        $success = "Support permission revoked. Your account settings and Cloudinary keys are now strictly private under your individual ownership.";
+                    }
                 }
             }
         }
@@ -302,9 +312,9 @@ if ($is_super) {
         </p>
     </div>
     <div class="mt-2 mt-md-0">
-        <span class="badge <?= $is_super ? 'badge-warning text-dark' : 'badge-primary' ?> px-3 py-2 font-weight-bold shadow-sm" style="font-size: 0.85rem;">
-            <i class="fas <?= $is_super ? 'fa-crown' : 'fa-university' ?> mr-1"></i>
-            <?= $is_super ? 'Super Administrator' : 'Institute Administrator' ?>
+        <span class="badge <?= $is_super ? 'badge-warning text-dark' : ($is_subadmin ? 'badge-info text-white' : 'badge-primary') ?> px-3 py-2 font-weight-bold shadow-sm" style="font-size: 0.85rem;">
+            <i class="fas <?= $is_super ? 'fa-crown' : ($is_subadmin ? 'fa-id-badge' : 'fa-university') ?> mr-1"></i>
+            <?= $is_super ? 'Super Administrator' : ($is_subadmin ? 'Staff Member / Sub-Admin' : 'Institute Administrator') ?>
         </span>
     </div>
 </div>
@@ -387,7 +397,7 @@ if ($is_super) {
                         <span class="badge badge-light border ml-auto">Default</span>
                     <?php endif; ?>
                 </a>
-                <?php if (!$is_super): ?>
+                <?php if (!$is_super && !$is_subadmin): ?>
                 <a class="list-group-item list-group-item-action font-weight-bold py-3 <?= $default_tab === 'ownership' ? 'active' : '' ?>" id="tab-ownership-link" data-toggle="pill" href="#tab-ownership" role="tab" aria-controls="tab-ownership" aria-selected="<?= $default_tab === 'ownership' ? 'true' : 'false' ?>">
                     <i class="fas fa-user-shield fa-fw mr-2 text-info"></i> Support Permission
                     <?php if (!empty($admin['support_permission'])): ?>
@@ -548,23 +558,28 @@ if ($is_super) {
                                 <div class="col-md-6 mb-3">
                                     <label class="font-weight-bold text-dark small text-uppercase">Administrative Role</label>
                                     <div class="input-group">
-                                        <div class="input-group-prepend"><span class="input-group-text bg-light"><i class="fas <?= $is_super ? 'fa-crown text-warning' : 'fa-user-tie text-primary' ?>"></i></span></div>
-                                        <input type="text" class="form-control bg-light font-weight-bold" value="<?= $is_super ? 'Super Administrator' : 'Institute Administrator (Multi-Tenant)' ?>" readonly>
+                                        <div class="input-group-prepend"><span class="input-group-text bg-light"><i class="fas <?= $is_super ? 'fa-crown text-warning' : ($is_subadmin ? 'fa-id-badge text-info' : 'fa-user-tie text-primary') ?>"></i></span></div>
+                                        <input type="text" class="form-control bg-light font-weight-bold" value="<?= $is_super ? 'Super Administrator' : ($is_subadmin ? 'Staff Member / Sub-Admin' : 'Institute Administrator (Multi-Tenant)') ?>" readonly>
                                     </div>
-                                    <small class="text-muted"><?= $is_super ? 'Unrestricted platform master authority' : 'Independent tenant scope' ?></small>
+                                    <small class="text-muted"><?= $is_super ? 'Unrestricted platform master authority' : ($is_subadmin ? 'Subordinate employee account under Institute Admin' : 'Independent tenant scope') ?></small>
                                 </div>
                             </div>
 
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label for="institute_name" class="font-weight-bold text-dark small text-uppercase">
-                                        Institute / Campus Name <span class="text-danger">*</span>
+                                        Institute / Campus Name <?= $is_subadmin ? '' : '<span class="text-danger">*</span>' ?>
                                     </label>
                                     <div class="input-group">
                                         <div class="input-group-prepend"><span class="input-group-text bg-light"><i class="fas fa-graduation-cap text-muted"></i></span></div>
-                                        <input type="text" name="institute_name" id="institute_name" class="form-control" required value="<?= h($admin['institute_name'] ?? 'Main Campus') ?>">
+                                        <?php if ($is_subadmin): ?>
+                                            <input type="text" class="form-control bg-light" value="<?= h($admin['institute_name'] ?? 'Main Campus') ?>" readonly>
+                                            <div class="input-group-append"><span class="input-group-text bg-light text-muted small"><i class="fas fa-lock"></i> Fixed</span></div>
+                                        <?php else: ?>
+                                            <input type="text" name="institute_name" id="institute_name" class="form-control" required value="<?= h($admin['institute_name'] ?? 'Main Campus') ?>">
+                                        <?php endif; ?>
                                     </div>
-                                    <small class="text-muted">Appears prominently on your students' navbar, test headers, and fees receipts.</small>
+                                    <small class="text-muted"><?= $is_subadmin ? 'Institute branding is under the direct control of your Institute Administrator.' : 'Appears prominently on your students\' navbar, test headers, and fees receipts.' ?></small>
                                 </div>
 
                                 <div class="col-md-6 mb-3">
@@ -942,7 +957,7 @@ if ($is_super) {
                 </div>
             </div>
 
-            <?php if (!$is_super): ?>
+            <?php if (!$is_super && !$is_subadmin): ?>
             <!-- ============================================== -->
             <!-- TAB 2.5: SUPPORT PERMISSION & OWNERSHIP        -->
             <!-- ============================================== -->

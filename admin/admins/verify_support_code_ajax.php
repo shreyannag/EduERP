@@ -46,6 +46,14 @@ if ($targetAdmin['role'] === 'super_admin') {
     exit;
 }
 
+if ($targetAdmin['role'] === 'sub_admin' || (!empty($targetAdmin['parent_admin_id']) && (int)$targetAdmin['parent_admin_id'] !== (int)$targetAdmin['id'])) {
+    echo json_encode([
+        'success' => false,
+        'error' => "Sub-admins and staff members are under direct institute control. Their settings and passwords can be edited directly without requiring any permission code."
+    ]);
+    exit;
+}
+
 // Check if OTP exists
 if (empty($targetAdmin['support_otp']) || empty($targetAdmin['support_otp_expires_at'])) {
     echo json_encode([

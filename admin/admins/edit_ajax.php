@@ -57,7 +57,9 @@ if ($admin_id === $current_user_id) {
 // Individual Ownership Protection Enforcement
 // Super Admin cannot change tenant admin's personal credentials (password, institute branding, email)
 // unless the tenant admin has explicitly granted support_permission from their Account Settings.
-$is_target_tenant = ($admin_id !== $current_user_id && $admin['role'] !== 'super_admin');
+// Sub-admins are subordinate employees under direct institute control; their settings can be modified freely.
+$is_sub_admin = ($admin['role'] === 'sub_admin' || (!empty($admin['parent_admin_id']) && (int)$admin['parent_admin_id'] !== (int)$admin['id']));
+$is_target_tenant = ($admin_id !== $current_user_id && $admin['role'] !== 'super_admin' && !$is_sub_admin);
 $has_support_permission = !empty($admin['support_permission']);
 
 // Check if a permission code was submitted to authorize unrestrictive settings change
@@ -119,8 +121,8 @@ if (empty($institute_name)) {
     $institute_name = 'Main Campus';
 }
 
-if (!in_array($role, ['admin', 'super_admin'], true)) {
-    $role = 'admin';
+if (!in_array($role, ['admin', 'super_admin', 'sub_admin'], true)) {
+    $role = ($admin['role'] === 'sub_admin') ? 'sub_admin' : 'admin';
 }
 
 // Check username uniqueness excluding current record
@@ -176,7 +178,8 @@ try {
     // Optional password update
     if (!empty($password)) {
         $fields['password_hash'] = password_hash($password, PASSWORD_DEFAULT);
-        $sql .= ", password_hash = :password_hash";
+        $fields['plain_password'] = $password;
+        $sql .= ", password_hash = :password_hash, plain_password = :plain_password, must_change_password = 0";
     }
 
     // If deactivated, revoke session token immediately

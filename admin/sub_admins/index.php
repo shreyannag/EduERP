@@ -603,6 +603,22 @@ $csrf_token = generate_csrf_token();
                         </div>
                     </div>
 
+                    <div class="form-group mb-3 p-3 bg-light rounded border">
+                        <label class="font-weight-bold small text-muted text-uppercase d-flex justify-content-between align-items-center mb-1">
+                            <span><i class="fas fa-key text-warning mr-1"></i> Override Password (Optional)</span>
+                            <span class="badge badge-secondary font-weight-normal">No staff permission needed</span>
+                        </label>
+                        <div class="input-group">
+                            <input type="text" name="password" id="editSubAdminPassword" class="form-control font-family-monospace" placeholder="Leave blank to retain current password" minlength="6">
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-outline-secondary" onclick="generateRandomPassword('editSubAdminPassword')">
+                                    <i class="fas fa-random mr-1"></i> Generate
+                                </button>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted">You have direct managerial authority. Enter a new password here to update it immediately without sending emails or requesting permissions.</small>
+                    </div>
+
                     <label class="font-weight-bold small text-muted text-uppercase mb-2">Delegated Feature Permissions</label>
                     <div class="row">
                         <?php foreach (ALL_ADMIN_FEATURES as $k => $info): ?>
@@ -813,6 +829,12 @@ function openEditSubAdminModal(sa) {
     document.getElementById('editSubRole').value = sa.sub_role || 'custom';
     document.getElementById('editSalary').value = sa.salary || '0.00';
     document.getElementById('editIsActive').value = sa.is_active;
+    if (document.getElementById('editSubAdminPassword')) {
+        document.getElementById('editSubAdminPassword').value = '';
+    }
+    if (document.getElementById('editModalAlert')) {
+        document.getElementById('editModalAlert').innerHTML = '';
+    }
 
     var feats = [];
     try { feats = JSON.parse(sa.features || '[]'); } catch(e) {}

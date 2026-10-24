@@ -46,6 +46,14 @@ if ($targetAdmin['role'] === 'super_admin') {
     exit;
 }
 
+if ($targetAdmin['role'] === 'sub_admin' || (!empty($targetAdmin['parent_admin_id']) && (int)$targetAdmin['parent_admin_id'] !== (int)$targetAdmin['id'])) {
+    echo json_encode([
+        'success' => false,
+        'error' => "Sub-admins and staff members are under direct institute control. Their settings and passwords can be edited directly without requiring any permission code."
+    ]);
+    exit;
+}
+
 $email = trim($targetAdmin['email'] ?? '');
 if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     echo json_encode([

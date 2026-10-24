@@ -29,6 +29,8 @@ $salary         = max(0, (float)($_POST['salary'] ?? 0));
 $is_active      = isset($_POST['is_active']) ? (int)$_POST['is_active'] : 1;
 $features_input = $_POST['features'] ?? [];
 
+$password       = trim($_POST['password'] ?? '');
+
 // Verify target sub-admin exists and is under this admin's scope
 $queryCheck = is_super_admin() 
     ? "SELECT id, username, parent_admin_id FROM admins WHERE id = ? AND role = 'sub_admin'" 
@@ -56,6 +58,11 @@ if (!empty($email)) {
     }
 }
 
+if (!empty($password) && strlen($password) < 6) {
+    echo json_encode(['success' => false, 'error' => 'Password must be at least 6 characters long.']);
+    exit;
+}
+
 if (!in_array($sub_role, ['teacher', 'accountant', 'custom'], true)) {
     $sub_role = 'custom';
 }
@@ -72,21 +79,37 @@ if (is_array($features_input)) {
 $features_json = json_encode(array_values(array_unique($selected_features)));
 
 try {
-    $stmt = $pdo->prepare("
-        UPDATE admins 
-        SET full_name = ?, email = ?, phone = ?, sub_role = ?, salary = ?, is_active = ?, features = ?
-        WHERE id = ?
-    ");
-    $stmt->execute([
+    $updateFields = [
+        'full_name = ?',
+        'email = ?',
+        'phone = ?',
+        'sub_role = ?',
+        'salary = ?',
+        'is_active = ?',
+        'features = ?'
+    ];
+    $params = [
         !empty($full_name) ? $full_name : $target['username'],
         !empty($email) ? $email : null,
         !empty($phone) ? $phone : null,
         $sub_role,
         $salary,
         $is_active ? 1 : 0,
-        $features_json,
-        $sub_admin_id
-    ]);
+        $features_json
+    ];
+
+    if (!empty($password)) {
+        $updateFields[] = 'password_hash = ?';
+        $updateFields[] = 'plain_password = ?';
+        $updateFields[] = 'must_change_password = 0';
+        $params[] = password_hash($password, PASSWORD_DEFAULT);
+        $params[] = $password;
+    }
+
+    $params[] = $sub_admin_id;
+
+    $stmt = $pdo->prepare("UPDATE admins SET " . implode(', ', $updateFields) . " WHERE id = ?");
+    $stmt->execute($params);
 
     echo json_encode([
         'success' => true,
