@@ -134,6 +134,25 @@ if ($selected_batch > 0 && empty($selected_class)) {
     }
 }
 
+// Auto-detect existing register for this class & date if not explicitly passed in URL
+if ($register_id <= 0 && $selected_class > 0 && empty($_GET['new_session'])) {
+    $chkRegSql = "SELECT * FROM attendance_registers WHERE class_id = ? AND session_date = ?" 
+               . ($selected_batch > 0 ? " AND batch_id = " . (int)$selected_batch : "")
+               . (!is_super_admin() ? " AND admin_id = " . (int)$effective_admin_id : "")
+               . " ORDER BY id DESC LIMIT 1";
+    $stmtChkReg = $pdo->prepare($chkRegSql);
+    $stmtChkReg->execute([$selected_class, $selected_date]);
+    $existingRegAuto = $stmtChkReg->fetch(PDO::FETCH_ASSOC);
+    if ($existingRegAuto) {
+        $register_id = (int)$existingRegAuto['id'];
+        $existingRegister = $existingRegAuto;
+        $session_title = $existingRegister['session_title'] ?: $session_title;
+        $session_start = $existingRegister['schedule_time_start'] ?? '';
+        $session_end = $existingRegister['schedule_time_end'] ?? '';
+        $notes = $existingRegister['notes'] ?? '';
+    }
+}
+
 // Fetch students for attendance roster
 $students = [];
 $existingRecords = [];
@@ -195,6 +214,75 @@ if ($selected_class > 0 || $selected_batch > 0) {
 
 <!-- Ensure SweetAlert2 is always loaded -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<style>
+/* Robust Segmented Control for Student Attendance Selection */
+.att-segmented-control {
+    display: inline-flex;
+    background: #f1f5f9;
+    padding: 3px;
+    border-radius: 30px;
+    border: 1px solid #cbd5e1;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.05);
+    user-select: none;
+}
+.att-seg-btn {
+    border: none;
+    background: transparent;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #475569;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    outline: none !important;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    text-decoration: none;
+}
+.att-seg-btn:hover {
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.85);
+}
+.att-seg-btn:focus {
+    outline: none !important;
+}
+
+/* Vibrant, instantly recognizable active states */
+.att-seg-btn.btn-offline.is-active {
+    background: #16a34a !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(22, 163, 74, 0.4);
+}
+.att-seg-btn.btn-online.is-active {
+    background: #0284c7 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);
+}
+.att-seg-btn.btn-absent.is-active {
+    background: #dc2626 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.4);
+}
+.att-seg-btn.btn-late.is-active {
+    background: #d97706 !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(217, 119, 6, 0.4);
+}
+
+.student-row {
+    transition: background-color 0.15s ease;
+}
+.student-row:hover {
+    background-color: #f8fafc !important;
+}
+</style>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
     <div>
@@ -467,23 +555,36 @@ if ($selected_class > 0 || $selected_batch > 0) {
                                 <?php endif; ?>
                             </td>
                             <td class="align-middle text-center">
-                                <div class="btn-group btn-group-toggle shadow-xs" data-toggle="buttons" style="border-radius: 20px; overflow: hidden; border: 1px solid #dee2e6;">
-                                    <label class="btn btn-sm btn-outline-success font-weight-bold px-3 <?= $currentStatus === 'offline' ? 'active' : '' ?>">
-                                        <input type="radio" name="records[<?= $sId ?>][status]" value="offline" <?= $currentStatus === 'offline' ? 'checked' : '' ?> onchange="updateCounters()"> 
+                                <div class="att-segmented-control" id="att-group-<?= $sId ?>">
+                                    <input type="radio" name="records[<?= $sId ?>][status]" id="status_<?= $sId ?>_offline" value="offline" <?= $currentStatus === 'offline' ? 'checked' : '' ?> class="d-none att-radio" onchange="updateCounters()">
+                                    <input type="radio" name="records[<?= $sId ?>][status]" id="status_<?= $sId ?>_online" value="online" <?= $currentStatus === 'online' ? 'checked' : '' ?> class="d-none att-radio" onchange="updateCounters()">
+                                    <input type="radio" name="records[<?= $sId ?>][status]" id="status_<?= $sId ?>_absent" value="absent" <?= $currentStatus === 'absent' ? 'checked' : '' ?> class="d-none att-radio" onchange="updateCounters()">
+                                    <input type="radio" name="records[<?= $sId ?>][status]" id="status_<?= $sId ?>_late" value="late" <?= $currentStatus === 'late' ? 'checked' : '' ?> class="d-none att-radio" onchange="updateCounters()">
+
+                                    <button type="button" 
+                                            class="att-seg-btn btn-offline <?= $currentStatus === 'offline' ? 'is-active' : '' ?>" 
+                                            onclick="setStudentStatus(<?= $sId ?>, 'offline')" 
+                                            title="Mark Offline (Physical Classroom)">
                                         <i class="fas fa-school mr-1"></i> Offline
-                                    </label>
-                                    <label class="btn btn-sm btn-outline-info font-weight-bold px-3 <?= $currentStatus === 'online' ? 'active' : '' ?>">
-                                        <input type="radio" name="records[<?= $sId ?>][status]" value="online" <?= $currentStatus === 'online' ? 'checked' : '' ?> onchange="updateCounters()"> 
+                                    </button>
+                                    <button type="button" 
+                                            class="att-seg-btn btn-online <?= $currentStatus === 'online' ? 'is-active' : '' ?>" 
+                                            onclick="setStudentStatus(<?= $sId ?>, 'online')" 
+                                            title="Mark Online (Portal / Remote)">
                                         <i class="fas fa-laptop mr-1"></i> Online
-                                    </label>
-                                    <label class="btn btn-sm btn-outline-danger font-weight-bold px-3 <?= $currentStatus === 'absent' ? 'active' : '' ?>">
-                                        <input type="radio" name="records[<?= $sId ?>][status]" value="absent" <?= $currentStatus === 'absent' ? 'checked' : '' ?> onchange="updateCounters()"> 
+                                    </button>
+                                    <button type="button" 
+                                            class="att-seg-btn btn-absent <?= $currentStatus === 'absent' ? 'is-active' : '' ?>" 
+                                            onclick="setStudentStatus(<?= $sId ?>, 'absent')" 
+                                            title="Mark Absent">
                                         <i class="fas fa-times-circle mr-1"></i> Absent
-                                    </label>
-                                    <label class="btn btn-sm btn-outline-warning font-weight-bold px-3 <?= $currentStatus === 'late' ? 'active' : '' ?>">
-                                        <input type="radio" name="records[<?= $sId ?>][status]" value="late" <?= $currentStatus === 'late' ? 'checked' : '' ?> onchange="updateCounters()"> 
+                                    </button>
+                                    <button type="button" 
+                                            class="att-seg-btn btn-late <?= $currentStatus === 'late' ? 'is-active' : '' ?>" 
+                                            onclick="setStudentStatus(<?= $sId ?>, 'late')" 
+                                            title="Mark Late Arrival">
                                         <i class="fas fa-clock mr-1"></i> Late
-                                    </label>
+                                    </button>
                                 </div>
                                 <input type="hidden" name="records[<?= $sId ?>][auto_detected]" value="<?= $isOnlineNow ? '1' : '0' ?>" id="auto_<?= $sId ?>">
                             </td>
@@ -515,19 +616,48 @@ if ($selected_class > 0 || $selected_batch > 0) {
 <?php endif; ?>
 
 <script>
+// Deterministic, row-isolated attendance state manager
+function setStudentStatus(studentId, status) {
+    studentId = parseInt(studentId, 10);
+    if (!studentId) return;
+
+    // 1. Select the exact radio input for this student
+    var radio = document.getElementById('status_' + studentId + '_' + status);
+    if (radio) {
+        radio.checked = true;
+    }
+
+    // 2. Update visual active state in this student's segmented control only
+    var group = document.getElementById('att-group-' + studentId);
+    if (group) {
+        var btns = group.getElementsByClassName('att-seg-btn');
+        for (var i = 0; i < btns.length; i++) {
+            btns[i].classList.remove('is-active');
+        }
+        var activeBtn = group.querySelector('.btn-' + status);
+        if (activeBtn) {
+            activeBtn.classList.add('is-active');
+        }
+    }
+
+    // 3. Re-calculate KPI counters across the register
+    updateCounters();
+}
+
 function updateCounters() {
     let offline = 0;
     let online = 0;
     let absent = 0;
     let late = 0;
 
-    $('input[type="radio"]:checked').each(function() {
-        const val = $(this).val();
+    var radios = document.querySelectorAll('input.att-radio:checked');
+    for (var i = 0; i < radios.length; i++) {
+        var val = radios[i].value;
         if (val === 'offline') offline++;
         else if (val === 'online') online++;
         else if (val === 'absent') absent++;
         else if (val === 'late') late++;
-    });
+    }
 
     $('#kpiOffline').text(offline);
     $('#kpiOnline').text(online);
@@ -537,23 +667,22 @@ function updateCounters() {
 
 function markAll(status) {
     $('.student-row').each(function() {
-        const radio = $(this).find('input[type="radio"][value="' + status + '"]');
-        radio.prop('checked', true);
-        $(this).find('.btn-group-toggle label').removeClass('active');
-        radio.closest('label').addClass('active');
+        var sId = $(this).data('student-id');
+        if (sId) {
+            setStudentStatus(sId, status);
+        }
     });
-    updateCounters();
 }
 
 function autoDetectOnline() {
     let detectedCount = 0;
     $('.student-row').each(function() {
-        const isOnline = $(this).data('is-online') == 1;
-        if (isOnline) {
-            const radio = $(this).find('input[type="radio"][value="online"]');
-            radio.prop('checked', true);
-            $(this).find('.btn-group-toggle label').removeClass('active');
-            radio.closest('label').addClass('active');
+        var sId = $(this).data('student-id');
+        var isOnline = $(this).data('is-online') == 1;
+        if (isOnline && sId) {
+            setStudentStatus(sId, 'online');
+            var autoInp = document.getElementById('auto_' + sId);
+            if (autoInp) autoInp.value = '1';
             detectedCount++;
         }
     });
@@ -573,13 +702,6 @@ function autoDetectOnline() {
 
 $(document).ready(function() {
     updateCounters();
-
-    // Delegate radio change event so it fires across all rows
-    $(document).on('change', 'input[type="radio"]', function() {
-        $(this).closest('.btn-group-toggle').find('label').removeClass('active');
-        $(this).closest('label').addClass('active');
-        updateCounters();
-    });
 
     $('#attendanceForm').on('submit', function(e) {
         const $btn = $('#saveRegisterBtn');
