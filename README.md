@@ -12,7 +12,7 @@
 
 **EduERP** is an enterprise-grade, multi-tenant Educational Resource Planning (ERP) and Assessment Platform tailored for coaching institutes, schools, tutoring networks, and STEM academies. 
 
-Engineered for reliability, ultra-fast load times, and high concurrency on cost-effective hardware, EduERP consolidates **academic scheduling, student information management, online MCQ examinations, competitive coding arenas, digital homework grading, fee ledgers, and staff payroll** into a single cohesive system.
+Engineered for reliability, ultra-fast load times, and high concurrency on cost-effective hardware, EduERP consolidates **academic scheduling, student information management, online MCQ examinations, competitive coding arenas, digital homework grading, fee ledgers, attendance registers, staff payroll, and administrative governance** into a single cohesive system.
 
 ---
 
@@ -23,15 +23,19 @@ Engineered for reliability, ultra-fast load times, and high concurrency on cost-
 - [Role-Based Access Control (RBAC)](#-role-based-access-control-rbac)
 - [Comprehensive Module Directory](#-comprehensive-module-directory)
   - [1. Academic Hierarchy & Batch Scheduling](#1-academic-hierarchy--batch-scheduling)
-  - [2. Student Information System (SIS)](#2-student-information-system-sis)
-  - [3. Online Examination & Assessment Engine (MCQ)](#3-online-examination--assessment-engine-mcq)
-  - [4. Competitive Coding Arena & Automated Judge](#4-competitive-coding-arena--automated-judge)
-  - [5. Homework & Digital Assignment Management](#5-homework--digital-assignment-management)
-  - [6. Student Fee Management & Financial Ledgers](#6-student-fee-management--financial-ledgers)
-  - [7. Staff Payroll System](#7-staff-payroll-system)
-  - [8. Question Bank & AI Generator](#8-question-bank--ai-generator)
-  - [9. Academic Reporting & Batch Percentile Analytics](#9-academic-reporting--batch-percentile-analytics)
-  - [10. Exam Integrity & Anti-Cheat Monitoring](#10-exam-integrity--anti-cheat-monitoring)
+  - [2. Student Information System (SIS) & Self-Service Enrollment](#2-student-information-system-sis--self-service-enrollment)
+  - [3. Fraud Prevention & IP Blocking System](#3-fraud-prevention--ip-blocking-system)
+  - [4. Online Examination & Assessment Engine (MCQ)](#4-online-examination--assessment-engine-mcq)
+  - [5. Question Doubt Flagging & Review](#5-question-doubt-flagging--review)
+  - [6. Question Bank, Multi-Class Sharing & AI Generator](#6-question-bank-multi-class-sharing--ai-generator)
+  - [7. Staff Deletion Approval Queue & Governance](#7-staff-deletion-approval-queue--governance)
+  - [8. Competitive Coding Arena & Automated Judge](#8-competitive-coding-arena--automated-judge)
+  - [9. Homework & Digital Assignment Management](#9-homework--digital-assignment-management)
+  - [10. Student Fee Management & Financial Ledgers](#10-student-fee-management--financial-ledgers)
+  - [11. Class Attendance Management System](#11-class-attendance-management-system)
+  - [12. Staff Payroll System](#12-staff-payroll-system)
+  - [13. Academic Reporting & Batch Percentile Analytics](#13-academic-reporting--batch-percentile-analytics)
+  - [14. Exam Integrity & Anti-Cheat Monitoring](#14-exam-integrity--anti-cheat-monitoring)
 - [High-Concurrency Performance & Resilience](#-high-concurrency-performance--resilience)
 - [Technology Stack](#-technology-stack)
 - [Repository Directory Structure](#-repository-directory-structure)
@@ -51,9 +55,10 @@ Modern educational institutes frequently struggle with fragmented software stack
 
 EduERP unites all institute operations under **one unified codebase**:
 - **Zero Bloat & Peak Speed:** Built with optimized native PHP 8.x PDO and clean Bootstrap 4.6 components—delivering sub-50ms query responses without bulky runtime framework overhead.
-- **True Multi-Tenancy:** Host dozens of independent coaching centers or franchises with distinct branding, isolated question banks, independent student enrollments, and dedicated fee ledgers.
+- **True Multi-Tenancy & Isolation:** Host dozens of independent coaching centers or franchises with distinct branding, isolated question banks, independent student enrollments, and dedicated fee ledgers.
 - **Hardware-Friendly Concurrency:** Designed to sustain high student loads during timed examinations through ACID transactions, lock-free status caching, composite indexing, and Gzip wire compression.
 - **Built-in STEM Coding Judge:** Integrated multi-language code compiler and execution judge supporting Python, Java, C++, C, JavaScript, and PHP with automated test case evaluation.
+- **Administrative Governance:** Staff actions, question edits, and item deletions are guarded by approval queues and audit logs for total institutional control.
 
 ---
 
@@ -88,18 +93,24 @@ The system maintains a granular permissions matrix to protect administrative pri
 
 | Capability / Module | Super Admin | Tenant Admin | Teacher Sub-Admin | Accountant Sub-Admin | Student |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Manage Multiple Institutes** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Manage Multiple Institutes** | ✅ Universal | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Global Coding Platform Master Switch** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Tenant Subscriptions & Billing** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No |
 | **Class, Board & Subject Management** | ✅ Yes | ✅ Yes | 👁️ View Only | 👁️ View Only | ❌ No |
 | **Batch Management & Student Mapping** | ✅ Yes | ✅ Yes | 👁️ Assigned Batches | ❌ No | 👁️ View Own Batch |
+| **Staff Deletion Approval Queue** | ✅ Full Approval | ✅ Institute Scope | 🔒 Queued for Approval | 🔒 Queued for Approval | ❌ No |
+| **IP Blocklist & Anti-Fraud Security** | ✅ Global & Local | ✅ Institute Scope | ❌ No | ❌ No | ❌ No |
 | **Student Enrollment & CSV Bulk Import**| ✅ Yes | ✅ Yes | 🔒 Assigned Scope | 🔒 Assigned Scope | ❌ No |
 | **Create Exams & Question Banks** | ✅ Universal | ✅ Institute Scope | ✅ Assigned Scope | ❌ No | ❌ No |
+| **Multi-Class Question Sharing** | ✅ Yes | ✅ Yes | ✅ Assigned Scope | ❌ No | ❌ No |
+| **Duplicate Question Autocheck** | ✅ Yes | ✅ Yes | ✅ Yes | ❌ No | ❌ No |
+| **Question Doubt Flag Review** | ✅ Full Resolve | ✅ Institute Scope | ✅ Assigned Scope | ❌ No | 🚩 Flag Doubts |
 | **Score Gating & Result Publishing** | ✅ Yes | ✅ Yes | ✅ Assigned Scope | ❌ No | ❌ No |
 | **Coding Problem & Contest Management** | ✅ Full Access| ✅ Full Access| ✅ Create & Grade | ❌ No | 💻 Solve & Compete |
 | **Homework Assignment & Grading** | ✅ Full Access| ✅ Full Access| ✅ Create & Grade | ❌ No | 📝 Turn In Work |
 | **Record Student Fee Payments** | ✅ Yes | ✅ Yes | ❌ No | ✅ Yes | 👁️ View Own Receipts |
 | **Institute Total Revenue Privacy Guard** | ✅ Visible | ✅ Visible | ❌ Hidden | 🔒 **Hidden (Guarded)** | ❌ Hidden |
+| **Class Attendance Registers** | ✅ Full Access| ✅ Full Access| ✅ Take Attendance | ❌ No | 👁️ View Own Attendance |
 | **Staff Payroll & Payslips** | ✅ Yes | ✅ Yes | 👁️ View Own Slip | 🔒 Assigned Scope | ❌ No |
 | **Take Examinations & Code in Contests** | 👁️ Preview | 👁️ Preview | 👁️ Preview | ❌ No | ✅ Yes |
 
@@ -108,37 +119,67 @@ The system maintains a granular permissions matrix to protect administrative pri
 ## 📦 Comprehensive Module Directory
 
 ### 1. Academic Hierarchy & Batch Scheduling
-* **Structure:** Define Education Boards (CBSE, ICSE, State Boards), Classes (Class 1 to 12, Competitive Droppers), and Academic Subjects.
+* **Structure:** Define Education Boards (CBSE, ICSE, State Boards), Classes (Class 1 to 12, Droppers), and Academic Subjects.
 * **Batch Segmentation:** Create morning, evening, and weekend batches per class with maximum seat caps and scheduled timing.
 * **Timetable & Schedule:** Assign batches to designated teachers with date and time slots to avoid scheduling clashes.
 
-### 2. Student Information System (SIS) & Temporary Enrollment Links
+### 2. Student Information System (SIS) & Self-Service Enrollment
 * **Temporary Self-Service Admission Links:** Generate tokenized, time-limited admission links (with seat caps, custom expiry, and batch presets) to share via WhatsApp, Email, or QR code. Prospective students fill in their admission details and receive their student portal credentials immediately upon submission.
 * **Automated Student ID Generation:** System dynamically generates memorable, collision-resistant student IDs (e.g., `rahul.10cbse101`).
 * **Bulk Enrollment:** Import hundreds of students instantly via standard CSV upload with pre-validation and rollback safeguards.
+* **Pure CSV Roster Export:** Tabular student roster export without prepended HTML header bloat, supporting UTF-8 BOM encoding for seamless Excel import.
 * **Multi-Batch Enrolment:** Assign a student to multiple specialized batches (e.g., *Physics Mains*, *Chemistry Advanced*).
-* **Self-Service Profile:** Students can update contact numbers, view active courses, and change their login passwords.
 
-### 3. Online Examination & Assessment Engine (MCQ)
+### 3. Fraud Prevention & IP Blocking System
+* **Real Client IP Detection:** Built-in [`get_client_ip()`](includes/functions.php) supports Cloudflare reverse-proxies (`HTTP_CF_CONNECTING_IP`), forwarders (`HTTP_X_FORWARDED_FOR`, `HTTP_X_REAL_IP`), and standard `REMOTE_ADDR`.
+* **Flexible Blacklist Patterns:** Supports exact IPv4, IPv6, wildcard subnets (e.g., `103.45.67.*`), and CIDR ranges (e.g., `103.45.67.0/24`).
+* **Instant Access Restriction:** Blocked IPs are denied access to both enrollment page loads and POST submissions, presenting a dedicated **"Registration Restricted"** security banner without rendering form fields.
+* **1-Click Roster Blocking:** Reject fraudulent students and black-list their originating IP address in a single step from [`admin/enrolments/link_students.php`](admin/enrolments/link_students.php).
+* **Live IP Diagnostics Tool:** Built-in interactive tester on [`admin/enrolments/blocked_ips.php`](admin/enrolments/blocked_ips.php) allowing administrators to verify if any IP address is permitted or blocked by active rules.
+* **Attempt Tracking:** Increments `blocked_attempts_count` and updates `last_blocked_at` to monitor prevented spam attempts.
+
+### 4. Online Examination & Assessment Engine (MCQ)
 * **Timed Assessments:** Configurable start date, start time, and duration countdown timer with automated submission on zero.
 * **Randomization:** Dynamic question shuffling and answer option permutation (`A, B, C, D`) to prevent peer copying.
 * **Negative Marking:** Flexible scoring models (e.g., +4 for correct, -1 for incorrect, 0 for unattempted).
 * **Score Gating (Result Embargo):** Choose between *Instant Result Mode* (students view scores immediately) or *Score Gated Mode* (results and answer explanations remain hidden until the teacher officially publishes them).
+* **Teacher Exam Paper Tagging:** Displays an "Uploaded By" author badge identifying whether an exam was authored by Super Admin, Admin, or Teacher Sub-Admins.
+* **Institute Paper Isolation:** Guarantees that question papers and exams created by one institute are completely isolated from other institutes.
 * **Student Review & Answer Keys:** Post-exam student review page providing color-coded correct answers, chosen options, and question-level explanations.
 
-### 4. Competitive Coding Arena & Automated Judge
+### 5. Question Doubt Flagging & Review
+* **In-Exam Doubt Flagging:** Students can flag doubtful or ambiguous questions directly from the live exam header with a modal input for specific remarks.
+* **Visual Palette Indicator:** Flagged questions are highlighted in warning yellow (`.q-btn.flagged`) on the question palette for easy navigation.
+* **Post-Exam Review Reporting:** Students can also flag doubts during post-exam review.
+* **Admin Resolution Console:** Admins and teachers receive pending doubt counters, can filter flagged questions in [`admin/questions/index.php`](admin/questions/index.php), and submit resolutions (*Resolved, Dismissed*) with explanatory notes.
+
+### 6. Question Bank, Multi-Class Sharing & AI Generator
+* **Multi-Class Question Sharing:** Questions can be mapped to multiple classes simultaneously via the `question_classes` junction table, eliminating duplicate entry across Class 11, Class 12, or Dropper batches.
+* **Live Duplicate Search & Autocheck:** Live "Search / Paste Question" search bar and an **Autocheck Duplicates** toggle (`?duplicates=1`) that sequences identical questions together with duplicate count badges.
+* **Topic-Wise Repository:** Categorize questions by Subject, Class, Chapter, Difficulty Level (Easy, Medium, Hard), and Marks.
+* **Bulk Question Import:** Upload hundreds of questions with multiple-choice options and explanations using CSV templates.
+* **AI Prompt Generation:** Built-in AI prompt templates that format curriculum questions into system-compatible CSV structures.
+* **Question Archiving:** Soft-delete and archive outdated questions without corrupting historical exam attempts.
+
+### 7. Staff Deletion Approval Queue & Governance
+* **Sub-Admin Deletion Safeguard:** Prevents staff and sub-admins from permanently deleting exams, questions, homework, or batches by accident or malice.
+* **Approval Queue Table (`deletion_requests`):** Requests are intercepted and queued with pending status while flagging the entity (`deletion_pending = 1`).
+* **Super Admin Review Console:** Dedicated console at [`admin/deletion_requests/index.php`](admin/deletion_requests/index.php) allowing Super Admin / Tenant Admins to inspect the item, view deletion reasons, and choose **Approve & Delete** or **Reject & Keep**.
+
+### 8. Competitive Coding Arena & Automated Judge
 * **Multi-Language Support:** In-browser compilation and test case execution for **Python 3, Java, C++, C, JavaScript (Node.js), and PHP**.
 * **Problem Management:** Create coding challenges with problem descriptions, memory/time constraints, input/output specifications, sample test cases, and hidden judge test cases.
 * **Execution Engine:** Flexible backend integration with **Judge0 REST API** or isolated local execution container.
 * **Contests & Real-Time Leaderboards:** Host live coding competitions with automated submission grading, penalty time tracking for incorrect attempts, and dynamic leaderboard rankings.
 * **Master Switch:** Institute admins can enable or disable the coding module across their institute with one click.
 
-### 5. Homework & Digital Assignment Management
+### 9. Homework & Digital Assignment Management
 * **Rich Task Creation:** Teachers assign homework to specific batches with due dates, instructions, and multiple attachment files (PDFs, DOCX, images).
 * **Student Work Submission:** Students submit written answers and upload homework files directly via their portal.
+* **Enhanced Solution Visibility:** Decoupled JSON data hydration preventing single-quote crashes; open-by-default submitted work preview with pre-wrapped formatting, MathJax formula rendering, and embedded PDF document viewer.
 * **Grading Dashboard:** Teachers review submissions with status badges (*Submitted, Late, Graded, Resubmission Requested*), award marks, and provide inline feedback.
 
-### 6. Student Fee Management & Financial Ledgers
+### 10. Student Fee Management & Financial Ledgers
 * **Configurable Fee Structures:** Define monthly fees, admission fees, exam fees, and installment milestones per batch.
 * **Discount Management:** Apply student-specific scholarships, concession vouchers, and fee adjustments.
 * **Payment Recording:** Process payments via Cash, UPI, NetBanking, Card, or Cheque with instant balance calculation.
@@ -146,23 +187,23 @@ The system maintains a granular permissions matrix to protect administrative pri
 * **Accountant Privacy Guard:** Specialized security boundary preventing accountant sub-admins from viewing the institute's total aggregate revenue while allowing them to process individual student dues.
 * **Automated Fee Reminders:** Integrated cron script (`cron/fee_reminders.php`) to identify overdue accounts and dispatch reminders.
 
-### 7. Staff Payroll System
+### 11. Class Attendance Management System
+* **Digital Register:** Daily attendance logging per batch with one-click status buttons (*Present, Absent, Late, Excused*).
+* **Live Online Counter:** Displays real-time counts of currently active online students.
+* **Absentee Notifications:** Automated WhatsApp/SMS alerts dispatched to parents upon marked student absence.
+* **Attendance Analytics:** Monthly percentage tracking, attendance consistency reports, and eligibility thresholds for examinations.
+
+### 12. Staff Payroll System
 * **Monthly Salary Processing:** Generate monthly payroll records for teaching and non-teaching personnel.
 * **Allowances & Deductions:** Itemize basic pay, travel allowances, performance incentives, tax deductions, and unpaid leave penalties.
 * **Printable Payslips:** Downloadable pay vouchers for staff members with transparent payment status tracking (*Pending, Approved, Disbursed*).
 
-### 8. Question Bank & AI Generator
-* **Topic-Wise Repository:** Categorize questions by Subject, Class, Chapter, Difficulty Level (Easy, Medium, Hard), and Marks.
-* **Bulk Question Import:** Upload hundreds of questions with multiple-choice options and explanations using CSV templates.
-* **AI Prompt Generation:** Built-in AI prompt templates that format curriculum questions into system-compatible CSV structures.
-* **Question Archiving:** Soft-delete and archive outdated questions without corrupting historical exam attempts.
-
-### 9. Academic Reporting & Batch Percentile Analytics
+### 13. Academic Reporting & Batch Percentile Analytics
 * **Printable Report Cards:** Detailed student academic transcripts with subject-level breakdowns, maximum marks, scored marks, and percentage calculations.
 * **Batch Analytics:** Comparative percentile calculation, batch rank, class highest score, and class average score to identify student performance trends.
 * **Audit Trail:** History of exam submissions, fee payments, and login activities.
 
-### 10. Exam Integrity & Anti-Cheat Monitoring
+### 14. Exam Integrity & Anti-Cheat Monitoring
 * **Tab-Switch Detection:** Automatically tracks when a student navigates away from the exam tab, logging incident counters in real time.
 * **Fullscreen Lock Enforcement:** Prompts students into fullscreen examination mode to minimize background application usage.
 * **Copy/Paste Prevention:** Context menu and clipboard inspection prevention during active assessment sessions.
@@ -213,6 +254,7 @@ The database features 10 specialized composite indexes:
 - `questions`: `(admin_id, is_archived)`
 - `homework`: `(admin_id, is_active)`, `(batch_id, is_active)`
 - `batch_students`: `(student_id)`
+- `blocked_enrollment_ips`: `(ip_address)`, `(admin_id)`, `(is_active)`
 
 ### 5. Network Wire Compression & Browser Caching ([`.htaccess`](.htaccess))
 Apache `mod_deflate` compresses all text, HTML, JSON, CSS, and JS payloads, cutting egress bandwidth consumption by **65%–80%**. Static CSS, JS, fonts, and images are cached in the student's browser for 30 days, optimizing performance on standard 100–150 Mbps network uplinks.
@@ -241,21 +283,29 @@ EduERP/
 ├── .htaccess                  # Apache Gzip compression, browser caching, & security headers
 ├── docker-compose.yml         # Multi-container orchestration (App, MariaDB, phpMyAdmin)
 ├── Dockerfile                 # Hardened Alpine image (PHP 8.3/8.4 patched against critical RCE)
-├── enroll.php                 # Public self-service student enrollment portal with token validation
+├── enroll.php                 # Public self-service student enrollment portal with token validation & IP guard
 ├── README.md                  # Comprehensive project documentation & architecture guide
 ├── admin/                     # Admin & Sub-Admin portal modules
 │   ├── admins/                # Super admin tenant provisioning & subscription tracking
-│   ├── batches/               # Academic batch setup and student-batch mapping
+│   ├── attendance/            # Digital class attendance registers & absentee SMS/WhatsApp triggers
+│   ├── batches/               # Academic batch setup, student-batch mapping & queued deletions
 │   ├── coding/                # Coding problem management, test cases & competitions
-│   ├── enrolments/            # Student admissions & batch assignment
-│   ├── exams/                 # Exam creation, score gating, timer controls & analytics
+│   ├── deletion_requests/     # Super admin review queue for staff-initiated deletion requests
+│   ├── enrolments/            # Student admissions, batch assignment, CSV export & blocked IPs
+│   │   ├── blocked_ips.php    # IP address blacklisting, CIDR/wildcard rules & live diagnostics
+│   │   ├── links.php          # Temporary enrollment links generator with QR and expiry
+│   │   └── link_students.php  # Enrolled student roster, 1-click IP blocking & account deactivation
+│   ├── exams/                 # Exam creation, score gating, timer controls, tagging & analytics
 │   ├── fees/                  # Student fee ledgers, voucher discounts & payment receipts
-│   ├── homework/              # Homework distribution, attachment uploads & grading
+│   ├── homework/              # Homework distribution, attachment uploads & grading dashboard
 │   ├── payroll/               # Staff salary generation, allowance tracking & payslips
-│   ├── questions/             # Question bank, CSV bulk import & AI prompt generation
-│   ├── reports/               # Student report cards, batch percentiles & attendance
+│   ├── questions/             # Question bank, multi-class mapping, duplicate search & doubt flags
+│   │   ├── check_duplicate_ajax.php # Live AJAX duplicate question detector
+│   │   ├── get_flags_ajax.php       # Doubt flag inspection endpoint
+│   │   └── resolve_flag_ajax.php    # Doubt flag resolution endpoint
+│   ├── reports/               # Student report cards, batch percentiles & attendance transcripts
 │   ├── schedule/              # Teacher timetables and class slot planning
-│   ├── students/              # Student directory, profile management & password resets
+│   ├── students/              # Student directory, profile management, CSV export & password resets
 │   ├── subjects/              # Board, class, and academic subject configurations
 │   └── sub_admins/            # Teacher & Accountant role delegation and permissions
 ├── config/
@@ -265,24 +315,29 @@ EduERP/
 ├── docker/
 │   ├── apache.conf            # Custom Apache virtual host configuration
 │   ├── init.sql               # Complete initial database schema and seed data
-│   ├── migrate.php            # Non-destructive database migration runner
+│   ├── migrate.php            # Non-destructive database migration runner (120 checks)
 │   └── seed_coding.php        # Initial coding challenge questions seed data
 ├── includes/
+│   ├── admin_auth.php         # Admin role guards, session management & tenant resolution
 │   ├── admin_header.php       # Administrative navigation layout and session guard
-│   ├── functions.php          # Global utility functions, status throttling & helpers
+│   ├── functions.php          # Global utility functions, IP detection, status throttling & helpers
+│   ├── student_auth.php       # Student session validation and tenant isolation
 │   └── student_header.php     # Student portal navigation layout and session guard
 ├── scripts/
 │   ├── backup.sh / .bat       # Automated database backup scripts
+│   ├── publish.sh             # Zero-downtime remote host deployment with pre-update backups
 │   ├── restore.sh             # Database restore utility from backup SQL files
-│   └── update.sh / .bat       # Zero-downtime Hostinger VPS update automation
+│   └── update.sh / .bat       # Zero-downtime VPS update automation
 ├── student/                   # Student portal modules
 │   ├── coding/                # Coding practice arena, code editor & contest leaderboard
 │   ├── dashboard.php          # Student dashboard (active exams, homework, fee balance)
-│   ├── exam.php               # Live timed examination interface with anti-cheat hooks
+│   ├── exam.php               # Live timed examination interface with anti-cheat hooks & doubt flags
 │   ├── fees.php               # Personal fee ledger and downloadable invoice receipts
+│   ├── flag_question_ajax.php # Student question doubt submission endpoint
 │   ├── homework.php           # Homework assignments view and submission modal
+│   ├── homework_view.php      # Submitted solution viewer with embedded PDF reader
 │   ├── report_card.php        # Printable student academic performance transcripts
-│   ├── review.php             # Post-exam question-by-question review & explanations
+│   ├── review.php             # Post-exam question-by-question review, explanations & doubts
 │   └── submit.php             # Atomic ACID exam submission processing
 └── uploads/                   # User-uploaded files (homework attachments, student avatars)
 ```
@@ -389,6 +444,12 @@ bash scripts/update.sh
 * **Step 4:** Recreates web container with zero volume data disruption (`docker compose up -d --no-deps app`).
 * **Step 5:** Executes [`docker/migrate.php`](docker/migrate.php) to safely apply schema updates.
 
+### Production Deployment via Host Publish Script
+For safe production deployments with automatic host-level database backups:
+```bash
+bash scripts/publish.sh
+```
+
 ### Manual Database Snapshot & Restore
 - **Backup:**
   ```bash
@@ -424,7 +485,9 @@ All test suites execute end-to-end assertions against the active database and re
 
 - **Prepared SQL Statements:** 100% of database interactions utilize PDO prepared statements with strict parameter binding to eliminate SQL injection vulnerabilities.
 - **XSS Protection:** Output sanitization through HTML entity encoding ([`h()`](includes/functions.php)) and purified input strings.
-- **Session Integrity & Hijacking Prevention:** Session fixation protection with periodic regeneration of session IDs and strict HTTP cookie parameters (`httponly`, `samesite`).
+- **Session Integrity & Fixation Defense:** Dynamic session cookie configuration with `httponly`, `samesite=Lax`, and periodic ID regeneration.
+- **IP Blacklisting & Subnet Shielding:** Restricts fraudulent admissions and automated bot scrapers based on exact IP, wildcard patterns, or CIDR network blocks.
+- **Governance Approval Workflow:** Intercepts deletions requested by sub-admins/teachers, requiring explicit Super Admin review to prevent accidental data loss.
 - **Accountant Privacy Guard:** Accountants cannot see total institutional collections, keeping institute financial health confidential from non-administrative staff.
 - **Strict File Upload Validation:** Homework and question image uploads enforce strict MIME-type whitelists, random file hash renaming, and directory execution disallow rules.
 - **Anti-Cheat Audit Log:** Student exam sessions record window blur events, copy-paste attempts, and submission timestamps.
