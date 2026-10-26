@@ -165,6 +165,19 @@ function get_client_ip() {
             return $cfIp;
         }
     }
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $parts = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+        $fwd = trim($parts[0]);
+        if (filter_var($fwd, FILTER_VALIDATE_IP)) {
+            return $fwd;
+        }
+    }
+    if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+        $real = trim($_SERVER['HTTP_X_REAL_IP']);
+        if (filter_var($real, FILTER_VALIDATE_IP)) {
+            return $real;
+        }
+    }
     $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
     if (!filter_var($ip, FILTER_VALIDATE_IP)) {
         return '127.0.0.1';
@@ -677,6 +690,116 @@ function get_pending_question_flags_count($pdo = null): int {
                 WHERE qf.status = 'pending' AND q.admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)
             ");
             $stmt->execute([$eff_id, $eff_id]);
+            return (int)$stmt->fetchColumn();
+        }
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
+/**
+ * Test whether an IP matches a CIDR range
+ */
+function ip_matches_cidr(string $ip, string $cidr): bool {
+    if (strpos($cidr, '/') === false) {
+        return $ip === $cidr;
+    }
+    list($subnet, $bits) = explode('/', $cidr, 2);
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) || !filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+        return false;
+    }
+    $ip_long = ip2long($ip);
+    $subnet_long = ip2long($subnet);
+    $mask = -1 << (32 - (int)$bits);
+    $subnet_long &= $mask;
+    return ($ip_long & $mask) == $subnet_long;
+}
+
+/**
+ * Check if a client IP address is blocked from registering via enrollment links.
+ * Returns array: ['blocked' => bool, 'reason' => string, 'rule_id' => int|null]
+ */
+function check_enrollment_ip_block(string $ip, ?int $admin_id = null, $pdo = null): array {
+    if (!$pdo) global $pdo;
+    $clean_ip = trim($ip);
+    if (empty($clean_ip)) {
+        return ['blocked' => false, 'reason' => '', 'rule_id' => null];
+    }
+
+    try {
+        $sql = "SELECT id, ip_address, reason FROM blocked_enrollment_ips WHERE is_active = 1";
+        $params = [];
+        if ($admin_id !== null && $admin_id > 0) {
+            $sql .= " AND (admin_id IS NULL OR admin_id = 0 OR admin_id = ?)";
+            $params[] = $admin_id;
+        }
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rules = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($rules as $r) {
+            $pattern = trim($r['ip_address']);
+            // Exact match
+            if (strcasecmp($pattern, $clean_ip) === 0) {
+                return ['blocked' => true, 'reason' => $r['reason'], 'rule_id' => (int)$r['id']];
+            }
+            // Wildcard match (e.g. 192.168.1.*)
+            if (strpos($pattern, '*') !== false) {
+                $regex = '/^' . str_replace(['.', '*'], ['\.', '.*'], $pattern) . '$/i';
+                if (preg_match($regex, $clean_ip)) {
+                    return ['blocked' => true, 'reason' => $r['reason'], 'rule_id' => (int)$r['id']];
+                }
+            }
+            // CIDR match (e.g. 103.45.67.0/24)
+            if (strpos($pattern, '/') !== false) {
+                if (ip_matches_cidr($clean_ip, $pattern)) {
+                    return ['blocked' => true, 'reason' => $r['reason'], 'rule_id' => (int)$r['id']];
+                }
+            }
+        }
+    } catch (\Throwable $e) {
+        error_log("check_enrollment_ip_block error: " . $e->getMessage());
+    }
+
+    return ['blocked' => false, 'reason' => '', 'rule_id' => null];
+}
+
+/**
+ * Convenient boolean check if IP is blocked
+ */
+function is_ip_blocked_for_enrollment(string $ip, ?int $admin_id = null, $pdo = null): bool {
+    $res = check_enrollment_ip_block($ip, $admin_id, $pdo);
+    return $res['blocked'];
+}
+
+/**
+ * Increment the intercepted attempt counter when a blocked IP attempts to register
+ */
+function log_blocked_enrollment_attempt(int $rule_id, $pdo = null): void {
+    if (!$pdo) global $pdo;
+    if ($rule_id <= 0) return;
+    try {
+        $stmt = $pdo->prepare("UPDATE blocked_enrollment_ips SET blocked_attempts_count = blocked_attempts_count + 1, last_blocked_at = NOW() WHERE id = ?");
+        $stmt->execute([$rule_id]);
+    } catch (\Throwable $e) {
+        error_log("log_blocked_enrollment_attempt error: " . $e->getMessage());
+    }
+}
+
+/**
+ * Get count of active blocked enrollment IPs
+ */
+function get_blocked_enrollment_ips_count(?int $admin_id = null, $pdo = null): int {
+    if (!$pdo) global $pdo;
+    try {
+        $isSuper = function_exists('is_super_admin') ? is_super_admin() : (!empty($_SESSION['admin_role']) && $_SESSION['admin_role'] === 'super_admin');
+        if ($isSuper) {
+            $stmt = $pdo->query("SELECT COUNT(*) FROM blocked_enrollment_ips WHERE is_active = 1");
+            return (int)$stmt->fetchColumn();
+        } else {
+            $target_admin = $admin_id !== null ? $admin_id : (function_exists('get_effective_admin_id') ? get_effective_admin_id() : (int)($_SESSION['admin_id'] ?? 0));
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM blocked_enrollment_ips WHERE is_active = 1 AND (admin_id IS NULL OR admin_id = 0 OR admin_id = ?)");
+            $stmt->execute([$target_admin]);
             return (int)$stmt->fetchColumn();
         }
     } catch (\Throwable $e) {

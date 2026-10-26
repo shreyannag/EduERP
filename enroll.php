@@ -36,6 +36,23 @@ try {
         INDEX idx_expires (expires_at)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
+    $pdo->exec("CREATE TABLE IF NOT EXISTS blocked_enrollment_ips (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ip_address VARCHAR(45) NOT NULL,
+        admin_id INT NULL DEFAULT 0,
+        reason VARCHAR(255) NOT NULL DEFAULT 'Fraudulent / Spam registration',
+        notes TEXT NULL,
+        blocked_by INT NULL,
+        blocked_attempts_count INT NOT NULL DEFAULT 0,
+        last_blocked_at DATETIME NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_ip (ip_address),
+        INDEX idx_admin (admin_id),
+        INDEX idx_active (is_active)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS enrollment_submissions (
         id INT AUTO_INCREMENT PRIMARY KEY,
         link_id INT NOT NULL,
@@ -85,6 +102,17 @@ if (!empty($token)) {
 $is_expired = false;
 $is_full = false;
 $is_inactive = false;
+$is_ip_blocked = false;
+$ip_block_reason = '';
+
+$client_ip = get_client_ip();
+$target_admin_id = $link ? (int)$link['admin_id'] : null;
+$ip_check = check_enrollment_ip_block($client_ip, $target_admin_id, $pdo);
+if ($ip_check['blocked']) {
+    $is_ip_blocked = true;
+    $ip_block_reason = $ip_check['reason'] ?: 'Suspicious or fraudulent activity detected from this network.';
+    log_blocked_enrollment_attempt((int)$ip_check['rule_id'], $pdo);
+}
 
 if ($link) {
     $now_ts = time();
@@ -99,7 +127,10 @@ $all_classes = $pdo->query("SELECT id, name FROM classes ORDER BY CAST(name AS U
 $all_boards  = $pdo->query("SELECT id, name FROM boards ORDER BY name ASC")->fetchAll();
 
 // Handle Form Submission (POST)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $link && !$is_expired && !$is_full && !$is_inactive) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if ($is_ip_blocked) {
+        $error = "Registration from your network IP address ({$client_ip}) has been blocked by the administration to prevent fraudulent submissions.";
+    } elseif ($link && !$is_expired && !$is_full && !$is_inactive) {
     $submitted_csrf = $_POST['csrf_token'] ?? '';
     if (!hash_equals($_SESSION['enroll_csrf_token'], $submitted_csrf)) {
         $error = "Security validation expired. Please refresh the page and try again.";
@@ -222,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $link && !$is_expired && !$is_full 
                         $pdo->prepare("UPDATE enrollment_links SET used_count = used_count + 1 WHERE id = ?")->execute([$link['id']]);
 
                         // Record Audit Submission
-                        $client_ip = $_SERVER['REMOTE_ADDR'] ?? '';
+                        $client_ip = get_client_ip();
                         $sub_status = $link['require_approval'] ? 'pending' : 'approved';
                         $pdo->prepare("
                             INSERT INTO enrollment_submissions (link_id, student_id, ip_address, status)
@@ -250,6 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $link && !$is_expired && !$is_full 
                 $error = "Enrollment processing error: " . $e->getMessage();
             }
         }
+    }
     }
 }
 
@@ -341,6 +373,22 @@ if ($link && empty($link['batch_id'])) {
             <p class="text-muted mb-4 lead">The admission link you are trying to access does not exist or has been permanently removed by the institute administrator.</p>
             <a href="student/login.php" class="btn btn-primary font-weight-bold rounded-pill px-5 shadow-sm">
                 Go to Student Portal Login
+            </a>
+        </div>
+
+    <?php elseif ($is_ip_blocked): ?>
+        <!-- Blocked IP Security Notice -->
+        <div class="enroll-card text-center p-5">
+            <div class="text-danger mb-4"><i class="fas fa-shield-alt fa-5x"></i></div>
+            <h3 class="font-weight-bold text-dark mb-2">Registration Restricted</h3>
+            <p class="text-muted mb-3 lead">Online registration from your network IP address (<code><?= htmlspecialchars($client_ip) ?></code>) has been restricted by the administration.</p>
+            <div class="alert alert-light border d-inline-block text-left p-3 mb-4 rounded-lg shadow-sm" style="max-width: 520px;">
+                <small class="text-muted d-block text-uppercase font-weight-bold mb-1"><i class="fas fa-info-circle mr-1 text-primary"></i>Reason for restriction:</small>
+                <span class="text-dark font-weight-bold"><?= htmlspecialchars($ip_block_reason) ?></span>
+            </div>
+            <p class="text-secondary small mb-4">If you are an enrolled student or believe this restriction is in error, please contact your institute office directly.</p>
+            <a href="student/login.php" class="btn btn-outline-secondary font-weight-bold rounded-pill px-5 shadow-sm">
+                <i class="fas fa-sign-in-alt mr-1"></i> Go to Student Portal Login
             </a>
         </div>
 

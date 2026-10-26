@@ -73,6 +73,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION['flash_success'] = "Student admission rejected and account deactivated.";
         header("Location: link_students.php?id=$link_id");
         exit;
+    } elseif ($action === 'block_ip') {
+        $ip = trim($_POST['ip_address'] ?? '');
+        $reason = trim($_POST['reason'] ?? 'Fraudulent / spam account registration');
+        $also_deactivate = !empty($_POST['also_deactivate_student']);
+
+        if (!empty($ip) && filter_var($ip, FILTER_VALIDATE_IP)) {
+            $scope_id = $is_super ? 0 : (int)$link['admin_id'];
+            $chk = $pdo->prepare("SELECT id, is_active FROM blocked_enrollment_ips WHERE ip_address = ? AND admin_id = ?");
+            $chk->execute([$ip, $scope_id]);
+            $existing = $chk->fetch(PDO::FETCH_ASSOC);
+
+            if ($existing) {
+                $pdo->prepare("UPDATE blocked_enrollment_ips SET is_active = 1, reason = ?, blocked_by = ? WHERE id = ?")
+                    ->execute([$reason, (int)$_SESSION['admin_id'], $existing['id']]);
+            } else {
+                $pdo->prepare("
+                    INSERT INTO blocked_enrollment_ips (ip_address, admin_id, reason, blocked_by, is_active)
+                    VALUES (?, ?, ?, ?, 1)
+                ")->execute([$ip, $scope_id, $reason, (int)$_SESSION['admin_id']]);
+            }
+
+            if ($also_deactivate && $student_id > 0) {
+                $pdo->beginTransaction();
+                $pdo->prepare("UPDATE enrollment_submissions SET status = 'rejected' WHERE link_id = ? AND student_id = ?")->execute([$link_id, $student_id]);
+                $pdo->prepare("UPDATE students SET is_active = 0 WHERE id = ?")->execute([$student_id]);
+                $pdo->commit();
+            }
+
+            $_SESSION['flash_success'] = "IP address '{$ip}' has been successfully blocked from enrollment registrations" . ($also_deactivate ? " and the student account was deactivated." : ".");
+        } else {
+            $_SESSION['flash_error'] = "Invalid IP address to block.";
+        }
+        header("Location: link_students.php?id=$link_id");
+        exit;
+    } elseif ($action === 'unblock_ip') {
+        $ip = trim($_POST['ip_address'] ?? '');
+        if (!empty($ip)) {
+            $scope_id = $is_super ? 0 : (int)$link['admin_id'];
+            $pdo->prepare("DELETE FROM blocked_enrollment_ips WHERE ip_address = ? AND (admin_id = ? OR admin_id = 0)")->execute([$ip, $scope_id]);
+            $_SESSION['flash_success'] = "IP address '{$ip}' has been unblocked.";
+        }
+        header("Location: link_students.php?id=$link_id");
+        exit;
     }
 }
 
@@ -96,6 +139,10 @@ $stmt_stu = $pdo->prepare("
 ");
 $stmt_stu->execute([$link_id]);
 $submissions = $stmt_stu->fetchAll();
+
+// Fetch active blocked IPs for fast badge lookup
+$active_blocked_ips = $pdo->query("SELECT ip_address FROM blocked_enrollment_ips WHERE is_active = 1")->fetchAll(PDO::FETCH_COLUMN);
+$blocked_ips_map = array_flip($active_blocked_ips);
 
 // Handle CSV Export
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
@@ -150,6 +197,9 @@ $public_url = $protocol . $_SERVER['HTTP_HOST'] . BASE_URL . '/enroll.php?token=
     <div>
         <a href="links.php" class="btn btn-outline-secondary font-weight-bold rounded-pill px-3 shadow-sm mr-2">
             <i class="fas fa-arrow-left mr-1"></i> Back to Links
+        </a>
+        <a href="blocked_ips.php" class="btn btn-outline-danger font-weight-bold rounded-pill px-3 shadow-sm mr-2">
+            <i class="fas fa-shield-alt mr-1"></i> Blocked IPs
         </a>
         <?php if (!empty($submissions)): ?>
             <a href="link_students.php?id=<?= $link_id ?>&export=csv" class="btn btn-success font-weight-bold rounded-pill px-4 shadow-sm">
@@ -273,7 +323,28 @@ $public_url = $protocol . $_SERVER['HTTP_HOST'] . BASE_URL . '/enroll.php?token=
                             </td>
                             <td>
                                 <small class="d-block font-weight-bold text-dark"><?= date('d M Y, h:i A', strtotime($sub['submitted_at'])) ?></small>
-                                <small class="text-muted"><i class="fas fa-globe mr-1"></i>IP: <?= h($sub['ip_address'] ?? 'Unknown') ?></small>
+                                <?php 
+                                    $sub_ip = trim($sub['ip_address'] ?? '');
+                                    $is_blocked = !empty($sub_ip) && (isset($blocked_ips_map[$sub_ip]) || is_ip_blocked_for_enrollment($sub_ip, $link['admin_id'], $pdo));
+                                ?>
+                                <small class="d-block text-muted mt-1">
+                                    <i class="fas fa-globe mr-1"></i>IP: <code class="font-weight-bold"><?= h($sub_ip ?: 'Unknown') ?></code>
+                                    <?php if (!empty($sub_ip) && $sub_ip !== 'Unknown' && filter_var($sub_ip, FILTER_VALIDATE_IP)): ?>
+                                        <?php if ($is_blocked): ?>
+                                            <span class="badge badge-danger ml-1" title="This IP address is blocked"><i class="fas fa-ban mr-1"></i>Blocked</span>
+                                            <form method="POST" class="d-inline ml-1" onsubmit="return confirm('Unblock IP <?= h($sub_ip) ?>?');">
+                                                <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
+                                                <input type="hidden" name="action" value="unblock_ip">
+                                                <input type="hidden" name="ip_address" value="<?= h($sub_ip) ?>">
+                                                <button type="submit" class="btn btn-xs btn-outline-secondary py-0 px-1" title="Unblock IP"><i class="fas fa-unlock"></i></button>
+                                            </form>
+                                        <?php else: ?>
+                                            <button type="button" class="btn btn-xs btn-outline-danger ml-1 py-0 px-1 font-weight-bold" title="Block this IP from registering fraud accounts" onclick="openBlockIpModal('<?= h($sub_ip) ?>', '<?= h(addslashes($sub['full_name'])) ?>', <?= (int)$sub['id'] ?>)">
+                                                <i class="fas fa-shield-alt mr-1"></i>Block IP
+                                            </button>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                </small>
                             </td>
                             <td class="text-center">
                                 <?php if ($sub['submission_status'] === 'approved'): ?>
@@ -327,5 +398,77 @@ function copyLink() {
     });
 }
 </script>
+
+<!-- Quick Block IP Modal -->
+<div class="modal fade" id="blockIpModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg">
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="<?= h(generate_csrf_token()) ?>">
+                <input type="hidden" name="action" value="block_ip">
+                <input type="hidden" name="student_id" id="modalStudentId" value="0">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title font-weight-bold"><i class="fas fa-shield-alt mr-2"></i>Block IP from Registration</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body p-4">
+                    <p class="text-muted small">Blocking this IP address will immediately prevent any visitor from this network from registering accounts through enrollment links.</p>
+                    <div class="form-group">
+                        <label class="font-weight-bold text-dark">IP Address to Blacklist</label>
+                        <input type="text" name="ip_address" id="modalIpAddress" class="form-control font-weight-bold bg-light" readonly required>
+                    </div>
+                    <div class="form-group">
+                        <label class="font-weight-bold text-dark">Reason for Restriction</label>
+                        <select id="modalReasonPreset" class="form-control mb-2" onchange="updateReasonText()">
+                            <option value="Fraudulent / fake student registration">Fraudulent / fake student registration</option>
+                            <option value="Spam bot submissions">Spam bot submissions</option>
+                            <option value="Unauthorized duplicate registrations">Unauthorized duplicate registrations</option>
+                            <option value="Malicious activity detected">Malicious activity detected</option>
+                            <option value="custom">Other (Custom Reason)...</option>
+                        </select>
+                        <input type="text" name="reason" id="modalReasonInput" class="form-control" value="Fraudulent / fake student registration" required>
+                    </div>
+                    <div class="form-group mb-0">
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="alsoDeactivate" name="also_deactivate_student" value="1" checked>
+                            <label class="custom-control-label font-weight-bold text-danger" for="alsoDeactivate">
+                                Also reject admission & deactivate account (<span id="modalStudentName"></span>)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary font-weight-bold rounded-pill px-4" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger font-weight-bold rounded-pill px-4 shadow-sm">
+                        <i class="fas fa-ban mr-1"></i> Confirm & Block IP
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openBlockIpModal(ip, studentName, studentId) {
+    document.getElementById('modalIpAddress').value = ip;
+    document.getElementById('modalStudentName').textContent = studentName;
+    document.getElementById('modalStudentId').value = studentId;
+    $('#blockIpModal').modal('show');
+}
+
+function updateReasonText() {
+    var preset = document.getElementById('modalReasonPreset').value;
+    var input = document.getElementById('modalReasonInput');
+    if (preset !== 'custom') {
+        input.value = preset;
+    } else {
+        input.value = '';
+        input.focus();
+    }
+}
+</script>
+
 
 <?php require_once __DIR__ . '/../../includes/admin_footer.php'; ?>

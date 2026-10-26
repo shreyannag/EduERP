@@ -765,6 +765,24 @@ $migrations = [
         INDEX idx_status (status),
         FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
         FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // Blocked Enrollment IPs to prevent fraud accounts
+    "CREATE TABLE IF NOT EXISTS blocked_enrollment_ips (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ip_address VARCHAR(45) NOT NULL,
+        admin_id INT NULL DEFAULT 0,
+        reason VARCHAR(255) NOT NULL DEFAULT 'Fraudulent / Spam registration',
+        notes TEXT NULL,
+        blocked_by INT NULL,
+        blocked_attempts_count INT NOT NULL DEFAULT 0,
+        last_blocked_at DATETIME NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_ip (ip_address),
+        INDEX idx_admin (admin_id),
+        INDEX idx_active (is_active)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
 ];
 

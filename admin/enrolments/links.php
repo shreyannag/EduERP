@@ -222,6 +222,7 @@ $webRoot = ($scriptDir === '/' || $scriptDir === '\\' || $scriptDir === '.') ? '
 // Prefer BASE_URL if explicitly configured, else use detected web root
 $resolvedBasePath = defined('BASE_URL') ? BASE_URL : $webRoot;
 $base_enroll_url = $protocol . $host . $resolvedBasePath . '/enroll.php?token=';
+$blocked_ip_count = get_blocked_enrollment_ips_count($current_admin_id, $pdo);
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
@@ -232,6 +233,9 @@ $base_enroll_url = $protocol . $host . $resolvedBasePath . '/enroll.php?token=';
     <div>
         <a href="index.php" class="btn btn-outline-secondary font-weight-bold rounded-pill px-3 shadow-sm mr-2">
             <i class="fas fa-arrow-left mr-1"></i> Exam Enrolments
+        </a>
+        <a href="blocked_ips.php" class="btn btn-outline-danger font-weight-bold rounded-pill px-3 shadow-sm mr-2">
+            <i class="fas fa-shield-alt mr-1"></i> Blocked IPs <span class="badge badge-danger ml-1"><?= $blocked_ip_count ?></span>
         </a>
         <button type="button" class="btn btn-primary font-weight-bold rounded-pill px-4 shadow-sm" data-toggle="modal" data-target="#createLinkModal">
             <i class="fas fa-plus-circle mr-2"></i> Create Enrollment Link

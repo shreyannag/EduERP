@@ -248,6 +248,7 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             <?php if (admin_has_feature('enrolments')): ?>
             <a href="<?php echo BASE_URL; ?>/admin/enrolments/index.php" class="drawer-link"><i class="fas fa-user-plus text-primary"></i> Exam Enrolments</a>
             <a href="<?php echo BASE_URL; ?>/admin/enrolments/links.php" class="drawer-link"><i class="fas fa-link text-info"></i> Enrollment Links</a>
+            <a href="<?php echo BASE_URL; ?>/admin/enrolments/blocked_ips.php" class="drawer-link"><i class="fas fa-shield-alt text-danger"></i> Blocked IPs</a>
             <?php endif; ?>
             <?php if (admin_has_feature('coding')): ?>
             <a href="<?php echo BASE_URL; ?>/admin/coding/index.php" class="drawer-link"><i class="fas fa-laptop-code text-primary"></i> Coding Arena & Contests</a>
@@ -491,6 +492,9 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/enrolments/links.php"><i class="fas fa-link mr-2 fa-fw"></i> Enrollment Links</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/enrolments/blocked_ips.php"><i class="fas fa-shield-alt mr-2 fa-fw text-danger"></i> Blocked IPs</a>
                     </li>
                     <?php endif; ?>
                     <?php if (admin_has_feature('messages')): ?>
