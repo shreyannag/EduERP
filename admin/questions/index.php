@@ -11,31 +11,88 @@ $current_admin_id = (int)$_SESSION['admin_id'];
 $filter_class = $_GET['class_id'] ?? '';
 $filter_board = $_GET['board_id'] ?? '';
 $filter_admin = $_GET['admin_id'] ?? ($is_super ? 'my' : '');
+$search_keyword = trim($_GET['search'] ?? '');
+$check_duplicates = !empty($_GET['duplicates']);
+$filter_flagged = !empty($_GET['flagged']);
+
+$effective_admin_id = get_effective_admin_id();
 
 // Build query
 $where = "q.is_archived = 0";
 $params = [];
-if ($filter_class) { $where .= " AND q.class_id = ?"; $params[] = $filter_class; }
-if ($filter_board) { $where .= " AND q.board_id = ?"; $params[] = $filter_board; }
 
+// Multi-class matching: Question belongs if it is primary class OR in question_classes
+if ($filter_class) {
+    $where .= " AND (q.class_id = ? OR q.id IN (SELECT question_id FROM question_classes WHERE class_id = ?))";
+    $params[] = (int)$filter_class;
+    $params[] = (int)$filter_class;
+}
+if ($filter_board) {
+    $where .= " AND q.board_id = ?";
+    $params[] = (int)$filter_board;
+}
+
+// Search / Paste Question Matching
+if ($search_keyword !== '') {
+    $where .= " AND (q.question_text LIKE ? OR q.option1 LIKE ? OR q.option2 LIKE ? OR q.option3 LIKE ? OR q.option4 LIKE ?)";
+    $sParam = '%' . $search_keyword . '%';
+    $params[] = $sParam;
+    $params[] = $sParam;
+    $params[] = $sParam;
+    $params[] = $sParam;
+    $params[] = $sParam;
+}
+
+// Student flagged questions filter
+if ($filter_flagged) {
+    $where .= " AND q.id IN (SELECT question_id FROM question_flags WHERE status = 'pending')";
+}
+
+// Institute & Sub-admin scope
 if ($is_super) {
     if ($filter_admin === 'my' || $filter_admin === '' || $filter_admin === (string)$current_admin_id) {
-        $where .= " AND q.admin_id = ?";
+        $where .= " AND q.admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)";
+        $params[] = $current_admin_id;
         $params[] = $current_admin_id;
     } elseif ($filter_admin === 'all') {
-        // Show across all admins
+        // Global platform view across all institutes
     } else {
-        $where .= " AND q.admin_id = ?";
-        $params[] = (int)$filter_admin;
+        $targetTenant = (int)$filter_admin;
+        $where .= " AND q.admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)";
+        $params[] = $targetTenant;
+        $params[] = $targetTenant;
     }
 } else {
-    // Tenant admins can strictly and non-negotiably ONLY see their own questions
-    $where .= " AND q.admin_id = ?";
-    $params[] = $current_admin_id;
+    // Both tenant admin and sub-admins share their own institute's questions
+    $where .= " AND q.admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)";
+    $params[] = $effective_admin_id;
+    $params[] = $effective_admin_id;
+}
+
+// Duplicate Questions View
+$orderBy = "q.id DESC";
+if ($check_duplicates) {
+    $dupTenantCondition = $is_super && $filter_admin === 'all' 
+        ? "1=1" 
+        : "admin_id IN (SELECT id FROM admins WHERE id = " . ($is_super && is_numeric($filter_admin) ? (int)$filter_admin : (int)$effective_admin_id) . " OR parent_admin_id = " . ($is_super && is_numeric($filter_admin) ? (int)$filter_admin : (int)$effective_admin_id) . ")";
+
+    $where .= " AND TRIM(q.question_text) IN (
+        SELECT TRIM(question_text) 
+        FROM questions 
+        WHERE is_archived = 0 AND {$dupTenantCondition}
+        GROUP BY TRIM(question_text) 
+        HAVING COUNT(*) > 1
+    )";
+    $orderBy = "TRIM(q.question_text) ASC, q.id ASC";
 }
 
 $sql = "SELECT q.*, c.name as class_name, b.name as board_name, s.name as subject_name, t.name as topic_name,
-               a.username as author_name, a.institute_name as author_institute, a.role as author_role
+               a.username as author_name, a.full_name as author_fullname, a.institute_name as author_institute, 
+               a.role as author_role, a.sub_role as author_sub_role,
+               (SELECT COUNT(*) FROM question_flags qf WHERE qf.question_id = q.id AND qf.status = 'pending') as pending_flag_count,
+               (SELECT GROUP_CONCAT(cl.name ORDER BY CAST(cl.name AS UNSIGNED) SEPARATOR ', ') 
+                FROM question_classes qc JOIN classes cl ON qc.class_id = cl.id 
+                WHERE qc.question_id = q.id) as all_classes
         FROM questions q
         JOIN classes c ON q.class_id = c.id
         JOIN boards b ON q.board_id = b.id
@@ -43,10 +100,12 @@ $sql = "SELECT q.*, c.name as class_name, b.name as board_name, s.name as subjec
         LEFT JOIN topics t ON q.topic_id = t.id
         LEFT JOIN admins a ON q.admin_id = a.id
         WHERE $where
-        ORDER BY q.id DESC";
+        ORDER BY $orderBy";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $questions = $stmt->fetchAll();
+
+$totalPendingFlags = get_pending_question_flags_count($pdo);
 
 $classes = $pdo->query("SELECT id, name FROM classes ORDER BY CAST(name AS UNSIGNED)")->fetchAll();
 $boards = $pdo->query("SELECT id, name FROM boards ORDER BY name")->fetchAll();
@@ -111,6 +170,12 @@ if ($is_super) {
         </span>
     </div>
     <div>
+        <a href="index.php?duplicates=<?php echo $check_duplicates ? '0' : '1'; ?><?php echo $filter_class ? '&class_id='.urlencode($filter_class) : ''; ?><?php echo $filter_board ? '&board_id='.urlencode($filter_board) : ''; ?><?php echo $filter_admin ? '&admin_id='.urlencode($filter_admin) : ''; ?>" class="btn <?php echo $check_duplicates ? 'btn-danger' : 'btn-outline-danger'; ?> font-weight-bold shadow-sm rounded-pill px-3 mr-2" title="Find duplicate questions with identical text">
+            <i class="fas fa-clone mr-1"></i><?php echo $check_duplicates ? 'Exit Duplicates' : 'Autocheck Duplicates'; ?>
+        </a>
+        <a href="index.php?flagged=<?php echo $filter_flagged ? '0' : '1'; ?><?php echo $filter_admin ? '&admin_id='.urlencode($filter_admin) : ''; ?>" class="btn <?php echo $filter_flagged ? 'btn-warning text-dark' : 'btn-outline-warning text-dark'; ?> font-weight-bold shadow-sm rounded-pill px-3 mr-2">
+            <i class="fas fa-flag text-danger mr-1"></i>Doubt Flags <?php if ($totalPendingFlags > 0): ?><span class="badge badge-danger ml-1"><?php echo $totalPendingFlags; ?></span><?php endif; ?>
+        </a>
         <button type="button" class="btn btn-outline-danger font-weight-bold shadow-sm rounded-pill px-4 mr-2" id="bulkDeleteBtn" disabled>
             <i class="fas fa-trash-alt mr-2"></i>Bulk Delete
         </button>
@@ -129,10 +194,34 @@ if ($is_super) {
     </div>
 </div>
 
-<!-- Filters -->
+<?php if (!empty($_SESSION['flash_info'])): ?>
+    <div class="alert alert-info alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-info-circle mr-2"></i><?php echo h($_SESSION['flash_info']); unset($_SESSION['flash_info']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
+<?php if (!empty($_SESSION['flash_success'])): ?>
+    <div class="alert alert-success alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-check-circle mr-2"></i><?php echo h($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
+
+<!-- Filters & Search -->
 <div class="card shadow-sm border-0 mb-4 rounded-lg bg-light">
     <div class="card-body p-4">
         <form method="GET" class="form-row align-items-end">
+            <div class="col-md-4 mb-3 mb-md-0">
+                <label class="font-weight-bold text-muted small text-uppercase"><i class="fas fa-search mr-1 text-primary"></i>Search / Paste Question</label>
+                <div class="input-group">
+                    <input type="text" name="search" id="questionSearch" class="form-control bg-white font-weight-bold" placeholder="Paste question text to check if it exists..." value="<?php echo h($search_keyword); ?>">
+                    <?php if ($search_keyword): ?>
+                    <div class="input-group-append">
+                        <a href="index.php<?php echo $filter_class ? '?class_id='.$filter_class : ''; ?>" class="btn btn-outline-secondary" title="Clear search">&times;</a>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
             <?php if ($is_super): ?>
             <div class="col-md-3 mb-3 mb-md-0">
                 <label class="font-weight-bold text-muted small text-uppercase">Question Bank Ownership</label>
@@ -201,10 +290,11 @@ if ($is_super) {
                                 </div>
                             </th>
                             <th width="5%" class="text-center border-0">#</th>
+                            <th width="12%" class="border-0">Uploaded By</th>
                             <?php if ($is_super && $filter_admin === 'all'): ?>
-                                <th width="12%" class="border-0">Admin / Institute</th>
+                                <th width="12%" class="border-0">Institute</th>
                             <?php endif; ?>
-                            <th width="8%" class="border-0">Class</th>
+                            <th width="10%" class="border-0">Class / Multi</th>
                             <th width="8%" class="border-0">Subject</th>
                             <th width="35%" class="border-0">Question</th>
                             <th width="7%" class="border-0 text-center">Marks</th>
@@ -223,19 +313,41 @@ if ($is_super) {
                                 </div>
                             </td>
                             <td class="text-center text-muted align-middle"><?php echo $q['id']; ?></td>
+                            <td class="align-middle">
+                                <?php if (!empty($q['author_role']) && $q['author_role'] === 'sub_admin'): ?>
+                                    <span class="badge badge-info shadow-sm py-1 px-2 font-weight-bold" title="Uploaded by Teacher/Staff">
+                                        <i class="fas fa-chalkboard-teacher mr-1"></i><?php echo h(ucfirst($q['author_sub_role'] ?: 'Teacher')); ?>: <?php echo h($q['author_fullname'] ?: $q['author_name']); ?>
+                                    </span>
+                                <?php elseif (!empty($q['author_role']) && $q['author_role'] === 'super_admin'): ?>
+                                    <span class="badge badge-warning text-dark shadow-sm py-1 px-2 font-weight-bold">
+                                        <i class="fas fa-crown mr-1"></i>Super Admin
+                                    </span>
+                                <?php elseif (!empty($q['author_name'])): ?>
+                                    <span class="badge badge-secondary shadow-sm py-1 px-2 font-weight-bold">
+                                        <i class="fas fa-user-shield mr-1"></i>Admin: <?php echo h($q['author_fullname'] ?: $q['author_name']); ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge badge-light border text-muted">Admin #<?php echo $q['admin_id']; ?></span>
+                                <?php endif; ?>
+                                <?php if (!empty($q['deletion_pending'])): ?>
+                                    <span class="badge badge-danger mt-1 d-block"><i class="fas fa-hourglass-half mr-1"></i>Deletion Queued</span>
+                                <?php endif; ?>
+                            </td>
                             <?php if ($is_super && $filter_admin === 'all'): ?>
                                 <td class="align-middle">
-                                    <?php if (!empty($q['author_role']) && $q['author_role'] === 'super_admin'): ?>
-                                        <span class="badge badge-warning text-dark"><i class="fas fa-shield-alt mr-1"></i>Super Admin</span>
-                                    <?php else: ?>
-                                        <span class="badge badge-secondary"><?php echo h($q['author_name'] ?: 'Admin #' . $q['admin_id']); ?></span>
-                                        <?php if (!empty($q['author_institute'])): ?>
-                                            <div class="small text-muted font-italic"><?php echo h($q['author_institute']); ?></div>
-                                        <?php endif; ?>
-                                    <?php endif; ?>
+                                    <span class="badge badge-light border font-weight-bold text-dark">
+                                        <i class="fas fa-university text-primary mr-1"></i><?php echo h($q['author_institute'] ?? 'Main Campus'); ?>
+                                    </span>
                                 </td>
                             <?php endif; ?>
-                            <td class="font-weight-bold align-middle"><span id="qclass-<?php echo $q['id']; ?>"><?php echo h($q['class_name']); ?></span></td>
+                            <td class="font-weight-bold align-middle">
+                                <span id="qclass-<?php echo $q['id']; ?>">Class <?php echo h($q['class_name']); ?></span>
+                                <?php if (!empty($q['all_classes']) && strpos($q['all_classes'], ',') !== false): ?>
+                                    <div class="small text-muted mt-1" title="Also available in: <?php echo h($q['all_classes']); ?>">
+                                        <i class="fas fa-layer-group text-primary mr-1"></i><span class="badge badge-light border"><?php echo h($q['all_classes']); ?></span>
+                                    </div>
+                                <?php endif; ?>
+                            </td>
                             <td class="align-middle"><span class="badge badge-light border text-muted" id="qsub-<?php echo $q['id']; ?>"><?php echo h($q['subject_name'] ?? 'N/A'); ?></span></td>
                             <?php 
                                 $plainText = trim(strip_tags($q['question_text']));
@@ -243,11 +355,21 @@ if ($is_super) {
                             ?>
                             <td class="text-truncate align-middle" style="max-width: 350px;" title="<?php echo h($plainText ?: ($hasImg ? '[Image Question]' : '')); ?>">
                                 <span id="qtext-<?php echo $q['id']; ?>">
+                                    <?php if ($check_duplicates): ?>
+                                        <span class="badge badge-danger font-weight-bold mr-1"><i class="fas fa-clone mr-1"></i>Duplicate</span>
+                                    <?php endif; ?>
                                     <?php if ($hasImg): ?>
                                         <span class="badge badge-light border text-primary mr-1"><i class="fas fa-image mr-1"></i>Image</span>
                                     <?php endif; ?>
                                     <?php echo h($plainText ?: ($hasImg ? 'Image Question' : 'No text')); ?>
                                 </span>
+                                <?php if (!empty($q['pending_flag_count']) && $q['pending_flag_count'] > 0): ?>
+                                    <div class="mt-1">
+                                        <button type="button" class="btn btn-xs btn-outline-warning text-dark font-weight-bold py-0 px-2 rounded-pill shadow-sm" onclick="showQuestionFlags(<?php echo $q['id']; ?>)">
+                                            <i class="fas fa-flag text-danger mr-1"></i><?php echo $q['pending_flag_count']; ?> Doubt Flag(s)
+                                        </button>
+                                    </div>
+                                <?php endif; ?>
                             </td>
                             <td class="text-center align-middle font-weight-bold text-success"><span id="qmarks-<?php echo $q['id']; ?>"><?php echo $q['marks']; ?></span></td>
                         <td><span class="badge badge-info bg-opacity-75" id="qcorr-<?php echo $q['id']; ?>">Option <?php echo $q['correct_option']; ?></span></td>
@@ -345,6 +467,19 @@ if ($is_super) {
                             <option value="<?php echo $b['id']; ?>"><?php echo h($b['name']); ?></option>
                         <?php endforeach; ?>
                     </select>
+                </div>
+                <div class="col-12 form-group mb-4">
+                    <label class="font-weight-bold small text-muted text-uppercase d-block">
+                        <i class="fas fa-layer-group text-primary mr-1"></i>Also Available For Other Classes (Multi-Class)
+                    </label>
+                    <div class="d-flex flex-wrap p-2 bg-white rounded border shadow-sm" style="gap: 12px;">
+                        <?php foreach($classes as $c): ?>
+                            <div class="custom-control custom-checkbox mr-3">
+                                <input type="checkbox" name="additional_classes[]" value="<?php echo $c['id']; ?>" class="custom-control-input edit-extra-class" id="editClass<?php echo $c['id']; ?>">
+                                <label class="custom-control-label font-weight-bold text-dark" for="editClass<?php echo $c['id']; ?>">Class <?php echo h($c['name']); ?></label>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
             </div>
             <div class="row">
@@ -497,6 +632,25 @@ if ($is_super) {
             <button type="button" class="btn btn-outline-secondary font-weight-bold rounded-pill px-4 mr-2" data-dismiss="modal">Go Back</button>
             <button type="submit" class="btn btn-danger font-weight-bold rounded-pill px-5 shadow-sm"><i class="fas fa-trash mr-2"></i>Delete</button>
         </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Flags Review Modal -->
+<div class="modal fade" id="flagsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg rounded-lg">
+      <div class="modal-header bg-warning text-dark border-0 py-3 px-4">
+        <h5 class="modal-title font-weight-bold mb-0">
+          <i class="fas fa-flag text-danger mr-2"></i>Student Doubt Flags & Review Requests
+        </h5>
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body p-4" id="flagsModalBody">
+          <div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>
       </div>
     </div>
   </div>
@@ -694,6 +848,12 @@ $(document).ready(function() {
                 filterTopics();
                 $('#edit-top').val(q.topic_id);
                 $('#edit-marks').val(q.marks);
+                $('.edit-extra-class').prop('checked', false);
+                if (q.additional_classes && Array.isArray(q.additional_classes)) {
+                    q.additional_classes.forEach(function(cid) {
+                        $('#editClass' + cid).prop('checked', true);
+                    });
+                }
                 $('#editModal').modal('show');
                 setTimeout(updateEditPreview, 350);
             } else {
@@ -779,6 +939,87 @@ $(document).ready(function() {
         }
     });
 });
+window.showQuestionFlags = function(questionId) {
+    $('#flagsModal').modal('show');
+    $('#flagsModalBody').html('<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x text-muted"></i></div>');
+    
+    fetch('get_flags_ajax.php?question_id=' + questionId)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) {
+                $('#flagsModalBody').html('<div class="alert alert-danger">' + (data.error || 'Failed to load doubt flags.') + '</div>');
+                return;
+            }
+            if (data.flags.length === 0) {
+                $('#flagsModalBody').html('<div class="text-center py-4 text-muted"><i class="fas fa-check-circle fa-2x text-success mb-2"></i><p>No active doubt flags on this question.</p></div>');
+                return;
+            }
+            
+            let html = '<div class="list-group">';
+            data.flags.forEach(f => {
+                const isPending = f.status === 'pending';
+                const badge = isPending 
+                    ? '<span class="badge badge-warning text-dark">PENDING REVIEW</span>'
+                    : (f.status === 'resolved' ? '<span class="badge badge-success">RESOLVED</span>' : '<span class="badge badge-secondary">DISMISSED</span>');
+                
+                html += `
+                    <div class="list-group-item list-group-item-action flex-column align-items-start mb-2 border rounded shadow-sm">
+                        <div class="d-flex w-100 justify-content-between align-items-center mb-1">
+                            <h6 class="mb-0 font-weight-bold text-dark">
+                                <i class="fas fa-user-graduate text-primary mr-2"></i>${f.student_name || f.student_username}
+                                <small class="text-muted font-italic ml-2">(@${f.student_username})</small>
+                            </h6>
+                            <div>${badge}</div>
+                        </div>
+                        <div class="small text-muted mb-2">
+                            <span><i class="fas fa-exclamation-triangle text-warning mr-1"></i>Reason: <strong>${f.flag_reason || 'Doubtful'}</strong></span>
+                            ${f.exam_title ? '<span class="ml-3"><i class="fas fa-file-alt text-info mr-1"></i>Exam: ' + f.exam_title + '</span>' : ''}
+                            <span class="ml-3"><i class="fas fa-clock text-muted mr-1"></i>${f.created_at}</span>
+                        </div>
+                        <div class="p-3 bg-light rounded text-dark small mb-3">
+                            <strong>Student Remarks:</strong>
+                            <p class="mb-0 mt-1 font-italic">${f.student_remarks ? f.student_remarks : '<em>No written remark provided.</em>'}</p>
+                        </div>
+                        ${isPending ? `
+                            <div class="d-flex justify-content-end" style="gap: 8px;">
+                                <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold rounded-pill px-3" onclick="resolveFlag(${f.id}, 'dismiss', ${questionId})">
+                                    <i class="fas fa-times mr-1"></i>Dismiss Flag
+                                </button>
+                                <button type="button" class="btn btn-sm btn-success font-weight-bold rounded-pill px-3 shadow-sm" onclick="resolveFlag(${f.id}, 'resolve', ${questionId})">
+                                    <i class="fas fa-check-circle mr-1"></i>Mark Resolved
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+            html += '</div>';
+            $('#flagsModalBody').html(html);
+        })
+        .catch(err => {
+            $('#flagsModalBody').html('<div class="alert alert-danger">Error: ' + err + '</div>');
+        });
+};
+
+window.resolveFlag = function(flagId, action, questionId) {
+    const fd = new FormData();
+    fd.append('flag_id', flagId);
+    fd.append('action', action);
+    fd.append('csrf_token', $('input[name="csrf_token"]').val());
+    
+    fetch('resolve_flag_ajax.php', {
+        method: 'POST',
+        body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showQuestionFlags(questionId);
+        } else {
+            alert(data.error || 'Failed to update flag.');
+        }
+    });
+};
 </script>
 
 <?php require_once '../../includes/admin_footer.php'; ?>

@@ -132,6 +132,11 @@ require_once '../includes/student_header.php';
             <?php else: ?>
                 <span class="badge badge-danger px-3 py-2 shadow-sm rounded-pill"><i class="fas fa-times-circle mr-2"></i>Incorrect</span>
             <?php endif; ?>
+            <div class="mt-2 text-right">
+                <button type="button" class="btn btn-xs btn-outline-warning text-dark font-weight-bold rounded-pill px-2 py-1 shadow-sm" onclick="openReviewFlagModal(<?php echo $q['id']; ?>, <?php echo $qNum; ?>)" title="Flag this question for teacher review">
+                    <i class="fas fa-flag text-warning mr-1"></i>Report Doubt
+                </button>
+            </div>
         </div>
     </div>
     <div class="card-body px-4 pb-4 pt-3 ml-md-5 pl-md-4">
@@ -178,5 +183,91 @@ require_once '../includes/student_header.php';
     </div>
 </div>
 <?php endforeach; ?>
+
+<!-- Review Flag Modal -->
+<div class="modal fade" id="reviewFlagModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content shadow-lg border-0 rounded-lg">
+            <div class="modal-header bg-warning text-dark border-0 py-3">
+                <h5 class="modal-title font-weight-bold mb-0">
+                    <i class="fas fa-flag text-danger mr-2"></i>Report Issue / Doubt on Question <span id="revFlagModalQNum"></span>
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="revFlagForm" onsubmit="handleReviewFlagSubmit(event)">
+                <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
+                <input type="hidden" name="question_id" id="revFlagQuestionId">
+                <input type="hidden" name="exam_id" value="<?php echo htmlspecialchars($exam_id, ENT_QUOTES, 'UTF-8'); ?>">
+                
+                <div class="modal-body p-4">
+                    <p class="small text-muted mb-3">
+                        If you believe the correct answer key was wrong, the question was ambiguous, or there was a typo, specify below. Your instructor will investigate.
+                    </p>
+                    <div class="form-group mb-3">
+                        <label class="font-weight-bold small text-muted text-uppercase">Reason for Doubt / Dispute</label>
+                        <select name="flag_reason" class="form-control custom-select" required>
+                            <option value="Incorrect Options / Answer Key">Incorrect Options / Answer Key</option>
+                            <option value="Doubtful / Confusing Question">Doubtful / Confusing Question</option>
+                            <option value="Typo or Text Error">Typo or Text Error</option>
+                            <option value="Missing Diagram or Formula">Missing Diagram or Formula</option>
+                            <option value="Other">Other Query</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="font-weight-bold small text-muted text-uppercase">Your Explanation / Remarks</label>
+                        <textarea name="remarks" class="form-control" rows="3" placeholder="Provide details on why you believe this question needs review..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 py-2">
+                    <button type="button" class="btn btn-secondary font-weight-bold rounded-pill px-3" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning font-weight-bold rounded-pill px-4 shadow-sm" id="revFlagSubmitBtn">
+                        <i class="fas fa-flag mr-1"></i>Submit Doubt Report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function openReviewFlagModal(questionId, qNum) {
+    document.getElementById('revFlagQuestionId').value = questionId;
+    document.getElementById('revFlagModalQNum').textContent = 'Q' + qNum;
+    $('#reviewFlagModal').modal('show');
+}
+
+function handleReviewFlagSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('revFlagSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Submitting...';
+
+    const formData = new FormData(e.target);
+
+    fetch('flag_question_ajax.php', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-flag mr-1"></i>Submit Doubt Report';
+        if (data.success) {
+            $('#reviewFlagModal').modal('hide');
+            alert(data.message || 'Question doubt recorded for teacher review!');
+        } else {
+            alert(data.error || 'Failed to submit doubt.');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-flag mr-1"></i>Submit Doubt Report';
+        alert('An error occurred: ' + err);
+    });
+}
+</script>
 
 <?php require_once '../includes/student_footer.php'; ?>

@@ -262,6 +262,17 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             <div class="drawer-category">Staff & Payroll</div>
             <?php if (can_manage_sub_admins()): ?>
             <a href="<?php echo BASE_URL; ?>/admin/sub_admins/index.php" class="drawer-link"><i class="fas fa-user-shield text-info"></i> Sub-Admins & Staff</a>
+            <?php 
+                $pendingDelCount = get_pending_deletion_count($pdo);
+                if (!is_sub_admin()): 
+            ?>
+            <a href="<?php echo BASE_URL; ?>/admin/deletion_requests/index.php" class="drawer-link">
+                <i class="fas fa-shield-alt text-danger"></i> Deletion Approvals
+                <?php if ($pendingDelCount > 0): ?>
+                    <span class="badge badge-danger ml-auto font-weight-bold"><?php echo $pendingDelCount; ?></span>
+                <?php endif; ?>
+            </a>
+            <?php endif; ?>
             <?php endif; ?>
             <?php if (can_process_payroll()): ?>
             <a href="<?php echo BASE_URL; ?>/admin/payroll/index.php" class="drawer-link"><i class="fas fa-money-check-alt text-success"></i> Staff Payroll</a>
@@ -283,8 +294,7 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             <div class="drawer-category">Application</div>
             <a href="javascript:void(0)" class="drawer-link text-warning pwa-install-btn font-weight-bold" style="display: none;" onclick="installEduERPApp()"><i class="fas fa-download text-warning"></i> Install EduERP to Device</a>
 
-            <div class="drawer-category">Application</div>
-            <a href="javascript:void(0)" class="drawer-link text-warning pwa-install-btn font-weight-bold" style="display: none;" onclick="installEduERPApp()"><i class="fas fa-download text-warning"></i> Install EduERP to Device</a>
+
 
             <div class="drawer-category">Account & Security</div>
             <a href="<?php echo BASE_URL; ?>/admin/settings.php" class="drawer-link"><i class="fas fa-cog text-primary"></i> Account Settings</a>
@@ -510,6 +520,16 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                     <li class="nav-item">
                         <a class="nav-link" href="<?php echo BASE_URL; ?>/admin/sub_admins/index.php"><i class="fas fa-user-shield mr-2 fa-fw"></i> Sub-Admins & Staff</a>
                     </li>
+                    <?php if (!is_sub_admin()): ?>
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center justify-content-between <?php echo strpos($_SERVER['REQUEST_URI'] ?? '', 'deletion_requests') !== false ? 'active' : ''; ?>" href="<?php echo BASE_URL; ?>/admin/deletion_requests/index.php">
+                            <span><i class="fas fa-shield-alt mr-2 fa-fw text-danger"></i> Deletion Approvals</span>
+                            <?php if (!empty($pendingDelCount) && $pendingDelCount > 0): ?>
+                                <span class="badge badge-danger font-weight-bold"><?php echo $pendingDelCount; ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                    <?php endif; ?>
                     <?php endif; ?>
                     <?php if (can_process_payroll()): ?>
                     <li class="nav-item">

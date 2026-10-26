@@ -123,6 +123,8 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
         .q-btn { width: 42px; height: 42px; margin: 0 6px 12px 6px; border-radius: 8px; font-weight: bold; font-family: monospace; border-width: 2px; }
         .q-btn:hover { background: #f1f5f9; }
         .q-btn.answered { background: #10b981; color: white; border-color: #059669; }
+.q-btn.flagged { background: #f59e0b !important; color: white !important; border-color: #d97706 !important; }
+.q-btn.answered.flagged { background: linear-gradient(135deg, #10b981 50%, #f59e0b 50%) !important; border-color: #d97706 !important; color: white !important; }
         .q-btn.unanswered { border-color: #cbd5e1; color: #64748b; background: #f8fafc; }
         .q-text-content { flex-grow: 1; min-width: 0; line-height: 1.6; }
         .q-text-content img { max-width: 100%; height: auto; border-radius: 6px; display: block; margin: 12px 0; }
@@ -193,9 +195,16 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
             <div class="col-lg-9 pr-lg-5">
                 <?php foreach($questions as $index => $q): $qNum = $index + 1; ?>
                 <div class="q-card" id="q<?php echo $qNum; ?>">
-                    <div class="q-header">
-                        <span class="q-num">Q<?php echo $qNum; ?></span>
-                        <div class="q-text-content"><?php echo render_formatted_content($q['question_text']); ?></div>
+                    <div class="q-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center flex-grow-1 pr-3">
+                            <span class="q-num">Q<?php echo $qNum; ?></span>
+                            <div class="q-text-content"><?php echo render_formatted_content($q['question_text']); ?></div>
+                        </div>
+                        <div class="flex-shrink-0 text-right">
+                            <button type="button" class="btn btn-sm btn-outline-warning text-dark font-weight-bold rounded-pill px-3 shadow-sm btn-flag-q" id="flagBtn<?php echo $qNum; ?>" onclick="openFlagModal(<?php echo $q['id']; ?>, <?php echo $qNum; ?>)">
+                                <i class="fas fa-flag mr-1 text-warning"></i><span class="flag-text">Flag Doubt</span>
+                            </button>
+                        </div>
                     </div>
                     <div class="q-body row mx-0">
                         <?php for($i=1; $i<=4; $i++): 
@@ -389,5 +398,105 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
     });
 </script>
 
+<!-- Flag Doubt Modal -->
+<div class="modal fade" id="flagModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content shadow-lg border-0 rounded-lg">
+            <div class="modal-header bg-warning text-dark border-0 py-3">
+                <h5 class="modal-title font-weight-bold mb-0">
+                    <i class="fas fa-flag text-danger mr-2"></i>Flag Question <span id="flagModalQNum"></span> for Review
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <form id="flagForm" onsubmit="handleFlagSubmit(event)">
+                <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
+                <input type="hidden" name="question_id" id="flagQuestionId">
+                <input type="hidden" name="exam_id" value="<?php echo htmlspecialchars($exam_id, ENT_QUOTES, 'UTF-8'); ?>">
+                
+                <div class="modal-body p-4">
+                    <p class="small text-muted mb-3">
+                        If this question is doubtful, ambiguous, has typos, or missing formulas, report it here. Your teacher will review it.
+                    </p>
+                    <div class="form-group mb-3">
+                        <label class="font-weight-bold small text-muted text-uppercase">Reason for Doubt / Flag</label>
+                        <select name="flag_reason" class="form-control custom-select" required>
+                            <option value="Doubtful / Confusing Question">Doubtful / Confusing Question</option>
+                            <option value="Typo or Text Error">Typo or Text Error</option>
+                            <option value="Incorrect Options / Answer Key">Incorrect Options / Answer Key</option>
+                            <option value="Missing Diagram or Formula">Missing Diagram or Formula</option>
+                            <option value="Other">Other Query</option>
+                        </select>
+                    </div>
+                    <div class="form-group mb-0">
+                        <label class="font-weight-bold small text-muted text-uppercase">Your Remarks / Specific Issue (Optional)</label>
+                        <textarea name="remarks" class="form-control" rows="3" placeholder="Explain what seems doubtful or incorrect about this question..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light border-0 py-2">
+                    <button type="button" class="btn btn-secondary font-weight-bold rounded-pill px-3" data-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning font-weight-bold rounded-pill px-4 shadow-sm" id="flagSubmitBtn">
+                        <i class="fas fa-flag mr-1"></i>Submit Doubt Flag
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentFlaggingQNum = null;
+
+function openFlagModal(questionId, qNum) {
+    currentFlaggingQNum = qNum;
+    document.getElementById('flagQuestionId').value = questionId;
+    document.getElementById('flagModalQNum').textContent = 'Q' + qNum;
+    $('#flagModal').modal('show');
+}
+
+function handleFlagSubmit(e) {
+    e.preventDefault();
+    const btn = document.getElementById('flagSubmitBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Submitting...';
+
+    const formData = new FormData(e.target);
+
+    fetch('flag_question_ajax.php', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-flag mr-1"></i>Submit Doubt Flag';
+        if (data.success) {
+            $('#flagModal').modal('hide');
+            // Update button visual state
+            const flagBtn = document.getElementById('flagBtn' + currentFlaggingQNum);
+            if (flagBtn) {
+                flagBtn.classList.remove('btn-outline-warning');
+                flagBtn.classList.add('btn-warning');
+                flagBtn.querySelector('.flag-text').textContent = 'Flagged';
+            }
+            // Update nav button
+            const navBtn = document.getElementById('nav_btn_' + currentFlaggingQNum);
+            if (navBtn) {
+                navBtn.classList.add('flagged');
+            }
+            alert('Question marked and recorded for teacher review!');
+        } else {
+            alert(data.error || 'Failed to submit flag.');
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-flag mr-1"></i>Submit Doubt Flag';
+        alert('An error occurred: ' + err);
+    });
+}
+</script>
 </body>
 </html>

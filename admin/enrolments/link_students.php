@@ -99,9 +99,13 @@ $submissions = $stmt_stu->fetchAll();
 
 // Handle CSV Export
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=enrollment_roster_' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $link['title']) . '.csv');
     $output = fopen('php://output', 'w');
+    fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
     fputcsv($output, ['Student ID', 'Full Name', 'Email', 'Phone', 'Parent Name', 'Parent Phone', 'DOB', 'Gender', 'Address', 'Class', 'Board', 'Batch', 'Enrollment Date', 'Status']);
     foreach ($submissions as $sub) {
         fputcsv($output, [

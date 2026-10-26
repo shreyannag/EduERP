@@ -46,6 +46,17 @@ if (!is_super_admin()) {
     }
 }
 
+// If sub-admin/staff, queue deletion for Super Admin / Admin review
+$res = queue_or_execute_deletion('batch', $batch_id, $batch['name'], 'Staff requested deletion', null, $pdo);
+if ($res['queued']) {
+    echo json_encode([
+        'success' => true,
+        'queued'  => true,
+        'message' => $res['message']
+    ]);
+    exit;
+}
+
 try {
     $pdo->beginTransaction();
 

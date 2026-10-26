@@ -545,3 +545,141 @@ if (!function_exists('csrf_field')) {
         return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(generate_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
     }
 }
+
+
+/**
+ * Synchronize multiple classes mapped to a question
+ */
+function sync_question_classes(int $question_id, array $class_ids, $pdo = null): void {
+    if (!$pdo) global $pdo;
+    if ($question_id <= 0) return;
+    
+    $clean_ids = array_unique(array_filter(array_map('intval', $class_ids)));
+    try {
+        $pdo->prepare("DELETE FROM question_classes WHERE question_id = ?")->execute([$question_id]);
+        if (!empty($clean_ids)) {
+            $stmt = $pdo->prepare("INSERT IGNORE INTO question_classes (question_id, class_id) VALUES (?, ?)");
+            foreach ($clean_ids as $cid) {
+                if ($cid > 0) $stmt->execute([$question_id, $cid]);
+            }
+        }
+    } catch (\Throwable $e) {
+        error_log("sync_question_classes error: " . $e->getMessage());
+    }
+}
+
+/**
+ * Get all class IDs assigned to a question
+ */
+function get_question_class_ids(int $question_id, $pdo = null): array {
+    if (!$pdo) global $pdo;
+    try {
+        $stmt = $pdo->prepare("SELECT class_id FROM question_classes WHERE question_id = ?");
+        $stmt->execute([$question_id]);
+        $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        return array_map('intval', $ids);
+    } catch (\Throwable $e) {
+        return [];
+    }
+}
+
+/**
+ * Checks if the logged in user is a sub-admin and queues deletion requests for approval.
+ * Returns array: ['queued' => bool, 'message' => string]
+ */
+function queue_or_execute_deletion(string $entity_type, int $entity_id, string $entity_title, ?string $reason = null, ?string $details = null, $pdo = null): array {
+    if (!$pdo) global $pdo;
+    
+    $isSubAdmin = function_exists('is_sub_admin') ? is_sub_admin() : (!empty($_SESSION['admin_role']) && $_SESSION['admin_role'] === 'sub_admin');
+    if ($isSubAdmin) {
+        $sub_admin_id = (int)($_SESSION['admin_id'] ?? 0);
+        $parent_admin_id = function_exists('get_effective_admin_id') ? get_effective_admin_id() : (int)($_SESSION['parent_admin_id'] ?? $_SESSION['admin_id'] ?? 0);
+        
+        try {
+            // Check if already queued
+            $chk = $pdo->prepare("SELECT id FROM deletion_requests WHERE entity_type = ? AND entity_id = ? AND status = 'pending'");
+            $chk->execute([$entity_type, $entity_id]);
+            if ($chk->fetch()) {
+                return [
+                    'queued' => true,
+                    'message' => "A deletion request for this {$entity_type} is already pending approval from Super Admin / Admin."
+                ];
+            }
+            
+            $stmt = $pdo->prepare("INSERT INTO deletion_requests (entity_type, entity_id, entity_title, details, requested_by, parent_admin_id, reason, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')");
+            $stmt->execute([$entity_type, $entity_id, $entity_title, $details, $sub_admin_id, $parent_admin_id, $reason]);
+            
+            // Flag entity as deletion_pending if supported
+            $tableMap = [
+                'question' => 'questions',
+                'exam'     => 'exams',
+                'homework' => 'homework',
+                'batch'    => 'batches'
+            ];
+            if (isset($tableMap[$entity_type])) {
+                $tbl = $tableMap[$entity_type];
+                $pdo->prepare("UPDATE {$tbl} SET deletion_pending = 1 WHERE id = ?")->execute([$entity_id]);
+            }
+            
+            return [
+                'queued' => true,
+                'message' => "Deletion request for '{$entity_title}' has been submitted. As a staff member, your request is queued for Super Admin / Admin review and will only be permanently removed upon approval."
+            ];
+        } catch (\Throwable $e) {
+            error_log("queue_or_execute_deletion error: " . $e->getMessage());
+        }
+    }
+    
+    return [
+        'queued' => false
+    ];
+}
+
+/**
+ * Get count of pending deletion requests for Super Admin / Tenant Admin
+ */
+function get_pending_deletion_count($pdo = null): int {
+    if (!$pdo) global $pdo;
+    $isSubAdmin = function_exists('is_sub_admin') ? is_sub_admin() : (!empty($_SESSION['admin_role']) && $_SESSION['admin_role'] === 'sub_admin');
+    if ($isSubAdmin) return 0;
+    
+    try {
+        $isSuper = function_exists('is_super_admin') ? is_super_admin() : (!empty($_SESSION['admin_role']) && $_SESSION['admin_role'] === 'super_admin');
+        if ($isSuper) {
+            $stmt = $pdo->query("SELECT COUNT(*) FROM deletion_requests WHERE status = 'pending'");
+            return (int)$stmt->fetchColumn();
+        } else {
+            $admin_id = function_exists('get_effective_admin_id') ? get_effective_admin_id() : (int)($_SESSION['admin_id'] ?? 0);
+            $stmt = $pdo->prepare("SELECT COUNT(*) FROM deletion_requests WHERE status = 'pending' AND parent_admin_id = ?");
+            $stmt->execute([$admin_id]);
+            return (int)$stmt->fetchColumn();
+        }
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}
+
+/**
+ * Get count of pending student question flags for Super Admin / Tenant Admin
+ */
+function get_pending_question_flags_count($pdo = null): int {
+    if (!$pdo) global $pdo;
+    try {
+        $isSuper = function_exists('is_super_admin') ? is_super_admin() : (!empty($_SESSION['admin_role']) && $_SESSION['admin_role'] === 'super_admin');
+        if ($isSuper) {
+            $stmt = $pdo->query("SELECT COUNT(*) FROM question_flags WHERE status = 'pending'");
+            return (int)$stmt->fetchColumn();
+        } else {
+            $eff_id = function_exists('get_effective_admin_id') ? get_effective_admin_id() : (int)($_SESSION['admin_id'] ?? 0);
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) FROM question_flags qf
+                JOIN questions q ON qf.question_id = q.id
+                WHERE qf.status = 'pending' AND q.admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)
+            ");
+            $stmt->execute([$eff_id, $eff_id]);
+            return (int)$stmt->fetchColumn();
+        }
+    } catch (\Throwable $e) {
+        return 0;
+    }
+}

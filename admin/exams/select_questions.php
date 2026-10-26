@@ -33,14 +33,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_insert = $pdo->prepare("INSERT INTO exam_questions (exam_id, question_id, order_no) VALUES (?, ?, ?)");
         
         $exam_admin_id = !empty($exam['admin_id']) ? (int)$exam['admin_id'] : (int)$_SESSION['admin_id'];
-        
+        $stmtAdm = $pdo->prepare("SELECT id, role, parent_admin_id FROM admins WHERE id = ?");
+        $stmtAdm->execute([$exam_admin_id]);
+        $examCreator = $stmtAdm->fetch(PDO::FETCH_ASSOC);
+        $tenant_admin_id = !empty($examCreator['parent_admin_id']) ? (int)$examCreator['parent_admin_id'] : (int)$exam_admin_id;
+
         // Insert based on matching sorted DOM list (drag and drop results)
-        // Verify question ownership so admin cannot link another admin's questions
-        $ownerCheckStmt = $pdo->prepare("SELECT id FROM questions WHERE id = ? AND (admin_id = ? OR id IN (SELECT question_id FROM exam_questions WHERE exam_id = ?))");
+        // Verify question ownership so admin cannot link another institute's questions
+        $ownerCheckStmt = $pdo->prepare("SELECT id FROM questions WHERE id = ? AND (admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?) OR id IN (SELECT question_id FROM exam_questions WHERE exam_id = ?))");
         foreach($domOrderList as $qId) {
             $qIdInt = (int)$qId;
             if(in_array($qIdInt, array_map('intval', $selectedQs))) {
-                $ownerCheckStmt->execute([$qIdInt, $exam_admin_id, $exam_id]);
+                $ownerCheckStmt->execute([$qIdInt, $tenant_admin_id, $tenant_admin_id, $exam_id]);
                 if ($ownerCheckStmt->fetch()) {
                     $stmt_insert->execute([$exam_id, $qIdInt, $orderCounter++]);
                 }
@@ -55,17 +59,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $exam_admin_id = !empty($exam['admin_id']) ? (int)$exam['admin_id'] : (int)$_SESSION['admin_id'];
+$stmtAdm = $pdo->prepare("SELECT id, role, parent_admin_id FROM admins WHERE id = ?");
+$stmtAdm->execute([$exam_admin_id]);
+$examCreator = $stmtAdm->fetch(PDO::FETCH_ASSOC);
+$tenant_admin_id = !empty($examCreator['parent_admin_id']) ? (int)$examCreator['parent_admin_id'] : (int)$exam_admin_id;
 
 $stmt_all = $pdo->prepare("
-    SELECT q.*, (CASE WHEN eq.id IS NOT NULL THEN 1 ELSE 0 END) as is_selected, IFNULL(eq.order_no, 9999) as o
+    SELECT q.*, (CASE WHEN eq.id IS NOT NULL THEN 1 ELSE 0 END) as is_selected, IFNULL(eq.order_no, 9999) as o,
+           a.username as author_name, a.full_name as author_fullname, a.role as author_role, a.sub_role as author_sub_role
     FROM questions q
     LEFT JOIN exam_questions eq ON q.id = eq.question_id AND eq.exam_id = ?
-    WHERE q.class_id = ? AND q.board_id = ? 
-      AND (q.admin_id = ? OR eq.id IS NOT NULL)
+    LEFT JOIN admins a ON q.admin_id = a.id
+    WHERE (q.class_id = ? OR q.id IN (SELECT question_id FROM question_classes WHERE class_id = ?))
+      AND q.board_id = ? 
+      AND (q.admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?) OR eq.id IS NOT NULL)
       AND (q.is_archived = 0 OR eq.id IS NOT NULL)
     ORDER BY o ASC, q.id DESC
 ");
-$stmt_all->execute([$exam_id, $exam['class_id'], $exam['board_id'], $exam_admin_id]);
+$stmt_all->execute([$exam_id, $exam['class_id'], $exam['class_id'], $exam['board_id'], $tenant_admin_id, $tenant_admin_id]);
 $questions = $stmt_all->fetchAll();
 
 $selected_count = count(array_filter($questions, function($q){ return $q['is_selected']; }));
@@ -129,6 +140,15 @@ $selected_count = count(array_filter($questions, function($q){ return $q['is_sel
                                         <span class="badge badge-info mr-1 shadow-sm"><i class="fas fa-image mr-1"></i>Image</span>
                                     <?php endif; ?>
                                     <?php echo h($plainText ?: ($hasImg ? 'Image Question' : '')); ?>
+                                    <div class="mt-1">
+                                        <?php if (!empty($q['author_role']) && $q['author_role'] === 'sub_admin'): ?>
+                                            <span class="badge badge-info py-1 px-2 font-weight-bold"><i class="fas fa-chalkboard-teacher mr-1"></i><?= h(ucfirst($q['author_sub_role'] ?: 'Teacher')) ?>: <?= h($q['author_fullname'] ?: $q['author_name']) ?></span>
+                                        <?php elseif (!empty($q['author_role']) && $q['author_role'] === 'super_admin'): ?>
+                                            <span class="badge badge-warning text-dark py-1 px-2 font-weight-bold"><i class="fas fa-crown mr-1"></i>Super Admin</span>
+                                        <?php elseif (!empty($q['author_name'])): ?>
+                                            <span class="badge badge-secondary py-1 px-2 font-weight-bold"><i class="fas fa-user-shield mr-1"></i>Admin: <?= h($q['author_fullname'] ?: $q['author_name']) ?></span>
+                                        <?php endif; ?>
+                                    </div>
                                 </div>
                                 <div class="small text-muted mt-2 d-flex flex-wrap gap-2">
                                     <span class="mr-3 border rounded px-1">[A] <?php echo h($q['option1']); ?></span>  

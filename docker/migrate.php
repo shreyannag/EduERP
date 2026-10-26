@@ -704,7 +704,68 @@ $migrations = [
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
 
     // Automatically enable attendance module for full admins
-    "UPDATE admins SET features = REPLACE(features, '\"coding\"]', '\"coding\",\"attendance\"]') WHERE features LIKE '%coding%' AND features NOT LIKE '%attendance%'"
+    "UPDATE admins SET features = REPLACE(features, '\"coding\"]', '\"coding\",\"attendance\"]') WHERE features LIKE '%coding%' AND features NOT LIKE '%attendance%'",
+
+    // Mapping table for multi-class questions
+    "CREATE TABLE IF NOT EXISTS question_classes (
+        question_id INT NOT NULL,
+        class_id INT NOT NULL,
+        PRIMARY KEY (question_id, class_id),
+        INDEX idx_class (class_id),
+        FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+        FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    "INSERT IGNORE INTO question_classes (question_id, class_id)
+     SELECT id, class_id FROM questions WHERE class_id IS NOT NULL AND class_id > 0",
+
+    // Staff/Subadmin Deletion Requests & Review Approvals
+    "CREATE TABLE IF NOT EXISTS deletion_requests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        entity_type VARCHAR(50) NOT NULL,
+        entity_id INT NOT NULL,
+        entity_title VARCHAR(255) NOT NULL,
+        details TEXT NULL,
+        requested_by INT NOT NULL,
+        parent_admin_id INT NOT NULL,
+        reason VARCHAR(255) NULL,
+        status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+        reviewed_by INT NULL,
+        reviewed_at DATETIME NULL,
+        review_notes VARCHAR(255) NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_status (status),
+        INDEX idx_parent (parent_admin_id),
+        INDEX idx_entity (entity_type, entity_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    "ALTER TABLE questions ADD COLUMN IF NOT EXISTS deletion_pending TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE exams ADD COLUMN IF NOT EXISTS deletion_pending TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE homework ADD COLUMN IF NOT EXISTS deletion_pending TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE batches ADD COLUMN IF NOT EXISTS deletion_pending TINYINT(1) NOT NULL DEFAULT 0",
+
+    // Student Question Flagging for Review
+    "CREATE TABLE IF NOT EXISTS question_flags (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        question_id INT NOT NULL,
+        exam_id INT NULL,
+        student_id INT NOT NULL,
+        flag_reason VARCHAR(100) NOT NULL DEFAULT 'Doubtful Question',
+        student_remarks TEXT NULL,
+        status ENUM('pending', 'resolved', 'dismissed') NOT NULL DEFAULT 'pending',
+        resolved_by INT NULL,
+        resolved_at DATETIME NULL,
+        resolution_notes TEXT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_question (question_id),
+        INDEX idx_exam (exam_id),
+        INDEX idx_student (student_id),
+        INDEX idx_status (status),
+        FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE,
+        FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
 ];
 
 $successCount = 0;

@@ -33,24 +33,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     $current_admin_id = (int)$_SESSION['admin_id'];
+    $effective_admin_id = get_effective_admin_id();
     $is_super = is_super_admin();
     
     if (!$is_super) {
-        $authStmt = $pdo->prepare("SELECT id FROM questions WHERE id = ? AND admin_id = ?");
-        $authStmt->execute([$id, $current_admin_id]);
+        $authStmt = $pdo->prepare("SELECT id FROM questions WHERE id = ? AND admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)");
+        $authStmt->execute([$id, $effective_admin_id, $effective_admin_id]);
         if (!$authStmt->fetch()) {
-            echo json_encode(['success' => false, 'error' => 'Access denied: You can only edit questions from your own question bank.']);
+            echo json_encode(['success' => false, 'error' => 'Access denied: You can only edit questions from your own institute.']);
             exit;
         }
 
         if ($subject_id) {
-            $chkSub = $pdo->prepare("SELECT id FROM subjects WHERE id = ? AND admin_id = ?");
-            $chkSub->execute([$subject_id, $current_admin_id]);
+            $chkSub = $pdo->prepare("SELECT id FROM subjects WHERE id = ? AND admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)");
+            $chkSub->execute([$subject_id, $effective_admin_id, $effective_admin_id]);
             if (!$chkSub->fetch()) $subject_id = null;
         }
         if ($topic_id) {
-            $chkTop = $pdo->prepare("SELECT id FROM topics WHERE id = ? AND admin_id = ?");
-            $chkTop->execute([$topic_id, $current_admin_id]);
+            $chkTop = $pdo->prepare("SELECT id FROM topics WHERE id = ? AND admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)");
+            $chkTop->execute([$topic_id, $effective_admin_id, $effective_admin_id]);
             if (!$chkTop->fetch()) $topic_id = null;
         }
     }
@@ -59,6 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $q = process_question_images($q, $pdo, $current_admin_id);
         $stmt = $pdo->prepare("UPDATE questions SET class_id = ?, board_id = ?, subject_id = ?, topic_id = ?, question_text = ?, option1 = ?, option2 = ?, option3 = ?, option4 = ?, correct_option = ?, marks = ?, updated_at = NOW() WHERE id = ?");
         $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $o1, $o2, $o3, $o4, $c, $marks, $id]);
+        
+        // Sync multi-class assignments
+        $add_classes = (array)($_POST['additional_classes'] ?? []);
+        $all_classes = array_unique(array_filter(array_map('intval', $add_classes)));
+        $all_classes[] = $class_id;
+        sync_question_classes($id, $all_classes, $pdo);
+
         echo json_encode(['success' => true]);
     } catch (\PDOException $e) {
         echo json_encode(['success' => false, 'error' => 'Database persistence failure.']);

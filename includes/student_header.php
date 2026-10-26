@@ -236,11 +236,7 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
                         <i class="fas fa-download mr-1"></i>Install App
                     </button>
                 </li>
-                <li class="nav-item mr-2 d-none d-sm-block">
-                    <button type="button" class="btn btn-sm btn-warning text-dark font-weight-bold rounded-pill shadow-sm px-3 pwa-install-btn" style="display: none;" onclick="installEduERPApp()">
-                        <i class="fas fa-download mr-1"></i>Install App
-                    </button>
-                </li>
+
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-white font-weight-bold d-flex align-items-center" href="#" id="studentDropdown" role="button" data-toggle="dropdown">
                         <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center mr-2 shadow-sm font-weight-bold" style="width:32px; height:32px; font-size:14px;">
@@ -260,9 +256,7 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
                         <a class="dropdown-item py-2 text-warning font-weight-bold pwa-install-btn" style="display: none;" href="javascript:void(0)" onclick="installEduERPApp()">
                             <i class="fas fa-download mr-2 text-warning"></i>Install App to Device
                         </a>
-                        <a class="dropdown-item py-2 text-warning font-weight-bold pwa-install-btn" style="display: none;" href="javascript:void(0)" onclick="installEduERPApp()">
-                            <i class="fas fa-download mr-2 text-warning"></i>Install App to Device
-                        </a>
+
                         <a class="dropdown-item py-2 text-dark font-weight-bold" href="<?php echo BASE_URL; ?>/student/fees.php">
                             <i class="fas fa-receipt mr-2 text-primary"></i>My Fees Ledger
                         </a>

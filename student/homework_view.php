@@ -245,27 +245,41 @@ $teacherName = $hw['creator_fullname'] ?: $hw['creator_username'];
                     </div>
                 <?php endif; ?>
 
-                <a class="btn btn-outline-success btn-sm btn-block font-weight-bold" data-toggle="collapse" href="#collapseMySubmission" role="button">
-                    <i class="fas fa-eye mr-1"></i>View Your Submitted Work
+                <a class="btn btn-outline-success btn-sm btn-block font-weight-bold mb-2" data-toggle="collapse" href="#collapseMySubmission" role="button">
+                    <i class="fas fa-eye mr-1"></i>Your Submitted Solution & Work
                 </a>
 
-                <div class="collapse mt-3" id="collapseMySubmission">
-                    <div class="p-3 bg-white rounded border small">
+                <div class="collapse show mt-2" id="collapseMySubmission">
+                    <div class="p-3 bg-white rounded border small shadow-sm">
                         <?php if (!empty($hw['submission_text'])): ?>
-                            <h6 class="font-weight-bold text-dark small mb-1">Your Written Solution:</h6>
-                            <p class="text-dark mb-3" style="white-space: pre-wrap;"><?= htmlspecialchars($hw['submission_text']) ?></p>
+                            <h6 class="font-weight-bold text-dark small mb-1"><i class="fas fa-pen text-primary mr-1"></i>Your Written Solution:</h6>
+                            <div class="text-dark mb-3 p-3 bg-light rounded border" id="studentSubmittedText" style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6;"><?= htmlspecialchars($hw['submission_text']) ?></div>
                         <?php endif; ?>
 
                         <?php if (!empty($hw['submitted_code'])): ?>
-                            <h6 class="font-weight-bold text-dark small mb-1">Your Code:</h6>
-                            <pre class="rounded"><code class="language-<?= htmlspecialchars($hw['programming_lang'] ?: 'python') ?>"><?= htmlspecialchars($hw['submitted_code']) ?></code></pre>
+                            <h6 class="font-weight-bold text-dark small mb-1"><i class="fas fa-code text-info mr-1"></i>Your Code:</h6>
+                            <pre class="rounded mb-3"><code class="language-<?= htmlspecialchars($hw['programming_lang'] ?: 'python') ?>"><?= htmlspecialchars($hw['submitted_code']) ?></code></pre>
                         <?php endif; ?>
 
-                        <?php if (!empty($hw['student_attachment'])): ?>
-                            <h6 class="font-weight-bold text-dark small mb-1">Uploaded Solution Photo:</h6>
-                            <img src="<?= BASE_URL . '/' . $hw['student_attachment'] ?>" alt="My Solution" class="img-fluid rounded border mb-2" style="max-height: 200px;">
-                            <div>
-                                <a href="<?= BASE_URL . '/' . $hw['student_attachment'] ?>" target="_blank" class="btn btn-xs btn-outline-primary font-weight-bold">Open Full Photo</a>
+                        <?php if (!empty($hw['student_attachment'])): 
+                            $attExt = strtolower(pathinfo($hw['student_attachment'], PATHINFO_EXTENSION));
+                            $attUrl = BASE_URL . '/' . $hw['student_attachment'];
+                        ?>
+                            <h6 class="font-weight-bold text-dark small mb-1"><i class="fas fa-paperclip text-success mr-1"></i>Uploaded Solution File:</h6>
+                            <?php if ($attExt === 'pdf'): ?>
+                                <div class="alert alert-info py-2 mb-2"><i class="fas fa-file-pdf text-danger mr-2"></i><strong>PDF Solution Document</strong></div>
+                                <iframe src="<?= $attUrl ?>" style="width:100%; height:320px; border:1px solid #cbd5e1; border-radius:6px;" class="mb-2"></iframe>
+                            <?php else: ?>
+                                <div class="text-center mb-2">
+                                    <a href="<?= $attUrl ?>" target="_blank">
+                                        <img src="<?= $attUrl ?>" alt="My Solution" class="img-fluid rounded border" style="max-height: 250px;">
+                                    </a>
+                                </div>
+                            <?php endif; ?>
+                            <div class="text-center">
+                                <a href="<?= $attUrl ?>" target="_blank" class="btn btn-sm btn-outline-primary font-weight-bold rounded-pill px-3">
+                                    <i class="fas fa-external-link-alt mr-1"></i>Open Full Attachment
+                                </a>
                             </div>
                         <?php endif; ?>
                     </div>

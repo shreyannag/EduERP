@@ -58,7 +58,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $q = process_question_images($q, $pdo, $current_admin_id);
             $stmt = $pdo->prepare("INSERT INTO questions (class_id, board_id, subject_id, topic_id, question_text, option1, option2, option3, option4, correct_option, marks, admin_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $o1, $o2, $o3, $o4, $c, $marks, $current_admin_id]);
-            $success = "Single question object instantiated successfully in your question bank.";
+            $new_q_id = (int)$pdo->lastInsertId();
+
+            $additional_classes = (array)($_POST['additional_classes'] ?? []);
+            $all_classes = array_unique(array_filter(array_map('intval', $additional_classes)));
+            $all_classes[] = $class_id;
+            sync_question_classes($new_q_id, $all_classes, $pdo);
+
+            $success = "Single question instantiated successfully in your question bank (Class availability mapped).";
         } catch (\PDOException $e) {
             $error = "Persistence execution failure via database boundary.";
         }
@@ -120,6 +127,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <option value="<?php echo $b['id']; ?>"><?php echo h($b['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                    <div class="col-12 form-group mt-3 mb-0">
+                        <label class="font-weight-bold small text-muted text-uppercase d-block">
+                            <i class="fas fa-layer-group text-primary mr-1"></i>Also Available For Other Classes (Optional)
+                        </label>
+                        <div class="d-flex flex-wrap p-2 bg-white rounded border shadow-sm" style="gap: 15px;">
+                            <?php foreach($classes as $c): ?>
+                                <div class="custom-control custom-checkbox mr-3">
+                                    <input type="checkbox" name="additional_classes[]" value="<?php echo $c['id']; ?>" class="custom-control-input" id="addClass<?php echo $c['id']; ?>">
+                                    <label class="custom-control-label font-weight-bold text-dark" for="addClass<?php echo $c['id']; ?>">Class <?php echo h($c['name']); ?></label>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <small class="text-muted"><i class="fas fa-info-circle mr-1"></i>Select any other classes that should also be able to use this question in exams.</small>
                     </div>
                 </div>
                 <div class="row mt-3">

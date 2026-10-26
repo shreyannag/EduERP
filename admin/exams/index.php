@@ -6,16 +6,30 @@ require_admin_feature('exams');
 
 $where = "1=1";
 $params = [];
-if (!is_super_admin()) {
-    $where .= " AND e.admin_id = ?";
-    $params[] = (int)$_SESSION['admin_id'];
+$is_super = is_super_admin();
+
+if (!$is_super) {
+    // Both tenant admin and their sub-admins can see all question papers of their institute
+    $effective_admin_id = get_effective_admin_id();
+    $where .= " AND e.admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)";
+    $params[] = $effective_admin_id;
+    $params[] = $effective_admin_id;
+} else {
+    // Super admin can filter by institute/admin if selected
+    if (!empty($_GET['admin_id'])) {
+        $filterAdmin = (int)$_GET['admin_id'];
+        $where .= " AND e.admin_id IN (SELECT id FROM admins WHERE id = ? OR parent_admin_id = ?)";
+        $params[] = $filterAdmin;
+        $params[] = $filterAdmin;
+    }
 }
 
 $stmt = $pdo->prepare("
     SELECT e.*, c.name as class_name, b.name as board_name, a.institute_name,
-    (SELECT COUNT(*) FROM exam_questions WHERE exam_id = e.id) as q_count,
-    (SELECT COUNT(*) FROM enrolments WHERE exam_id = e.id) as enrolled_count,
-    (SELECT COUNT(*) FROM answer_releases WHERE exam_id = e.id) as answer_released
+           a.username as creator_username, a.full_name as creator_fullname, a.role as creator_role, a.sub_role as creator_sub_role,
+           (SELECT COUNT(*) FROM exam_questions WHERE exam_id = e.id) as q_count,
+           (SELECT COUNT(*) FROM enrolments WHERE exam_id = e.id) as enrolled_count,
+           (SELECT COUNT(*) FROM answer_releases WHERE exam_id = e.id) as answer_released
     FROM exams e
     JOIN classes c ON e.class_id = c.id
     JOIN boards b ON e.board_id = b.id
@@ -34,6 +48,25 @@ $exams = $stmt->fetchAll();
     </a>
 </div>
 
+<?php if (!empty($_SESSION['flash_info'])): ?>
+    <div class="alert alert-info alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-info-circle mr-2"></i><?php echo h($_SESSION['flash_info']); unset($_SESSION['flash_info']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
+<?php if (!empty($_SESSION['flash_success'])): ?>
+    <div class="alert alert-success alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-check-circle mr-2"></i><?php echo h($_SESSION['flash_success']); unset($_SESSION['flash_success']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
+<?php if (!empty($_SESSION['flash_error'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show shadow-sm rounded-lg py-3 px-4 mb-4">
+        <i class="fas fa-exclamation-circle mr-2"></i><?php echo h($_SESSION['flash_error']); unset($_SESSION['flash_error']); ?>
+        <button type="button" class="close" data-dismiss="alert">&times;</button>
+    </div>
+<?php endif; ?>
+
 <div class="card shadow-sm border-0 rounded-lg">
     <div class="card-body p-0">
         <div class="table-responsive p-4">
@@ -41,6 +74,7 @@ $exams = $stmt->fetchAll();
                 <thead class="bg-light text-muted small text-uppercase">
                     <tr>
                         <th width="20%" class="border-0 rounded-top-left px-4">Exam Title</th>
+                        <th width="12%" class="border-0">Uploaded By</th>
                         <?php if (is_super_admin()): ?>
                             <th width="12%" class="border-0">Institute</th>
                         <?php endif; ?>
@@ -63,6 +97,24 @@ $exams = $stmt->fetchAll();
                     <tr>
                         <td class="align-middle font-weight-bold text-dark px-4">
                             <div class="text-truncate" style="max-width: 250px;" title="<?php echo h($e['title']); ?>"><?php echo h($e['title']); ?></div>
+                            <?php if (!empty($e['deletion_pending'])): ?>
+                                <span class="badge badge-danger mt-1"><i class="fas fa-hourglass-half mr-1"></i>Deletion Queued</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="align-middle">
+                            <?php if ($e['creator_role'] === 'sub_admin'): ?>
+                                <span class="badge badge-info shadow-sm py-1 px-2 font-weight-bold" title="Sub-Admin Staff">
+                                    <i class="fas fa-chalkboard-teacher mr-1"></i><?= h(ucfirst($e['creator_sub_role'] ?: 'Teacher')) ?>: <?= h($e['creator_fullname'] ?: $e['creator_username']) ?>
+                                </span>
+                            <?php elseif ($e['creator_role'] === 'super_admin'): ?>
+                                <span class="badge badge-warning text-dark shadow-sm py-1 px-2 font-weight-bold">
+                                    <i class="fas fa-crown mr-1"></i>Super Admin
+                                </span>
+                            <?php else: ?>
+                                <span class="badge badge-secondary shadow-sm py-1 px-2 font-weight-bold">
+                                    <i class="fas fa-user-shield mr-1"></i>Admin: <?= h($e['creator_fullname'] ?: $e['creator_username']) ?>
+                                </span>
+                            <?php endif; ?>
                         </td>
                         <?php if (is_super_admin()): ?>
                         <td class="align-middle">

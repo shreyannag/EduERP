@@ -61,11 +61,61 @@ $all_admins = is_super_admin() ? $pdo->query("SELECT id, username, institute_nam
 
 $totalOnline = count(array_filter($students, function($st) { return !empty($st['is_online_now']); }));
 $totalActive = count(array_filter($students, function($st) { return !empty($st['is_active']); }));
+
+// Handle CSV Export for Student Records
+if (isset($_GET['export']) && $_GET['export'] === 'csv') {
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="students_roster_' . date('Ymd_His') . '.csv"');
+    $output = fopen('php://output', 'w');
+    fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
+    fputcsv($output, [
+        'Roll No',
+        'Full Name',
+        'Student ID / Username',
+        'Email',
+        'Phone',
+        'Parent Name',
+        'Parent Phone',
+        'Class',
+        'Board',
+        'Institute',
+        'Account Status',
+        'Online Status',
+        'Last Seen',
+        'Enrolled Exams Count'
+    ]);
+    foreach ($students as $s) {
+        fputcsv($output, [
+            $s['roll_no'] ?? '',
+            $s['full_name'],
+            $s['username'],
+            $s['email'] ?? '',
+            $s['phone'] ?? '',
+            $s['parent_name'] ?? '',
+            $s['parent_phone'] ?? '',
+            $s['class_name'] ?? '',
+            $s['board_name'] ?? '',
+            $s['institute_name'] ?? '',
+            !empty($s['is_active']) ? 'Active' : 'Inactive',
+            !empty($s['is_online_now']) ? 'Online' : 'Offline',
+            !empty($s['last_seen']) ? $s['last_seen'] : 'Never',
+            $s['enrolled_count'] ?? 0
+        ]);
+    }
+    fclose($output);
+    exit;
+}
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
     <h2 class="font-weight-bold text-dark">Students List</h2>
     <div>
+        <a href="?export=csv<?php echo !empty($filter_class) ? '&class_id='.urlencode($filter_class) : ''; ?><?php echo !empty($filter_board) ? '&board_id='.urlencode($filter_board) : ''; ?><?php echo !empty($filter_admin) ? '&admin_id='.urlencode($filter_admin) : ''; ?>" class="btn btn-outline-success font-weight-bold shadow-sm rounded-pill px-4 mr-2">
+            <i class="fas fa-file-csv mr-2"></i>Export CSV
+        </a>
         <button type="button" class="btn btn-outline-info font-weight-bold shadow-sm rounded-pill px-4 mr-2" id="bulkEmailBtn" disabled onclick="sendEmails()">
             <i class="fas fa-envelope mr-2"></i>Send Credentials
         </button>

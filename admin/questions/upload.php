@@ -140,6 +140,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_import'])) {
                     }
                     
                     $stmt_insert->execute([$current_admin_id, $c_id, $b_id, $question, $opt1, $opt2, $opt3, $opt4, $correct]);
+                    $new_upload_id = (int)$pdo->lastInsertId();
+                    if ($new_upload_id > 0) {
+                        $pdo->prepare("INSERT IGNORE INTO question_classes (question_id, class_id) VALUES (?, ?)")->execute([$new_upload_id, $c_id]);
+                    }
                     $imported++;
                 }
             }

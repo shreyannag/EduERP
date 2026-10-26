@@ -241,10 +241,10 @@ $isOverdue = (strtotime($hw['due_date']) < time());
         <table class="table table-hover align-middle mb-0">
             <thead class="thead-light">
                 <tr>
-                    <th style="width: 28%;">Student Details</th>
-                    <th style="width: 15%;">Class & Board</th>
-                    <th style="width: 22%;">Submission Status & Time</th>
-                    <th style="width: 15%;">Grade Points</th>
+                    <th style="width: 22%;">Student Details</th>
+                    <th style="width: 12%;">Class & Board</th>
+                    <th style="width: 32%;">Submitted Work / Answer</th>
+                    <th style="width: 14%;">Grade Points</th>
                     <th style="width: 20%; text-align: right;">Action</th>
                 </tr>
             </thead>
@@ -283,18 +283,27 @@ $isOverdue = (strtotime($hw['due_date']) < time());
 
                         <td>
                             <?php if ($hasSubmitted): ?>
-                                <span class="badge badge-success px-2 py-1 font-weight-bold">
-                                    <i class="fas fa-check-circle mr-1"></i>SUBMITTED
-                                </span>
-                                <div class="small text-muted mt-1">
-                                    <?= date('d M, Y \a\t h:i A', strtotime($st['submitted_at'])) ?>
+                                <div class="mb-1">
+                                    <span class="badge badge-success px-2 py-1 font-weight-bold">
+                                        <i class="fas fa-check-circle mr-1"></i><?= strtoupper($st['submission_status']) ?>
+                                    </span>
+                                    <small class="text-muted ml-1"><?= date('d M, h:i A', strtotime($st['submitted_at'])) ?></small>
                                 </div>
-                                <?php if (!empty($st['student_attachment'])): ?>
-                                    <span class="badge badge-light border text-dark mt-1"><i class="fas fa-paperclip mr-1 text-primary"></i>Photo Attached</span>
+                                <?php if (!empty($st['submission_text'])): ?>
+                                    <div class="small text-dark p-2 rounded bg-light border text-truncate mb-1" style="max-width: 320px;" title="<?= htmlspecialchars($st['submission_text']) ?>">
+                                        <i class="fas fa-pen text-primary mr-1"></i><?= htmlspecialchars(mb_substr($st['submission_text'], 0, 80)) . (mb_strlen($st['submission_text']) > 80 ? '...' : '') ?>
+                                    </div>
                                 <?php endif; ?>
-                                <?php if (!empty($st['submitted_code'])): ?>
-                                    <span class="badge badge-light border text-dark mt-1"><i class="fas fa-code mr-1 text-info"></i>Code Submitted</span>
-                                <?php endif; ?>
+                                <div class="d-flex flex-wrap" style="gap: 4px;">
+                                    <?php if (!empty($st['submitted_code'])): ?>
+                                        <span class="badge badge-info"><i class="fas fa-code mr-1"></i>Code</span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($st['student_attachment'])): 
+                                        $ext = strtolower(pathinfo($st['student_attachment'], PATHINFO_EXTENSION));
+                                    ?>
+                                        <span class="badge badge-secondary"><i class="<?= $ext === 'pdf' ? 'fas fa-file-pdf text-danger' : 'fas fa-image text-info' ?> mr-1"></i>Attachment (.<?= $ext ?>)</span>
+                                    <?php endif; ?>
+                                </div>
                             <?php else: ?>
                                 <?php if ($isOverdue): ?>
                                     <span class="badge badge-danger px-2 py-1 font-weight-bold">
@@ -329,7 +338,10 @@ $isOverdue = (strtotime($hw['due_date']) < time());
 
                         <td class="text-right">
                             <?php if ($hasSubmitted): ?>
-                                <button type="button" class="btn btn-sm btn-primary font-weight-bold rounded-pill px-3 shadow-sm" onclick='openReviewModal(<?= json_encode($st) ?>, <?= json_encode($hw) ?>)'>
+                                <script type="application/json" id="sub_data_<?= $st['student_id'] ?>">
+<?= json_encode($st, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>
+                                </script>
+                                <button type="button" class="btn btn-sm btn-primary font-weight-bold rounded-pill px-3 shadow-sm" onclick="openReviewModalById(<?= $st['student_id'] ?>)">
                                     <i class="fas fa-check-double mr-1"></i>Review & Grade
                                 </button>
                             <?php else: ?>
@@ -390,16 +402,17 @@ $isOverdue = (strtotime($hw['due_date']) < time());
                         <pre class="rounded" style="max-height: 280px;"><code id="modalSubmittedCodeBlock" class="language-python"></code></pre>
                     </div>
 
-                    <!-- Submitted Photo Attachment (Handwritten solution) -->
+                    <!-- Submitted Photo Attachment / Document (Handwritten solution or PDF) -->
                     <div id="modalAttachmentSection" class="mb-4" style="display: none;">
                         <h6 class="font-weight-bold text-dark mb-2">
-                            <i class="fas fa-image text-success mr-1"></i>Uploaded Solution Photo / Document:
+                            <i class="fas fa-paperclip text-success mr-1"></i>Uploaded Solution Document / Photo:
                         </h6>
-                        <div class="p-3 bg-light rounded border text-center">
+                        <div class="p-3 bg-light rounded border text-center" id="modalAttachmentContainer">
                             <img id="modalAttachmentImg" src="" alt="Solution Photo" class="img-fluid rounded shadow-sm mb-2" style="max-height: 380px;">
+                            <div id="modalAttachmentPdfEmbed" class="mb-2" style="display: none;"></div>
                             <div class="mt-2">
                                 <a id="modalAttachmentLink" href="" target="_blank" class="btn btn-sm btn-outline-primary font-weight-bold">
-                                    <i class="fas fa-external-link-alt mr-1"></i>Open Full-Resolution Image
+                                    <i class="fas fa-external-link-alt mr-1"></i>Open Document in New Tab
                                 </a>
                             </div>
                         </div>
@@ -448,6 +461,19 @@ $isOverdue = (strtotime($hw['due_date']) < time());
 
 <script>
 let currentSubCode = '';
+const homeworkMeta = <?= json_encode($hw, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
+
+function openReviewModalById(studentId) {
+    const raw = document.getElementById('sub_data_' + studentId);
+    if (!raw) return;
+    try {
+        const student = JSON.parse(raw.textContent);
+        openReviewModal(student, homeworkMeta);
+    } catch(err) {
+        console.error('Error parsing submission data:', err);
+        alert('Failed to load submission data: ' + err);
+    }
+}
 
 function openReviewModal(student, homework) {
     document.getElementById('modalSubmissionId').value = student.submission_id;
@@ -458,7 +484,15 @@ function openReviewModal(student, homework) {
 
     // Written answer
     const writtenEl = document.getElementById('modalWrittenAnswer');
-    writtenEl.textContent = student.submission_text || 'No written notes provided.';
+    if (student.submission_text && student.submission_text.trim()) {
+        writtenEl.textContent = student.submission_text;
+        writtenEl.style.whiteSpace = 'pre-wrap';
+        if (window.MathJax && window.MathJax.typesetPromise) {
+            MathJax.typesetPromise([writtenEl]);
+        }
+    } else {
+        writtenEl.innerHTML = '<span class="text-muted italic">No written notes provided.</span>';
+    }
 
     // Code Section
     const codeSec = document.getElementById('modalCodeSection');
@@ -475,16 +509,31 @@ function openReviewModal(student, homework) {
         codeSec.style.display = 'none';
     }
 
-    // Attachment Section
+    // Attachment Section (Support PDF and Images)
     const attSec = document.getElementById('modalAttachmentSection');
     const attImg = document.getElementById('modalAttachmentImg');
+    const attPdf = document.getElementById('modalAttachmentPdfEmbed');
     const attLink = document.getElementById('modalAttachmentLink');
 
     if (student.student_attachment) {
         attSec.style.display = 'block';
         const url = '<?= BASE_URL ?>/' + student.student_attachment;
-        attImg.src = url;
         attLink.href = url;
+        
+        const isPdf = student.student_attachment.toLowerCase().endsWith('.pdf');
+        if (isPdf) {
+            attImg.style.display = 'none';
+            attPdf.style.display = 'block';
+            attPdf.innerHTML = `
+                <div class="alert alert-info py-2"><i class="fas fa-file-pdf text-danger mr-2"></i><strong>PDF Solution Document</strong></div>
+                <iframe src="${url}" style="width:100%; height:460px; border:1px solid #cbd5e1; border-radius:8px;"></iframe>
+            `;
+        } else {
+            attPdf.style.display = 'none';
+            attPdf.innerHTML = '';
+            attImg.style.display = 'block';
+            attImg.src = url;
+        }
     } else {
         attSec.style.display = 'none';
     }
