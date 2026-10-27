@@ -2,7 +2,8 @@
 // includes/admin_footer.php
 ?>
             <footer class="pt-5 pb-3 text-muted border-top mt-5 text-center small">
-                <p class="mb-0">&copy; <?php echo date('Y'); ?> Developed by <strong>SN Technologies (Shreyan Nag Technologies)</strong> &bull; EduERP <?= h(defined('EDUERP_VERSION') ? EDUERP_VERSION : 'v2.4.0') ?> (<?= h(defined('EDUERP_EDITION') ? EDUERP_EDITION : 'Enterprise LTS') ?>)</p>
+                <?php $footGit = function_exists('get_git_commit_info') ? get_git_commit_info() : ['short_hash' => 'main', 'github_url' => 'https://github.com/shreyannag/EduERP', 'branch' => 'main']; ?>
+                <p class="mb-0">&copy; <?php echo date('Y'); ?> Developed by <strong>SN Technologies (Shreyan Nag Technologies)</strong> &bull; Git: <a href="<?= h($footGit['github_url']) ?>" target="_blank" rel="noopener noreferrer" class="text-muted font-weight-bold"><code><?= h($footGit['short_hash']) ?></code></a> (<?= h($footGit['branch']) ?>)</p>
             </footer>
         </main>
     </div>

@@ -835,3 +835,90 @@ function get_blocked_enrollment_ips_count(?int $admin_id = null, $pdo = null): i
         return 0;
     }
 }
+
+
+/**
+ * Retrieves the current Git commit information (short hash, full hash, branch, and timestamp).
+ * Pure PHP implementation reading directly from .git with zero subprocess latency.
+ */
+function get_git_commit_info(): array {
+    static $commitInfo = null;
+    if ($commitInfo !== null) {
+        return $commitInfo;
+    }
+
+    $projectDir = realpath(__DIR__ . '/..');
+    $gitDir = $projectDir . '/.git';
+    $shortHash = 'unknown';
+    $fullHash  = '';
+    $branch    = 'main';
+    $commitDate = '';
+    $commitMessage = '';
+
+    if (is_dir($gitDir)) {
+        $headFile = $gitDir . '/HEAD';
+        if (file_exists($headFile)) {
+            $headContent = trim((string)@file_get_contents($headFile));
+            if (strpos($headContent, 'ref:') === 0) {
+                $refPart = trim(substr($headContent, 4));
+                $branch = basename($refPart);
+                $refFile = $gitDir . '/' . $refPart;
+                if (file_exists($refFile)) {
+                    $fullHash = trim((string)@file_get_contents($refFile));
+                } elseif (file_exists($gitDir . '/packed-refs')) {
+                    $packed = (string)@file_get_contents($gitDir . '/packed-refs');
+                    foreach (explode("\n", $packed) as $line) {
+                        $line = trim($line);
+                        if (strpos($line, '#') === 0 || empty($line)) continue;
+                        $parts = explode(' ', $line, 2);
+                        if (count($parts) === 2 && $parts[1] === $refPart) {
+                            $fullHash = $parts[0];
+                            break;
+                        }
+                    }
+                }
+            } else {
+                $fullHash = $headContent;
+            }
+        }
+
+        // Parse last log entry for timestamp & message
+        $logFile = $gitDir . '/logs/HEAD';
+        if (file_exists($logFile)) {
+            $lines = file($logFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (!empty($lines)) {
+                $lastLine = end($lines);
+                if (preg_match('/([0-9a-f]{40})\s+[^<]*<[^>]*>\s+(\d+)\s+([+-]\d{4})\t(.*)$/i', $lastLine, $matches)) {
+                    $ts = (int)$matches[2];
+                    if ($ts > 0) {
+                        $commitDate = date('Y-m-d H:i', $ts);
+                    }
+                    $commitMessage = trim($matches[4]);
+                }
+            }
+        }
+    }
+
+    if (empty($fullHash) && function_exists('shell_exec')) {
+        $cliHash = @shell_exec('git rev-parse HEAD 2>/dev/null');
+        if ($cliHash && strlen(trim($cliHash)) >= 7) {
+            $fullHash = trim($cliHash);
+        }
+    }
+
+    if (!empty($fullHash)) {
+        $shortHash = substr($fullHash, 0, 7);
+    }
+
+    $commitInfo = [
+        'short_hash' => $shortHash,
+        'full_hash'  => $fullHash,
+        'branch'     => $branch,
+        'date'       => $commitDate,
+        'message'    => $commitMessage,
+        'badge'      => $shortHash !== 'unknown' ? "git:{$shortHash}" : "git:live",
+        'github_url' => ($shortHash !== 'unknown' && !empty($fullHash)) ? "https://github.com/shreyannag/EduERP/commit/{$fullHash}" : "https://github.com/shreyannag/EduERP"
+    ];
+
+    return $commitInfo;
+}

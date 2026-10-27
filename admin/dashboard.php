@@ -2,6 +2,8 @@
 // admin/dashboard.php
 require_once '../includes/admin_header.php';
 
+$gitCommit = get_git_commit_info();
+
 $admin_id = (int)$_SESSION['admin_id'];
 
 if (is_super_admin()) {
@@ -75,9 +77,10 @@ try {
     <div>
         <div class="d-flex align-items-center flex-wrap">
             <h1 class="h2 font-weight-bold text-dark mb-1 mr-3">Dashboard Overview</h1>
-            <span class="badge badge-pill badge-primary px-3 py-2 shadow-sm font-weight-bold mr-2 mb-1" style="font-size: 0.82rem; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); letter-spacing: 0.3px;">
-                <i class="fas fa-shield-alt mr-1 text-warning"></i> EduERP <?= h(EDUERP_VERSION) ?> <span class="badge badge-light text-dark font-weight-bold ml-1" style="font-size: 0.68rem;"><?= h(EDUERP_EDITION) ?></span>
-            </span>
+            <a href="<?= h($gitCommit['github_url']) ?>" target="_blank" rel="noopener noreferrer" class="badge badge-dark px-3 py-2 shadow-sm font-weight-bold mr-2 mb-1 text-decoration-none" style="font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.82rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.15); color: #38bdf8;" title="View Commit on GitHub (<?= h($gitCommit['date']) ?>)">
+                <i class="fab fa-git-alt text-danger mr-1"></i> commit <span class="text-white"><?= h($gitCommit['short_hash']) ?></span>
+                <span class="badge badge-secondary ml-1 font-weight-normal text-white-50" style="font-size: 0.68rem;"><?= h($gitCommit['branch']) ?></span>
+            </a>
             <?php if (is_super_admin()): ?>
                 <span class="badge badge-warning text-dark px-2 py-1 font-weight-bold shadow-sm mb-1" style="font-size: 0.75rem;"><i class="fas fa-crown mr-1"></i>Super Admin Portal</span>
             <?php endif; ?>
@@ -395,29 +398,32 @@ try {
     </div>
 </div>
 
-<!-- System Environment & Version Footer Card -->
+<!-- System Environment & Git Commit Footer Card -->
 <div class="card border-0 shadow-sm rounded-lg mb-4" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #cbd5e1;">
     <div class="card-body p-3 p-md-4">
         <div class="d-flex flex-wrap align-items-center justify-content-between">
             <div class="d-flex align-items-center mb-3 mb-md-0">
                 <div class="rounded-circle d-flex align-items-center justify-content-center mr-3 shadow-sm flex-shrink-0" style="width: 48px; height: 48px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 1.4rem;">
-                    <i class="fas fa-microchip"></i>
+                    <i class="fab fa-git-alt text-danger"></i>
                 </div>
                 <div>
                     <div class="d-flex align-items-center flex-wrap">
-                        <h5 class="text-white font-weight-bold mb-0 mr-2">EduERP Platform</h5>
-                        <span class="badge badge-info font-weight-bold px-2 py-1 mr-2" style="font-size: 0.75rem; background: #0284c7;"><?= h(EDUERP_VERSION) ?></span>
-                        <span class="badge badge-success font-weight-bold px-2 py-1" style="font-size: 0.72rem;"><?= h(EDUERP_EDITION) ?></span>
+                        <span class="text-white-50 small mr-2 font-weight-bold text-uppercase">Deployed Commit:</span>
+                        <a href="<?= h($gitCommit['github_url']) ?>" target="_blank" rel="noopener noreferrer" class="font-weight-bold text-info mr-2" style="font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 1.05rem;">
+                            <code><?= h($gitCommit['short_hash']) ?></code>
+                        </a>
+                        <span class="badge badge-secondary font-weight-bold px-2 py-1 mr-2" style="font-size: 0.72rem;"><?= h($gitCommit['branch']) ?></span>
+                        <span class="text-white-50 small"><i class="far fa-clock mr-1"></i><?= h($gitCommit['date'] ?: 'Active Build') ?></span>
                     </div>
                     <div class="small text-white-50 mt-1">
-                        High-Concurrency Multi-Tenant Architecture &bull; Build <?= h(EDUERP_BUILD) ?> &bull; PHP <?= PHP_VERSION ?> &bull; MariaDB 10.11 (InnoDB)
+                        Commit Hash: <code class="text-white-50"><?= h($gitCommit['full_hash']) ?></code> &bull; PHP <?= PHP_VERSION ?> &bull; MariaDB 10.11 (InnoDB)
                     </div>
                 </div>
             </div>
             <div class="d-flex align-items-center flex-wrap">
                 <div class="mr-md-4 mr-3 text-right">
-                    <span class="d-block small text-white-50">Deployment Health</span>
-                    <span class="text-success font-weight-bold small"><i class="fas fa-check-circle mr-1"></i>All Services Operational</span>
+                    <span class="d-block small text-white-50">Deployment Status</span>
+                    <span class="text-success font-weight-bold small"><i class="fas fa-check-circle mr-1"></i>Live Synchronized</span>
                 </div>
                 <?php if (is_super_admin() || admin_has_feature('server_backup')): ?>
                 <a href="<?php echo BASE_URL; ?>/admin/server_backup.php" class="btn btn-sm btn-outline-info font-weight-bold rounded-pill px-3 mt-2 mt-sm-0">
