@@ -39,6 +39,11 @@ foreach($assigned_exams as $ex) {
         $upcoming[] = $ex; // Scheduled bound
     }
 }
+
+$active_tab_request = $_GET['tab'] ?? '';
+if (!in_array($active_tab_request, ['active', 'upcoming', 'completed'])) {
+    $active_tab_request = (!empty($_GET['submitted'])) ? 'completed' : 'active';
+}
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -47,6 +52,52 @@ foreach($assigned_exams as $ex) {
         <div class="text-muted"><i class="fas fa-university text-primary mr-1"></i> <?php echo h($current_student['institute_name'] ?? 'Main Campus'); ?></div>
     </div>
 </div>
+
+<?php if (!empty($_SESSION['flash_success']) || !empty($_GET['submitted'])): ?>
+    <div class="alert alert-success alert-dismissible fade show rounded-lg shadow-sm border-0 font-weight-500 mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-check-circle fa-2x mr-3 text-success"></i>
+            <div>
+                <strong class="d-block" style="font-size:1.05rem;">Exam Submitted Successfully!</strong>
+                <span><?php echo h($_SESSION['flash_success'] ?? 'Your responses have been recorded safely. You can review your submission below.'); ?></span>
+            </div>
+        </div>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    <?php unset($_SESSION['flash_success']); ?>
+<?php endif; ?>
+
+<?php if (!empty($_SESSION['flash_info'])): ?>
+    <div class="alert alert-info alert-dismissible fade show rounded-lg shadow-sm border-0 font-weight-500 mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-info-circle fa-2x mr-3 text-info"></i>
+            <div>
+                <span><?php echo h($_SESSION['flash_info']); ?></span>
+            </div>
+        </div>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    <?php unset($_SESSION['flash_info']); ?>
+<?php endif; ?>
+
+<?php if (!empty($_SESSION['flash_error'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show rounded-lg shadow-sm border-0 font-weight-500 mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-exclamation-triangle fa-2x mr-3 text-danger"></i>
+            <div>
+                <span><?php echo h($_SESSION['flash_error']); ?></span>
+            </div>
+        </div>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+            <span aria-hidden="true">&times;</span>
+        </button>
+    </div>
+    <?php unset($_SESSION['flash_error']); ?>
+<?php endif; ?>
 
 <style>
 #dashboardTabs {
@@ -103,20 +154,21 @@ foreach($assigned_exams as $ex) {
 
 <ul class="nav nav-pills nav-pills-scrollable nav-fill mb-4 rounded-pill shadow-sm" id="dashboardTabs" role="tablist">
     <li class="nav-item">
-        <a class="nav-link active font-weight-bold rounded-pill transition px-4" id="active-tab" data-toggle="pill" href="#active" role="tab">
+        <a class="nav-link <?php echo ($active_tab_request === 'active') ? 'active' : ''; ?> font-weight-bold rounded-pill transition px-4" id="active-tab" data-toggle="pill" href="#active" role="tab">
             <i class="fas fa-play-circle mr-2 <?php echo count($active)>0 ? 'text-danger animate-pulse' : 'text-primary'; ?>"></i>Live Exams
             <?php if(count($active)>0): ?><span class="badge badge-danger ml-2 px-2 py-1 rounded-pill animate-pulse"><?php echo count($active); ?></span><?php endif; ?>
         </a>
     </li>
     <li class="nav-item">
-        <a class="nav-link font-weight-bold rounded-pill transition px-4" id="upcoming-tab" data-toggle="pill" href="#upcoming" role="tab">
+        <a class="nav-link <?php echo ($active_tab_request === 'upcoming') ? 'active' : ''; ?> font-weight-bold rounded-pill transition px-4" id="upcoming-tab" data-toggle="pill" href="#upcoming" role="tab">
             <i class="fas fa-calendar-alt mr-2 text-info opacity-75"></i>Upcoming Exams
             <span class="badge badge-light border text-muted ml-2 px-2 py-1 rounded-pill"><?php echo count($upcoming); ?></span>
         </a>
     </li>
     <li class="nav-item">
-        <a class="nav-link font-weight-bold rounded-pill transition px-4" id="completed-tab" data-toggle="pill" href="#completed" role="tab">
+        <a class="nav-link <?php echo ($active_tab_request === 'completed') ? 'active' : ''; ?> font-weight-bold rounded-pill transition px-4" id="completed-tab" data-toggle="pill" href="#completed" role="tab">
             <i class="fas fa-check-double mr-2 text-success opacity-75"></i>Completed Exams
+            <?php if(count($completed)>0): ?><span class="badge badge-light border text-muted ml-2 px-2 py-1 rounded-pill"><?php echo count($completed); ?></span><?php endif; ?>
         </a>
     </li>
 </ul>
@@ -124,7 +176,7 @@ foreach($assigned_exams as $ex) {
 <div class="tab-content" id="dashboardTabContent">
     
     <!-- Active Exams Layer -->
-    <div class="tab-pane fade show active" id="active" role="tabpanel">
+    <div class="tab-pane fade <?php echo ($active_tab_request === 'active') ? 'show active' : ''; ?>" id="active" role="tabpanel">
         <?php if(empty($active)): ?>
             <div class="card shadow-sm border-0 rounded-lg p-5 text-center bg-white mb-4">
                 <div class="card-body py-5">
@@ -167,7 +219,7 @@ foreach($assigned_exams as $ex) {
     </div>
     
     <!-- Upcoming Exams Layer -->
-    <div class="tab-pane fade" id="upcoming" role="tabpanel">
+    <div class="tab-pane fade <?php echo ($active_tab_request === 'upcoming') ? 'show active' : ''; ?>" id="upcoming" role="tabpanel">
         <?php if(empty($upcoming)): ?>
             <div class="card shadow-sm border-0 rounded-lg p-5 text-center bg-white mb-4">
                 <div class="card-body py-5">
@@ -202,7 +254,7 @@ foreach($assigned_exams as $ex) {
     </div>
     
     <!-- Completed Exams Layer -->
-    <div class="tab-pane fade" id="completed" role="tabpanel">
+    <div class="tab-pane fade <?php echo ($active_tab_request === 'completed') ? 'show active' : ''; ?>" id="completed" role="tabpanel">
         <?php if(empty($completed)): ?>
             <div class="card shadow-sm border-0 rounded-lg p-5 text-center bg-white mb-4">
                 <div class="card-body py-5">
@@ -258,14 +310,21 @@ foreach($assigned_exams as $ex) {
 
 <script>
 $(document).ready(function(){
+    var urlParams = new URLSearchParams(window.location.search);
+    var targetTab = urlParams.get('tab');
+    if (targetTab && $('#' + targetTab + '-tab').length) {
+        $('#' + targetTab + '-tab').tab('show');
+        localStorage.setItem('studentDashboardTabNavMappingPoint', '#' + targetTab);
+    } else {
+        var lastTab = localStorage.getItem('studentDashboardTabNavMappingPoint');
+        if (lastTab && $('#dashboardTabs a[href="' + lastTab + '"]').length) {
+            $('#dashboardTabs a[href="' + lastTab + '"]').tab('show');
+        }
+    }
+
     $('#dashboardTabs a[data-toggle="pill"]').on('shown.bs.tab', function (e) {
         localStorage.setItem('studentDashboardTabNavMappingPoint', $(e.target).attr('href'));
     });
-    
-    var lastTab = localStorage.getItem('studentDashboardTabNavMappingPoint');
-    if (lastTab && $('#dashboardTabs a[href="' + lastTab + '"]').length) {
-        $('#dashboardTabs a[href="' + lastTab + '"]').tab('show');
-    }
 });
 </script>
 

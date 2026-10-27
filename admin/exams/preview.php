@@ -104,8 +104,9 @@ $is_draft = strpos($exam['status'], 'draft') !== false;
     <div class="card-body px-4 pb-4 pt-3 ml-md-5 pl-md-4">
         <div class="row">
             <?php for($i=1; $i<=4; $i++): 
-                $isCorrect = ($i == $q['correct_option']);
                 $optText = $i===1 ? $q['option1'] : ($i===2 ? $q['option2'] : ($i===3 ? $q['option3'] : $q['option4']));
+                if ($optText === null || trim((string)$optText) === '') continue;
+                $isCorrect = ($i == $q['correct_option']);
             ?>
             <div class="col-md-6 mb-3">
                 <div class="p-3 d-flex align-items-center h-100 review-opt-box <?php echo $isCorrect ? 'is-correct shadow' : 'shadow-sm'; ?>">

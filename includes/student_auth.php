@@ -22,14 +22,18 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'student' || !isset($_SES
     exit;
 }
 
-// Inactivity timeout (10 minutes)
-if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > 600)) {
+// Inactivity timeout: generous limits (3 hours general portal, 6 hours for active exam / submissions)
+$current_script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+$is_exam_context = in_array($current_script, ['exam.php', 'submit.php', 'heartbeat.php', 'flag_doubt_ajax.php']);
+$timeout_limit = $is_exam_context ? 21600 : 10800;
+
+if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $timeout_limit)) {
     session_unset();
     session_destroy();
     if ($isAjax) {
         http_response_code(401);
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['success' => false, 'error' => 'timeout', 'message' => 'Your session timed out due to 10 minutes of inactivity.']);
+        echo json_encode(['success' => false, 'error' => 'timeout', 'message' => 'Your session timed out due to inactivity.']);
         exit;
     }
     header('Location: ' . BASE_URL . '/student/login.php?msg=timeout');

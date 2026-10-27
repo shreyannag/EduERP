@@ -27,15 +27,19 @@ $end_ts = $start_ts + ($exam['duration_minutes'] * 60);
 if ($now_ts < $start_ts) die("This exam has not started yet.");
 if ($now_ts > $end_ts) die("This exam has already ended.");
 
-// Check array bounds
-$stmt_attempt = $pdo->prepare("SELECT * FROM attempts WHERE student_id = ? AND exam_id = ?");
-$stmt_attempt->execute([$student_id, $exam_id]);
-$attempt = $stmt_attempt->fetch();
-
-if ($attempt && $attempt['is_submitted']) {
-    header("Location: dashboard.php");
+// Check attempt state: strict guard against re-entering a submitted exam
+$stmt_submitted = $pdo->prepare("SELECT id FROM attempts WHERE student_id = ? AND exam_id = ? AND is_submitted = 1 ORDER BY id DESC LIMIT 1");
+$stmt_submitted->execute([$student_id, $exam_id]);
+if ($stmt_submitted->fetch()) {
+    $_SESSION['flash_info'] = "You have already completed and submitted this examination.";
+    header("Location: dashboard.php?tab=completed");
     exit;
 }
+
+// Fetch active in-progress attempt (if any)
+$stmt_attempt = $pdo->prepare("SELECT * FROM attempts WHERE student_id = ? AND exam_id = ? AND is_submitted = 0 ORDER BY id DESC LIMIT 1");
+$stmt_attempt->execute([$student_id, $exam_id]);
+$attempt = $stmt_attempt->fetch();
 
 if (!$attempt) {
     // Generate scale constraint config
@@ -57,7 +61,7 @@ if (!$attempt) {
         $attempt_id = (int)$pdo->lastInsertId();
     } catch (\PDOException $e) {
         // Fallback if concurrent insert occurred in another tab/request
-        $stmt_attempt = $pdo->prepare("SELECT * FROM attempts WHERE student_id = ? AND exam_id = ?");
+        $stmt_attempt = $pdo->prepare("SELECT * FROM attempts WHERE student_id = ? AND exam_id = ? AND is_submitted = 0 ORDER BY id DESC LIMIT 1");
         $stmt_attempt->execute([$student_id, $exam_id]);
         $attempt = $stmt_attempt->fetch();
         $attempt_id = $attempt ? (int)$attempt['id'] : 0;
@@ -178,7 +182,7 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
                 <i class="fas fa-university mr-1"></i><?php echo h(!empty($exam['institute_name']) ? $exam['institute_name'] : 'Main Campus'); ?>
             </div>
             <h5 class="mb-0 font-weight-bold text-dark d-none d-md-block" style="letter-spacing: -0.5px;"><?php echo h($exam['title']); ?></h5>
-            <div class="small text-muted font-weight-bold mt-1 text-uppercase"><i class="fas fa-fingerprint mr-1 opacity-50"></i><?php echo h($_SESSION['student_user']); ?></div>
+            <div class="small text-muted font-weight-bold mt-1 text-uppercase"><i class="fas fa-fingerprint mr-1 opacity-50"></i><?php echo h($_SESSION['student_user'] ?? 'Student'); ?></div>
         </div>
         <div class="timer-box shadow-sm">
             <i class="fas fa-clock mr-3 opacity-50"></i> <span id="timeDisplay" style="letter-spacing: 2px;">00:00:00</span>
@@ -209,6 +213,7 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
                     <div class="q-body row mx-0">
                         <?php for($i=1; $i<=4; $i++): 
                             $optText = $q['option'.$i]; 
+                            if ($optText === null || trim((string)$optText) === '') continue;
                             $identifier = "q_{$q['id']}_opt_{$i}";
                         ?>
                         <div class="col-md-6 opt-row px-2">
@@ -295,6 +300,7 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
         if(remainingTime <= 0) {
             clearInterval(timerInterval);
             document.getElementById('timeDisplay').innerText = "00:00:00";
+            localStorage.removeItem(lsKey);
             alert("Time is up! Submitting your exam automatically.");
             document.getElementById('examForm').submit();
             return;
@@ -396,6 +402,29 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
     $(document).ready(function() {
         restoreState();
     });
+
+    // Active Exam Session Heartbeat Beacon - Keeps student session live during long exams
+    (function() {
+        function pingExamHeartbeat() {
+            $.ajax({
+                url: 'heartbeat.php',
+                method: 'POST',
+                data: { current_page: 'Active Exam ID: ' + examId },
+                dataType: 'json'
+            }).fail(function(xhr) {
+                if (xhr.status === 401) {
+                    try {
+                        var resp = JSON.parse(xhr.responseText);
+                        if (resp.error === 'concurrent') {
+                            alert("Session Alert: Your account was logged in from another device.");
+                            window.location.href = 'login.php?msg=concurrent';
+                        }
+                    } catch(e) {}
+                }
+            });
+        }
+        setInterval(pingExamHeartbeat, 25000);
+    })();
 </script>
 
 <!-- Flag Doubt Modal -->

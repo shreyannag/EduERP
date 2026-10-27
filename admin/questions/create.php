@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$chkTop->fetch()) $topic_id = null;
     }
     
-    if (!$class_id || !$board_id || !$q || !$o1 || !$o2 || !$o3 || !$o4 || !in_array($c, [1,2,3,4])) {
+    if (!$class_id || !$board_id || $q === '' || strlen($o1) === 0 || strlen($o2) === 0 || strlen($o3) === 0 || strlen($o4) === 0 || !in_array($c, [1,2,3,4])) {
         $error = "All mandatory fields are fully required for safe ingestion into the schema.";
     } else {
         try {

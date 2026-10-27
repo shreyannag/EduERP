@@ -6,29 +6,58 @@ ini_set('display_errors', 0); // Disable direct error output in production
 error_reporting(E_ALL);
 
 function clean_html($html) {
-    if (!$html) return '';
-    $config = HTMLPurifier_Config::createDefault();
-    $config->set('Cache.DefinitionImpl', null);
-    $config->set('Attr.EnableID', true);
-    $config->set('Attr.AllowedClasses', null); // Allow classes for Prism.js code syntax highlighting, etc.
-    $config->set('URI.AllowedSchemes', [
-        'http' => true,
-        'https' => true,
-        'mailto' => true,
-        'data' => true
-    ]);
-    $purifier = new HTMLPurifier($config);
+    if ($html === null || $html === '') return '';
+    $html = (string)$html;
+    if ($html === '0') return '0';
+    static $purifier = null;
+    if ($purifier === null) {
+        $config = HTMLPurifier_Config::createDefault();
+        $config->set('Cache.DefinitionImpl', null);
+        $config->set('Attr.EnableID', true);
+        $config->set('Attr.AllowedClasses', null); // Allow classes for Prism.js code syntax highlighting, etc.
+        $config->set('URI.AllowedSchemes', [
+            'http' => true,
+            'https' => true,
+            'mailto' => true,
+            'data' => true
+        ]);
+        $purifier = new HTMLPurifier($config);
+    }
     return $purifier->purify($html);
 }
 
 function render_formatted_content($text) {
     if ($text === null || $text === '') return '';
-    // If it contains block-level HTML tags, purify directly
-    if (preg_match('/<(?:p|div|br|ul|ol|li|pre|blockquote|table|h[1-6])\b/i', $text)) {
-        return clean_html($text);
+    $text = (string)$text;
+    if ($text === '0') return '0';
+
+    // If text is a standalone single pseudo-tag like <A>, <B>, <none of these>, treat as plain text literal
+    if (preg_match('/^<[A-Za-z0-9_\s-]+>$/', trim($text))) {
+        return htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
-    // Inline HTML or plain text: purify and preserve newlines
-    return nl2br(clean_html($text));
+
+    // Check if content contains real HTML elements (must have recognized tags)
+    $has_html = preg_match('/<\s*(?:p|div|br|ul|ol|li|pre|blockquote|table|tr|td|th|h[1-6]|span|b|strong|i|em|u|sub|sup|img|code)\b[^>]*>/i', $text);
+
+    if ($has_html) {
+        $purified = clean_html($text);
+        if ($purified === '' && trim($text) !== '') {
+            // Fallback: if HTMLPurifier completely stripped the text (e.g. invalid tags), preserve as safe escaped text!
+            return nl2br(htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'));
+        }
+        return $purified;
+    }
+
+    $encoded = htmlspecialchars($text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    // Restore unescaped math operators inside LaTeX math delimiters ($...$, \(...\), \[...\])
+    if (strpos($encoded, '$') !== false || strpos($encoded, '\\(') !== false || strpos($encoded, '\\[') !== false) {
+        $encoded = preg_replace_callback('/(\$[^$\n]+\$|\\\\\([\\s\\S]*?\\\\\)|\x5C\\[[\\s\\S]*?\x5C\\])/', function($matches) {
+            return str_replace(['&lt;', '&gt;', '&amp;'], ['<', '>', '&'], $matches[0]);
+        }, $encoded);
+    }
+
+    return nl2br($encoded);
 }
 
 // Generates a random CSRF token if one is not set, and returns it

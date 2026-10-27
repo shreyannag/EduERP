@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $topic_id = !empty($_POST['topic_id']) ? intval($_POST['topic_id']) : null;
     $marks = intval($_POST['marks'] ?? 1);
     
-    if (!$id || !$q || !$o1 || !$o2 || !$o3 || !$o4 || !in_array($c, [1,2,3,4]) || !$class_id || !$board_id) {
+    if (!$id || $q === '' || strlen($o1) === 0 || strlen($o2) === 0 || strlen($o3) === 0 || strlen($o4) === 0 || !in_array($c, [1,2,3,4]) || !$class_id || !$board_id) {
         echo json_encode(['success' => false, 'error' => 'All mandatory fields are required and must be valid.']);
         exit;
     }

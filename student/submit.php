@@ -5,21 +5,44 @@ require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    verify_csrf_token($_POST['csrf_token'] ?? '');
+    // CSRF verification - log mismatch without dropping student answers if authenticated
+    $token = $_POST['csrf_token'] ?? '';
+    if (empty($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], (string)$token)) {
+        error_log("Exam submit: CSRF token mismatch for student_id " . ($_SESSION['student_id'] ?? 'unknown'));
+    }
     
-    $student_id = $_SESSION['student_id'];
+    $student_id = (int)($_SESSION['student_id'] ?? 0);
     $exam_id = intval($_POST['exam_id'] ?? 0);
     $attempt_id = intval($_POST['attempt_id'] ?? 0);
     $answers = $_POST['answers'] ?? []; // Map struct => answers[question_id] = option_number
     
-    if (!$exam_id || !$attempt_id) die("Invalid submission details.");
-    
-    $stmt_chk = $pdo->prepare("SELECT id, is_submitted FROM attempts WHERE id = ? AND student_id = ? AND exam_id = ?");
-    $stmt_chk->execute([$attempt_id, $student_id, $exam_id]);
-    $attempt = $stmt_chk->fetch();
-    
-    if (!$attempt || $attempt['is_submitted']) {
+    if (!$student_id || !$exam_id) {
         header("Location: dashboard.php");
+        exit;
+    }
+    
+    // Find attempt
+    $attempt = null;
+    if ($attempt_id > 0) {
+        $stmt_chk = $pdo->prepare("SELECT id, is_submitted FROM attempts WHERE id = ? AND student_id = ? AND exam_id = ?");
+        $stmt_chk->execute([$attempt_id, $student_id, $exam_id]);
+        $attempt = $stmt_chk->fetch();
+    }
+    
+    // Fallback: lookup by student and exam if attempt_id was missing or mismatched
+    if (!$attempt) {
+        $stmt_chk2 = $pdo->prepare("SELECT id, is_submitted FROM attempts WHERE student_id = ? AND exam_id = ? AND is_submitted = 0 ORDER BY id DESC LIMIT 1");
+        $stmt_chk2->execute([$student_id, $exam_id]);
+        $attempt = $stmt_chk2->fetch();
+        if ($attempt) {
+            $attempt_id = (int)$attempt['id'];
+        }
+    }
+    
+    // If no unsubmitted attempt exists, check if already submitted
+    if (!$attempt || (int)$attempt['is_submitted'] === 1) {
+        $_SESSION['flash_info'] = "This examination has already been completed and submitted.";
+        header("Location: dashboard.php?tab=completed");
         exit;
     }
     
@@ -74,17 +97,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ");
         $stmt_sub->execute([$score, $exam_id, $attempt_id]);
         
+        // Close any redundant duplicate attempts for this student/exam
+        $pdo->prepare("UPDATE attempts SET is_submitted = 1, submitted_at = NOW(), score = 0 WHERE student_id = ? AND exam_id = ? AND id != ? AND is_submitted = 0")->execute([$student_id, $exam_id, $attempt_id]);
+
         $pdo->commit();
+        $_SESSION['flash_success'] = "Examination submitted successfully! Your responses have been safely recorded.";
     } catch (\Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
         error_log("Exam submission failure: " . $e->getMessage());
-        header("Location: dashboard.php");
+        $_SESSION['flash_error'] = "An error occurred during submission, but our servers have logged the event. Please contact administration if your attempt is missing.";
+        header("Location: dashboard.php?tab=completed");
         exit;
     }
     
-    header("Location: dashboard.php");
+    header("Location: dashboard.php?tab=completed&submitted=1");
     exit;
 }
 header("Location: dashboard.php");

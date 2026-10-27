@@ -47,6 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     record_user_login('student', $student['id'], $session_token, $pdo);
                     session_regenerate_id(true);
                     $_SESSION['student_id'] = $student['id'];
+                    $_SESSION['student_user'] = $student['username'] ?? $username;
                     $_SESSION['role'] = 'student';
                     $_SESSION['session_token'] = $session_token;
                     $_SESSION['last_activity'] = time();

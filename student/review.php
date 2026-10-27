@@ -143,6 +143,7 @@ require_once '../includes/student_header.php';
         <div class="row">
             <?php for($i=1; $i<=4; $i++): 
                 $optText = $q['option'.$i];
+                if ($optText === null || trim((string)$optText) === '') continue;
                 $is_selected = ($sel == $i);
                 $is_correct = ($attempt['key_released'] && $cor == $i);
                 
