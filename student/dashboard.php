@@ -2,11 +2,52 @@
 // student/dashboard.php
 require_once '../includes/student_header.php';
 
-$student_id = $_SESSION['student_id'];
+$student_id = (int)$_SESSION['student_id'];
+$now_str = date('Y-m-d H:i:s');
 
-// Get all mapped exams for this student
+// Auto-finalize any open/unsubmitted attempts for exams that have reached their scheduled end time
+try {
+    $stmt_open = $pdo->prepare("
+        SELECT a.id as attempt_id, a.exam_id, e.scheduled_date, e.scheduled_time, e.duration_minutes
+        FROM attempts a
+        JOIN exams e ON a.exam_id = e.id
+        WHERE a.student_id = ? AND a.is_submitted = 0
+    ");
+    $stmt_open->execute([$student_id]);
+    $open_attempts = $stmt_open->fetchAll();
+
+    foreach ($open_attempts as $oa) {
+        $start_dt = $oa['scheduled_date'] . ' ' . $oa['scheduled_time'];
+        $end_dt = date('Y-m-d H:i:s', strtotime($start_dt . ' + ' . $oa['duration_minutes'] . ' minutes'));
+        
+        // If exam scheduled window has ended, auto-finalize the attempt and score it
+        if ($now_str > $end_dt) {
+            $stmt_calc = $pdo->prepare("
+                SELECT COALESCE(SUM(CASE WHEN q.correct_option = ans.chosen_option THEN COALESCE(q.marks, 1) ELSE 0 END), 0) as calc_score
+                FROM attempt_answers ans
+                JOIN questions q ON ans.question_id = q.id
+                WHERE ans.attempt_id = ?
+            ");
+            $stmt_calc->execute([$oa['attempt_id']]);
+            $calc_score = (int)$stmt_calc->fetchColumn();
+
+            $stmt_fin = $pdo->prepare("
+                UPDATE attempts 
+                SET is_submitted = 1, submitted_at = ?, score = ? 
+                WHERE id = ?
+            ");
+            $stmt_fin->execute([$end_dt, $calc_score, $oa['attempt_id']]);
+        }
+    }
+} catch (\Throwable $e) {
+    error_log("Dashboard auto-finalize error: " . $e->getMessage());
+}
+
+// Get all mapped exams for this student with attempt metadata
 $stmt = $pdo->prepare("
     SELECT e.*, 
+    (SELECT COUNT(*) FROM attempts WHERE student_id = ? AND exam_id = e.id AND is_submitted = 1) as has_submitted,
+    (SELECT COUNT(*) FROM attempts WHERE student_id = ? AND exam_id = e.id AND started_at IS NOT NULL) as has_started,
     (SELECT COUNT(*) FROM attempts WHERE student_id = ? AND exam_id = e.id AND is_submitted = 1) as has_attempted,
     (SELECT COUNT(*) FROM answer_releases WHERE exam_id = e.id) as key_released
     FROM exams e
@@ -14,7 +55,7 @@ $stmt = $pdo->prepare("
     WHERE en.student_id = ? AND e.status != 'draft'
     ORDER BY e.scheduled_date ASC, e.scheduled_time ASC
 ");
-$stmt->execute([$student_id, $student_id]);
+$stmt->execute([$student_id, $student_id, $student_id, $student_id]);
 $assigned_exams = $stmt->fetchAll();
 
 $upcoming = [];
@@ -23,16 +64,16 @@ $completed = [];
 
 $now = date('Y-m-d H:i:s');
 foreach($assigned_exams as $ex) {
-    if ($ex['has_attempted']) {
+    $start_datetime = $ex['scheduled_date'] . ' ' . $ex['scheduled_time'];
+    $end_datetime = date('Y-m-d H:i:s', strtotime($start_datetime . ' + ' . $ex['duration_minutes'] . ' minutes'));
+
+    if ($ex['has_submitted'] || ($ex['has_started'] && $now > $end_datetime)) {
         $completed[] = $ex;
         continue;
     }
     
-    $start_datetime = $ex['scheduled_date'] . ' ' . $ex['scheduled_time'];
-    $end_datetime = date('Y-m-d H:i:s', strtotime($start_datetime . ' + ' . $ex['duration_minutes'] . ' minutes'));
-    
     if ($ex['status'] === 'completed' || $now > $end_datetime) {
-        $completed[] = $ex; // Missed exams default to trace sequence bounds
+        $completed[] = $ex; // Missed or ended exams default to trace sequence bounds
     } elseif ($now >= $start_datetime && $now <= $end_datetime) {
         $active[] = $ex; // Currently unrolling state
     } else {
@@ -180,22 +221,25 @@ if (!in_array($active_tab_request, ['active', 'upcoming', 'completed'])) {
         <?php if(empty($active)): ?>
             <div class="card shadow-sm border-0 rounded-lg p-5 text-center bg-white mb-4">
                 <div class="card-body py-5">
-                    <i class="fas fa-coffee fa-4x text-light mb-4 text-primary opacity-25"></i>
-                    <h4 class="font-weight-bold text-dark">No live exams available.</h4>
-                    <p class="text-muted mb-0">Check the Upcoming Exams tab for your schedule.</p>
+                    <i class="fas fa-calendar-times fa-4x text-light mb-4"></i>
+                    <h4 class="font-weight-bold text-dark">No Active Exams</h4>
+                    <p class="text-muted mb-0">You have no examinations currently underway at this hour.</p>
                 </div>
             </div>
         <?php else: ?>
             <div class="row">
                 <?php foreach($active as $ex): ?>
                 <div class="col-md-6 col-lg-4 mb-4">
-                    <div class="card border-0 shadow rounded-lg h-100 border-top border-danger overflow-hidden" style="border-top-width: 5px !important; background: linear-gradient(180deg, #fff 0%, #fff0f2 100%);">
+                    <div class="card border-0 shadow-sm rounded-lg h-100 border-top border-danger bg-white" style="border-top-width: 4px !important;">
                         <div class="card-body p-4 d-flex flex-column">
-                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                <span class="badge badge-danger px-3 py-1 shadow-sm rounded-pill font-weight-bold text-uppercase" style="letter-spacing:1px;"><i class="fas fa-circle mr-1 text-white animate-pulse" style="font-size:8px;vertical-align:middle;"></i> LIVE</span>
-                                <span class="text-danger font-weight-bold px-2 py-1 bg-white rounded shadow-sm"><i class="fas fa-stopwatch mr-1"></i><?php echo $ex['duration_minutes']; ?>m</span>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge badge-danger px-3 py-1 font-weight-bold rounded-pill animate-pulse">
+                                    <i class="fas fa-circle mr-1" style="font-size:0.6rem;"></i> Live Now
+                                </span>
+                                <span class="text-muted small font-weight-bold"><i class="fas fa-hourglass-half mr-1"></i><?php echo $ex['duration_minutes']; ?> Mins</span>
                             </div>
-                            <h4 class="font-weight-bold text-dark mb-3"><?php echo h($ex['title']); ?></h4>
+                            
+                            <h5 class="font-weight-bold text-dark mb-4"><?php echo h($ex['title']); ?></h5>
                             
                             <div class="bg-white rounded p-3 mb-4 mt-auto border shadow-sm">
                                 <p class="mb-1 small font-weight-bold text-muted text-uppercase">Ends At</p>
@@ -281,14 +325,16 @@ if (!in_array($active_tab_request, ['active', 'upcoming', 'completed'])) {
                                 <td class="align-middle font-weight-bold text-dark px-4 py-3"><?php echo h($ex['title']); ?></td>
                                 <td class="align-middle text-center text-muted font-weight-500 py-3"><i class="fas fa-calendar-check mr-2 opacity-50"></i><?php echo date('d M Y', strtotime($ex['scheduled_date'])); ?></td>
                                 <td class="align-middle text-center py-3">
-                                    <?php if($ex['has_attempted']): ?>
+                                    <?php if($ex['has_submitted']): ?>
                                         <span class="badge badge-success px-3 py-1 shadow-sm rounded-pill"><i class="fas fa-check-circle mr-1"></i>Completed</span>
+                                    <?php elseif($ex['has_started']): ?>
+                                        <span class="badge badge-info px-3 py-1 shadow-sm rounded-pill"><i class="fas fa-history mr-1"></i>Submitted (Auto-Finalized)</span>
                                     <?php else: ?>
                                         <span class="badge badge-danger px-3 py-1 shadow-sm rounded-pill"><i class="fas fa-times-circle mr-1"></i>Missed</span>
                                     <?php endif; ?>
                                 </td>
                                 <td class="align-middle text-right px-4 py-3">
-                                    <?php if($ex['has_attempted']): ?>
+                                    <?php if($ex['has_submitted'] || $ex['has_started']): ?>
                                         <?php if($ex['key_released']): ?>
                                             <a href="review.php?exam_id=<?php echo $ex['id']; ?>" class="btn btn-sm btn-outline-success font-weight-bold rounded-pill shadow-sm px-4 py-2 border-2 transition"><i class="fas fa-file-invoice mr-2"></i>View Report & Key</a>
                                         <?php else: ?>

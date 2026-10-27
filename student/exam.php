@@ -4,7 +4,7 @@ require_once '../includes/student_auth.php';
 require_once '../config/db.php';
 require_once '../includes/functions.php';
 
-$student_id = $_SESSION['student_id'];
+$student_id = (int)$_SESSION['student_id'];
 $exam_id = intval($_GET['id'] ?? 0);
 
 if (!$exam_id) die("Invalid endpoint mapping trace.");
@@ -70,7 +70,7 @@ if (!$attempt) {
     $attempt_id = (int)$attempt['id'];
 }
 
-// Fetch pointers
+// Fetch questions
 $stmt_qs = $pdo->prepare("
     SELECT q.*, eq.order_no 
     FROM questions q
@@ -81,7 +81,16 @@ $stmt_qs = $pdo->prepare("
 $stmt_qs->execute([$exam_id]);
 $questions = $stmt_qs->fetchAll();
 
+// Fetch already saved answers for this attempt from database (real-time resilience)
+$saved_answers = [];
+if ($attempt_id > 0) {
+    $stmt_ans = $pdo->prepare("SELECT question_id, chosen_option FROM attempt_answers WHERE attempt_id = ?");
+    $stmt_ans->execute([$attempt_id]);
+    $saved_answers = $stmt_ans->fetchAll(PDO::FETCH_KEY_PAIR);
+}
+
 $remaining_seconds = max(0, $end_ts - $now_ts);
+$csrf_token = generate_csrf_token();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -91,6 +100,7 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
     <title>Active Exam - <?php echo h($exam['title']); ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>/assets/css/custom.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
     <!-- MathJax v3 for mathematical equations -->
@@ -110,39 +120,39 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     <style>
         body { background-color: #f3f4f6; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding-top: 85px; padding-bottom: 50px; }
-        .exam-header { background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: fixed; top: 0; left: 0; right: 0; z-index: 1030; display: flex; align-items: center; padding: 15px 30px; border-bottom: 1px solid #e5e7eb; }
-        .timer-box { font-family: monospace; font-size: 1.6rem; font-weight: bold; background: #fff0f2; color: #dc2626; padding: 8px 20px; border-radius: 999px; border: 1px solid #fecdd3; display: inline-flex; align-items: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
-        .q-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 30px; border: 1px solid #e5e7eb; overflow: hidden; }
-        .q-header { background: #f9fafb; padding: 25px 30px; border-bottom: 1px solid #e5e7eb; font-weight: 500; color: #1f2937; display: flex; align-items: flex-start; font-size: 1.1rem; }
-        .q-num { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: #fff; padding: 6px 14px; border-radius: 6px; margin-right: 20px; font-size: 0.95rem; font-weight: bold; box-shadow: 0 2px 5px rgba(59,130,246,0.3); flex-shrink: 0; }
-        .q-body { padding: 30px; }
-        .opt-row { margin-bottom: 20px; }
-        .opt-label { cursor: pointer; display: flex; align-items: center; padding: 18px 20px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.2s; background: #fff; margin: 0; width: 100%; font-weight: 500; color: #4b5563; }
+        .exam-header { background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: fixed; top: 0; left: 0; right: 0; z-index: 1030; display: flex; align-items: center; padding: 12px 24px; border-bottom: 1px solid #e5e7eb; }
+        .timer-box { font-family: monospace; font-size: 1.45rem; font-weight: bold; background: #fff0f2; color: #dc2626; padding: 6px 18px; border-radius: 999px; border: 1px solid #fecdd3; display: inline-flex; align-items: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+        .q-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 25px; border: 1px solid #e5e7eb; overflow: hidden; }
+        .q-header { background: #f9fafb; padding: 20px 25px; border-bottom: 1px solid #e5e7eb; font-weight: 500; color: #1f2937; display: flex; align-items: flex-start; font-size: 1.05rem; }
+        .q-num { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: #fff; padding: 5px 12px; border-radius: 6px; margin-right: 16px; font-size: 0.9rem; font-weight: bold; box-shadow: 0 2px 5px rgba(59,130,246,0.3); flex-shrink: 0; }
+        .q-body { padding: 25px; }
+        .opt-row { margin-bottom: 15px; }
+        .opt-label { cursor: pointer; display: flex; align-items: center; padding: 16px 20px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.2s; background: #fff; margin: 0; width: 100%; font-weight: 500; color: #4b5563; }
         .opt-label:hover { border-color: #cbd5e1; background: #f8fafc; }
         .custom-control-input:focus ~ .opt-label { box-shadow: 0 0 0 3px rgba(59,130,246,0.3); border-color: #93c5fd; }
         .custom-control-input:checked ~ .opt-label { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: bold; box-shadow: 0 2px 8px rgba(37,99,235,0.1); }
         .custom-control-input:checked ~ .opt-label .letter { background: #2563eb; color: #fff; border-color: #2563eb; }
-        .letter { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #cbd5e1; border-radius: 50%; margin-right: 20px; font-size: 0.9rem; background: #f8fafc; color: #64748b; font-weight: bold; flex-shrink: 0; transition: all 0.2s; }
+        .letter { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #cbd5e1; border-radius: 50%; margin-right: 18px; font-size: 0.9rem; background: #f8fafc; color: #64748b; font-weight: bold; flex-shrink: 0; transition: all 0.2s; }
         .nav-sidebar { position: sticky; top: 110px; max-height: calc(100vh - 130px); overflow-y: auto; background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
         .q-btn { width: 42px; height: 42px; margin: 0 6px 12px 6px; border-radius: 8px; font-weight: bold; font-family: monospace; border-width: 2px; }
         .q-btn:hover { background: #f1f5f9; }
-        .q-btn.answered { background: #10b981; color: white; border-color: #059669; }
-.q-btn.flagged { background: #f59e0b !important; color: white !important; border-color: #d97706 !important; }
-.q-btn.answered.flagged { background: linear-gradient(135deg, #10b981 50%, #f59e0b 50%) !important; border-color: #d97706 !important; color: white !important; }
+        .q-btn.answered { background: #10b981 !important; color: white !important; border-color: #059669 !important; }
+        .q-btn.flagged { background: #f59e0b !important; color: white !important; border-color: #d97706 !important; }
+        .q-btn.answered.flagged { background: linear-gradient(135deg, #10b981 50%, #f59e0b 50%) !important; border-color: #d97706 !important; color: white !important; }
         .q-btn.unanswered { border-color: #cbd5e1; color: #64748b; background: #f8fafc; }
         .q-text-content { flex-grow: 1; min-width: 0; line-height: 1.6; }
         .q-text-content img { max-width: 100%; height: auto; border-radius: 6px; display: block; margin: 12px 0; }
+        .save-badge { font-size: 0.85rem; padding: 5px 12px; border-radius: 999px; transition: all 0.3s; }
         @media (max-width: 767.98px) {
             body { padding-top: 75px !important; padding-bottom: 80px !important; }
-            .exam-header { padding: 10px 14px !important; }
+            .exam-header { padding: 8px 12px !important; }
             .timer-box { font-size: 1.15rem !important; padding: 4px 10px !important; }
             .timer-box i { margin-right: 6px !important; }
-            .exam-header .btn-primary { font-size: 0.85rem !important; padding: 6px 14px !important; }
-            .q-card { margin-bottom: 20px; border-radius: 10px; }
-            .q-header { padding: 16px !important; font-size: 1rem !important; }
-            .q-num { padding: 4px 10px; font-size: 0.85rem; margin-right: 12px; }
-            .q-body { padding: 16px !important; }
-            .opt-row { margin-bottom: 12px; }
+            .q-card { margin-bottom: 18px; border-radius: 10px; }
+            .q-header { padding: 14px !important; font-size: 0.98rem !important; }
+            .q-num { padding: 4px 9px; font-size: 0.82rem; margin-right: 10px; }
+            .q-body { padding: 14px !important; }
+            .opt-row { margin-bottom: 10px; }
             .opt-label { padding: 12px 14px !important; font-size: 0.92rem; }
             .letter { width: 28px !important; height: 28px !important; font-size: 0.82rem !important; margin-right: 12px !important; }
             .floating-palette-btn {
@@ -172,32 +182,45 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
 <body>
 
 <form method="POST" action="submit.php" id="examForm">
-    <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
-    <input type="hidden" name="exam_id" value="<?php echo htmlspecialchars($exam_id, ENT_QUOTES, 'UTF-8'); ?>">
-    <input type="hidden" name="attempt_id" value="<?php echo $attempt_id; ?>">
+    <input type="hidden" name="csrf_token" id="formCsrfToken" value="<?php echo h($csrf_token); ?>">
+    <input type="hidden" name="exam_id" id="formExamId" value="<?php echo htmlspecialchars($exam_id, ENT_QUOTES, 'UTF-8'); ?>">
+    <input type="hidden" name="attempt_id" id="formAttemptId" value="<?php echo $attempt_id; ?>">
 
+    <!-- Top Sticky Exam Navigation Header -->
     <div class="exam-header d-flex justify-content-between align-items-center">
-        <div>
-            <div class="small font-weight-bold text-primary mb-1">
-                <i class="fas fa-university mr-1"></i><?php echo h(!empty($exam['institute_name']) ? $exam['institute_name'] : 'Main Campus'); ?>
+        <div class="d-flex align-items-center">
+            <div>
+                <div class="small font-weight-bold text-primary mb-0">
+                    <i class="fas fa-university mr-1"></i><?php echo h(!empty($exam['institute_name']) ? $exam['institute_name'] : 'Main Campus'); ?>
+                </div>
+                <h6 class="mb-0 font-weight-bold text-dark d-none d-md-block" style="letter-spacing: -0.3px;"><?php echo h($exam['title']); ?></h6>
+                <div class="small text-muted font-weight-bold d-none d-sm-block"><i class="fas fa-user-circle mr-1 opacity-50"></i><?php echo h($_SESSION['student_user'] ?? 'Student'); ?></div>
             </div>
-            <h5 class="mb-0 font-weight-bold text-dark d-none d-md-block" style="letter-spacing: -0.5px;"><?php echo h($exam['title']); ?></h5>
-            <div class="small text-muted font-weight-bold mt-1 text-uppercase"><i class="fas fa-fingerprint mr-1 opacity-50"></i><?php echo h($_SESSION['student_user'] ?? 'Student'); ?></div>
         </div>
-        <div class="timer-box shadow-sm">
-            <i class="fas fa-clock mr-3 opacity-50"></i> <span id="timeDisplay" style="letter-spacing: 2px;">00:00:00</span>
+
+        <div class="timer-box shadow-sm mx-2">
+            <i class="fas fa-clock mr-2 opacity-50"></i> <span id="timeDisplay" style="letter-spacing: 2px;">00:00:00</span>
         </div>
-        <div>
-            <button type="button" class="btn btn-primary font-weight-bold px-4 py-2 rounded-pill shadow-sm transition" style="font-size:1.1rem;" onclick="confirmSubmit()">
-                Submit Exam <i class="fas fa-paper-plane ml-2"></i>
+
+        <div class="d-flex align-items-center">
+            <!-- Real-time auto-save indicator badge -->
+            <span id="saveStatusBadge" class="save-badge bg-light border text-muted mr-3 d-none d-md-inline-block font-weight-bold">
+                <i class="fas fa-cloud text-primary mr-1"></i><span id="saveStatusText">All Answers Saved</span>
+            </span>
+            <button type="button" class="btn btn-outline-primary font-weight-bold px-3 py-2 rounded-pill shadow-sm transition" onclick="openSubmitModal()">
+                <i class="fas fa-check-circle mr-1"></i><span class="d-none d-sm-inline">Finish </span>Submit
             </button>
         </div>
     </div>
 
+    <!-- Questions Content Area -->
     <div class="container-fluid px-md-5 mt-4">
         <div class="row">
             <div class="col-lg-9 pr-lg-5">
-                <?php foreach($questions as $index => $q): $qNum = $index + 1; ?>
+                <?php foreach($questions as $index => $q): 
+                    $qNum = $index + 1;
+                    $savedOpt = (int)($saved_answers[$q['id']] ?? 0);
+                ?>
                 <div class="q-card" id="q<?php echo $qNum; ?>">
                     <div class="q-header d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center flex-grow-1 pr-3">
@@ -215,10 +238,11 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
                             $optText = $q['option'.$i]; 
                             if ($optText === null || trim((string)$optText) === '') continue;
                             $identifier = "q_{$q['id']}_opt_{$i}";
+                            $isChecked = ($savedOpt === $i) ? 'checked' : '';
                         ?>
                         <div class="col-md-6 opt-row px-2">
                             <div class="custom-control custom-radio p-0">
-                                <input type="radio" class="custom-control-input q-radio d-none" name="answers[<?php echo $q['id']; ?>]" id="<?php echo $identifier; ?>" value="<?php echo $i; ?>" data-qnum="<?php echo $qNum; ?>">
+                                <input type="radio" class="custom-control-input q-radio d-none" name="answers[<?php echo $q['id']; ?>]" id="<?php echo $identifier; ?>" value="<?php echo $i; ?>" data-qnum="<?php echo $qNum; ?>" data-qid="<?php echo $q['id']; ?>" <?php echo $isChecked; ?>>
                                 <label class="opt-label shadow-sm" for="<?php echo $identifier; ?>">
                                     <span class="letter shadow-sm"><?php echo chr(64+$i); ?></span>
                                     <span class="flex-grow-1"><?php echo render_formatted_content($optText); ?></span>
@@ -227,21 +251,67 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
                         </div>
                         <?php endfor; ?>
                     </div>
+                    
+                    <!-- Question footer navigation bar -->
+                    <div class="q-card-footer d-flex justify-content-between align-items-center bg-light px-4 py-2 border-top">
+                        <div>
+                            <?php if ($qNum > 1): ?>
+                                <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold rounded-pill px-3" onclick="scrollToQuestion(<?php echo $qNum - 1; ?>)">
+                                    <i class="fas fa-arrow-left mr-1"></i> Prev
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                        <div class="small font-weight-bold text-muted">
+                            Question <?php echo $qNum; ?> of <?php echo count($questions); ?>
+                        </div>
+                        <div>
+                            <?php if ($qNum < count($questions)): ?>
+                                <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold rounded-pill px-3" onclick="scrollToQuestion(<?php echo $qNum + 1; ?>)">
+                                    Next <i class="fas fa-arrow-right ml-1"></i>
+                                </button>
+                            <?php else: ?>
+                                <button type="button" class="btn btn-sm btn-success font-weight-bold rounded-pill px-3 shadow-sm" onclick="openSubmitModal()">
+                                    <i class="fas fa-check-circle mr-1"></i> Review & Submit
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </div>
                 <?php endforeach; ?>
+
+                <!-- Dedicated End of Examination Card -->
+                <div class="card shadow-sm border-0 rounded-lg p-4 mb-5 text-center bg-white border-top border-primary" style="border-top-width: 4px !important;">
+                    <h5 class="font-weight-bold text-dark mb-2">Reached the End of Examination</h5>
+                    <p class="text-muted small mb-3">All your selected answers have been saved to the server. You can review any question before final submission.</p>
+                    <div class="d-flex justify-content-center">
+                        <button type="button" class="btn btn-primary btn-lg font-weight-bold rounded-pill px-5 shadow-sm" onclick="openSubmitModal()">
+                            <i class="fas fa-paper-plane mr-2"></i>Review & Submit Exam
+                        </button>
+                    </div>
+                </div>
             </div>
             
+            <!-- Question Navigator Sidebar (Desktop) -->
             <div class="col-lg-3 d-none d-lg-block">
                 <div class="nav-sidebar">
                     <h6 class="font-weight-bold text-uppercase text-muted mb-4 border-bottom pb-3"><i class="fas fa-map-signs mr-2 text-primary"></i>Question Navigator</h6>
                     <div class="d-flex flex-wrap" id="qNavContainer">
-                        <?php for($i=1; $i<=count($questions); $i++): ?>
-                            <a href="#q<?php echo $i; ?>" class="btn q-btn unanswered border text-center p-0 d-flex align-items-center justify-content-center shadow-sm" id="nav_btn_<?php echo $i; ?>"><?php echo $i; ?></a>
+                        <?php for($i=1; $i<=count($questions); $i++): 
+                            $qIdCurrent = $questions[$i-1]['id'];
+                            $isAns = !empty($saved_answers[$qIdCurrent]);
+                            $btnClass = $isAns ? 'answered shadow text-white' : 'unanswered';
+                        ?>
+                            <a href="#q<?php echo $i; ?>" class="btn q-btn <?php echo $btnClass; ?> border text-center p-0 d-flex align-items-center justify-content-center shadow-sm" id="nav_btn_<?php echo $i; ?>" onclick="scrollToQuestion(<?php echo $i; ?>); return false;"><?php echo $i; ?></a>
                         <?php endfor; ?>
                     </div>
                     <div class="mt-4 pt-4 border-top small text-muted font-weight-bold text-uppercase">
-                        <div class="mb-3 d-flex align-items-center"><span class="d-inline-block bg-success rounded-circle shadow-sm mr-3" style="width:14px; height:14px;"></span> Answered</div>
-                        <div class="d-flex align-items-center"><span class="d-inline-block bg-light border border-secondary rounded-circle shadow-sm mr-3" style="width:14px; height:14px;"></span> Unanswered</div>
+                        <div class="mb-3 d-flex align-items-center"><span class="d-inline-block bg-success rounded-circle shadow-sm mr-3" style="width:14px; height:14px;"></span> Answered (<span id="desktopAnsweredBadge"><?php echo count($saved_answers); ?></span>)</div>
+                        <div class="d-flex align-items-center"><span class="d-inline-block bg-light border border-secondary rounded-circle shadow-sm mr-3" style="width:14px; height:14px;"></span> Unanswered (<span id="desktopUnansweredBadge"><?php echo count($questions) - count($saved_answers); ?></span>)</div>
+                    </div>
+                    <div class="mt-4 pt-3 border-top text-center">
+                        <button type="button" class="btn btn-primary font-weight-bold rounded-pill btn-block shadow-sm" onclick="openSubmitModal()">
+                            <i class="fas fa-paper-plane mr-1"></i>Final Submit
+                        </button>
                     </div>
                 </div>
             </div>
@@ -252,7 +322,7 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
     <div class="floating-palette-btn d-lg-none" data-toggle="modal" data-target="#paletteModal" title="Open Question Palette">
         <i class="fas fa-th-large fa-lg"></i>
         <span class="badge badge-light text-primary position-absolute font-weight-bold shadow-sm" id="mobileFloatingBadge" style="top: -4px; right: -4px; font-size: 0.65rem; border-radius: 10px; padding: 3px 6px;">
-            0/<?php echo count($questions); ?>
+            <?php echo count($saved_answers); ?>/<?php echo count($questions); ?>
         </span>
     </div>
 
@@ -270,19 +340,23 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
                 </div>
                 <div class="modal-body p-4">
                     <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom small font-weight-bold">
-                        <span class="text-success"><i class="fas fa-check-circle mr-1"></i><span id="mobileAnsweredCount">0</span> Answered</span>
-                        <span class="text-muted"><i class="fas fa-circle mr-1"></i><span id="mobileUnansweredCount"><?php echo count($questions); ?></span> Unanswered</span>
+                        <span class="text-success"><i class="fas fa-check-circle mr-1"></i><span id="mobileAnsweredCount"><?php echo count($saved_answers); ?></span> Answered</span>
+                        <span class="text-muted"><i class="fas fa-circle mr-1"></i><span id="mobileUnansweredCount"><?php echo count($questions) - count($saved_answers); ?></span> Unanswered</span>
                     </div>
                     <div class="d-flex flex-wrap justify-content-center" id="mobileQNavGrid">
-                        <?php for($i=1; $i<=count($questions); $i++): ?>
-                            <a href="#q<?php echo $i; ?>" class="btn q-btn unanswered border text-center p-0 d-flex align-items-center justify-content-center shadow-sm mobile-q-link" id="nav_btn_mobile_<?php echo $i; ?>"><?php echo $i; ?></a>
+                        <?php for($i=1; $i<=count($questions); $i++): 
+                            $qIdCurrent = $questions[$i-1]['id'];
+                            $isAns = !empty($saved_answers[$qIdCurrent]);
+                            $btnClass = $isAns ? 'answered shadow text-white' : 'unanswered';
+                        ?>
+                            <a href="#q<?php echo $i; ?>" class="btn q-btn <?php echo $btnClass; ?> border text-center p-0 d-flex align-items-center justify-content-center shadow-sm mobile-q-link" id="nav_btn_mobile_<?php echo $i; ?>" onclick="scrollToQuestion(<?php echo $i; ?>); $('#paletteModal').modal('hide'); return false;"><?php echo $i; ?></a>
                         <?php endfor; ?>
                     </div>
                 </div>
                 <div class="modal-footer bg-light d-flex justify-content-between">
                     <button type="button" class="btn btn-secondary rounded-pill px-4 font-weight-bold" data-dismiss="modal">Back to Exam</button>
-                    <button type="button" class="btn btn-primary rounded-pill px-4 font-weight-bold shadow-sm" onclick="$('#paletteModal').modal('hide'); confirmSubmit();">
-                        Submit Exam <i class="fas fa-paper-plane ml-1"></i>
+                    <button type="button" class="btn btn-primary rounded-pill px-4 font-weight-bold shadow-sm" onclick="$('#paletteModal').modal('hide'); openSubmitModal();">
+                        Review & Submit <i class="fas fa-paper-plane ml-1"></i>
                     </button>
                 </div>
             </div>
@@ -290,142 +364,61 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
     </div>
 </form>
 
-<script>
-    const examId = <?php echo htmlspecialchars($exam_id, ENT_QUOTES, 'UTF-8'); ?>;
-    const lsKey = 'exam_matrix_state_' + examId + '_' + <?php echo $student_id; ?>;
-    
-    let remainingTime = <?php echo $remaining_seconds; ?>;
-    
-    function updateTimer() {
-        if(remainingTime <= 0) {
-            clearInterval(timerInterval);
-            document.getElementById('timeDisplay').innerText = "00:00:00";
-            localStorage.removeItem(lsKey);
-            alert("Time is up! Submitting your exam automatically.");
-            document.getElementById('examForm').submit();
-            return;
-        }
-        
-        let hrs = Math.floor(remainingTime / 3600);
-        let mins = Math.floor((remainingTime % 3600) / 60);
-        let secs = remainingTime % 60;
-        
-        let dHrs = hrs < 10 ? '0' + hrs : hrs;
-        let dMins = mins < 10 ? '0' + mins : mins;
-        let dSecs = secs < 10 ? '0' + secs : secs;
-        
-        document.getElementById('timeDisplay').innerText = dHrs + ":" + dMins + ":" + dSecs;
-        remainingTime--;
-    }
-    
-    let timerInterval = setInterval(updateTimer, 1000);
-    updateTimer();
-    
-    function saveState() {
-        let state = {};
-        $('.q-radio:checked').each(function() {
-            state[$(this).attr('name')] = $(this).val();
-        });
-        localStorage.setItem(lsKey, JSON.stringify(state));
-    }
-    
-    function restoreState() {
-        let saved = localStorage.getItem(lsKey);
-        if(saved) {
-            try {
-                let state = JSON.parse(saved);
-                for(let key in state) {
-                    $('input[name="'+key+'"][value="'+state[key]+'"]').prop('checked', true).trigger('change');
-                }
-            } catch(e){}
-        }
-        syncCounts();
-    }
-    
-    function updatePalette(qNum) {
-        $('#nav_btn_' + qNum).removeClass('unanswered').addClass('answered shadow text-white');
-        $('#nav_btn_mobile_' + qNum).removeClass('unanswered').addClass('answered shadow text-white');
-        syncCounts();
-    }
+<!-- Dedicated High-Friction Submission Confirmation Modal -->
+<div class="modal fade" id="submitConfirmModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content shadow-lg border-0 rounded-lg overflow-hidden">
+            <div class="modal-header bg-primary text-white py-3 border-0" style="background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%) !important;">
+                <h5 class="modal-title font-weight-bold mb-0 text-white">
+                    <i class="fas fa-clipboard-check mr-2"></i>Review Before Final Submission
+                </h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <p class="text-muted small mb-3">Please verify your answered questions summary below before submitting:</p>
+                <div class="row text-center mb-3">
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded border">
+                            <div class="h4 font-weight-bold text-dark mb-0" id="modalTotalQ"><?php echo count($questions); ?></div>
+                            <div class="small text-muted font-weight-bold text-uppercase" style="font-size:0.7rem;">Total</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded border border-success">
+                            <div class="h4 font-weight-bold text-success mb-0" id="modalAnsweredQ">0</div>
+                            <div class="small text-success font-weight-bold text-uppercase" style="font-size:0.7rem;">Answered</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="p-3 bg-light rounded border border-warning">
+                            <div class="h4 font-weight-bold text-warning mb-0" id="modalUnansweredQ"><?php echo count($questions); ?></div>
+                            <div class="small text-warning font-weight-bold text-uppercase" style="font-size:0.7rem;">Unanswered</div>
+                        </div>
+                    </div>
+                </div>
 
-    function syncCounts() {
-        let total = <?php echo count($questions); ?>;
-        let ans = $('.q-radio:checked').length;
-        $('#mobileAnsweredCount').text(ans);
-        $('#mobileUnansweredCount').text(total - ans);
-        $('#mobileFloatingBadge').text(ans + '/' + total);
-    }
+                <div id="unansweredWarningAlert" class="alert alert-warning text-left small font-weight-bold mb-3 d-none">
+                    <i class="fas fa-exclamation-triangle mr-2 text-warning"></i>
+                    <span>Notice: You have <strong id="unansweredWarningCount">0</strong> unanswered question(s). If you submit now, unanswered questions will be marked as skipped.</span>
+                </div>
 
-    $('.q-radio').change(function() {
-        saveState();
-        let qNum = $(this).data('qnum');
-        updatePalette(qNum);
-    });
-
-    $(document).on('click', '.mobile-q-link', function(e) {
-        e.preventDefault();
-        $('#paletteModal').modal('hide');
-        let targetId = $(this).attr('href');
-        setTimeout(function() {
-            let el = document.querySelector(targetId);
-            if (el) {
-                let offset = 85;
-                let bodyRect = document.body.getBoundingClientRect().top;
-                let elementRect = el.getBoundingClientRect().top;
-                let elementPosition = elementRect - bodyRect;
-                let offsetPosition = elementPosition - offset;
-                window.scrollTo({
-                    top: offsetPosition,
-                    behavior: 'smooth'
-                });
-            }
-        }, 350);
-    });
-    
-    function confirmSubmit() {
-        let total = <?php echo count($questions); ?>;
-        let ans = $('.q-radio:checked').length;
-        let unans = total - ans;
-        
-        let msg = "Are you sure you want to submit your exam?\n\n";
-        msg += "Total Questions: " + total + "\n";
-        msg += "Answered: " + ans + "\n";
-        msg += "Unanswered: " + unans + "\n\n";
-        msg += "This action cannot be undone.";
-        
-        if(confirm(msg)) {
-            localStorage.removeItem(lsKey);
-            document.getElementById('examForm').submit();
-        }
-    }
-
-    $(document).ready(function() {
-        restoreState();
-    });
-
-    // Active Exam Session Heartbeat Beacon - Keeps student session live during long exams
-    (function() {
-        function pingExamHeartbeat() {
-            $.ajax({
-                url: 'heartbeat.php',
-                method: 'POST',
-                data: { current_page: 'Active Exam ID: ' + examId },
-                dataType: 'json'
-            }).fail(function(xhr) {
-                if (xhr.status === 401) {
-                    try {
-                        var resp = JSON.parse(xhr.responseText);
-                        if (resp.error === 'concurrent') {
-                            alert("Session Alert: Your account was logged in from another device.");
-                            window.location.href = 'login.php?msg=concurrent';
-                        }
-                    } catch(e) {}
-                }
-            });
-        }
-        setInterval(pingExamHeartbeat, 25000);
-    })();
-</script>
+                <p class="small text-muted mb-0 font-weight-500">
+                    <i class="fas fa-info-circle mr-1 text-primary"></i>This action cannot be undone. Once submitted, your examination is complete.
+                </p>
+            </div>
+            <div class="modal-footer bg-light border-0 d-flex justify-content-between p-3">
+                <button type="button" class="btn btn-secondary font-weight-bold rounded-pill px-4" data-dismiss="modal">
+                    <i class="fas fa-arrow-left mr-1"></i>Return to Questions
+                </button>
+                <button type="button" class="btn btn-primary font-weight-bold rounded-pill px-4 shadow-sm" id="btnFinalSubmitConfirm" onclick="finalizeAndSubmitExam()">
+                    <i class="fas fa-paper-plane mr-1"></i>Yes, Submit Finally
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Flag Doubt Modal -->
 <div class="modal fade" id="flagModal" tabindex="-1" role="dialog" aria-hidden="true">
@@ -440,7 +433,7 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
                 </button>
             </div>
             <form id="flagForm" onsubmit="handleFlagSubmit(event)">
-                <input type="hidden" name="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
+                <input type="hidden" name="csrf_token" value="<?php echo h($csrf_token); ?>">
                 <input type="hidden" name="question_id" id="flagQuestionId">
                 <input type="hidden" name="exam_id" value="<?php echo htmlspecialchars($exam_id, ENT_QUOTES, 'UTF-8'); ?>">
                 
@@ -475,57 +468,258 @@ $remaining_seconds = max(0, $end_ts - $now_ts);
 </div>
 
 <script>
-let currentFlaggingQNum = null;
-
-function openFlagModal(questionId, qNum) {
-    currentFlaggingQNum = qNum;
-    document.getElementById('flagQuestionId').value = questionId;
-    document.getElementById('flagModalQNum').textContent = 'Q' + qNum;
-    $('#flagModal').modal('show');
-}
-
-function handleFlagSubmit(e) {
-    e.preventDefault();
-    const btn = document.getElementById('flagSubmitBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Submitting...';
-
-    const formData = new FormData(e.target);
-
-    fetch('flag_question_ajax.php', {
-        method: 'POST',
-        body: formData,
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(r => r.json())
-    .then(data => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-flag mr-1"></i>Submit Doubt Flag';
-        if (data.success) {
-            $('#flagModal').modal('hide');
-            // Update button visual state
-            const flagBtn = document.getElementById('flagBtn' + currentFlaggingQNum);
-            if (flagBtn) {
-                flagBtn.classList.remove('btn-outline-warning');
-                flagBtn.classList.add('btn-warning');
-                flagBtn.querySelector('.flag-text').textContent = 'Flagged';
-            }
-            // Update nav button
-            const navBtn = document.getElementById('nav_btn_' + currentFlaggingQNum);
-            if (navBtn) {
-                navBtn.classList.add('flagged');
-            }
-            alert('Question marked and recorded for teacher review!');
-        } else {
-            alert(data.error || 'Failed to submit flag.');
+    const examId = <?php echo htmlspecialchars($exam_id, ENT_QUOTES, 'UTF-8'); ?>;
+    const attemptId = <?php echo $attempt_id; ?>;
+    const csrfToken = "<?php echo $csrf_token; ?>";
+    const lsKey = 'exam_matrix_state_' + examId + '_' + <?php echo $student_id; ?>;
+    const totalQuestions = <?php echo count($questions); ?>;
+    
+    let remainingTime = <?php echo $remaining_seconds; ?>;
+    
+    // Countdown Timer Engine
+    function updateTimer() {
+        if (remainingTime <= 0) {
+            clearInterval(timerInterval);
+            document.getElementById('timeDisplay').innerText = "00:00:00";
+            localStorage.removeItem(lsKey);
+            alert("Time is up! Submitting your exam automatically.");
+            document.getElementById('examForm').submit();
+            return;
         }
-    })
-    .catch(err => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-flag mr-1"></i>Submit Doubt Flag';
-        alert('An error occurred: ' + err);
+        
+        let hrs = Math.floor(remainingTime / 3600);
+        let mins = Math.floor((remainingTime % 3600) / 60);
+        let secs = remainingTime % 60;
+        
+        let dHrs = hrs < 10 ? '0' + hrs : hrs;
+        let dMins = mins < 10 ? '0' + mins : mins;
+        let dSecs = secs < 10 ? '0' + secs : secs;
+        
+        document.getElementById('timeDisplay').innerText = dHrs + ":" + dMins + ":" + dSecs;
+        remainingTime--;
+    }
+    
+    let timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+    
+    // Smooth scrolling to question
+    function scrollToQuestion(qNum) {
+        let el = document.getElementById('q' + qNum);
+        if (el) {
+            let offset = 95;
+            let bodyRect = document.body.getBoundingClientRect().top;
+            let elementRect = el.getBoundingClientRect().top;
+            let elementPosition = elementRect - bodyRect;
+            let offsetPosition = elementPosition - offset;
+            window.scrollTo({
+                top: offsetPosition,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    // Client localStorage sync
+    function saveState() {
+        let state = {};
+        $('.q-radio:checked').each(function() {
+            state[$(this).attr('name')] = $(this).val();
+        });
+        localStorage.setItem(lsKey, JSON.stringify(state));
+    }
+    
+    function restoreState() {
+        let saved = localStorage.getItem(lsKey);
+        if (saved) {
+            try {
+                let state = JSON.parse(saved);
+                for (let key in state) {
+                    let radio = $('input[name="'+key+'"][value="'+state[key]+'"]');
+                    if (!radio.is(':checked')) {
+                        radio.prop('checked', true);
+                        let qNum = radio.data('qnum');
+                        updatePalette(qNum);
+                    }
+                }
+            } catch(e){}
+        }
+        syncCounts();
+    }
+    
+    function updatePalette(qNum) {
+        $('#nav_btn_' + qNum).removeClass('unanswered').addClass('answered shadow text-white');
+        $('#nav_btn_mobile_' + qNum).removeClass('unanswered').addClass('answered shadow text-white');
+        syncCounts();
+    }
+
+    function syncCounts() {
+        let ans = $('.q-radio:checked').length;
+        let unans = totalQuestions - ans;
+        $('#mobileAnsweredCount').text(ans);
+        $('#mobileUnansweredCount').text(unans);
+        $('#desktopAnsweredBadge').text(ans);
+        $('#desktopUnansweredBadge').text(unans);
+        $('#mobileFloatingBadge').text(ans + '/' + totalQuestions);
+    }
+
+    // Real-Time Asynchronous Server-Side Auto-Saver
+    function autoSaveToServer(questionId, chosenOption) {
+        let badge = $('#saveStatusBadge');
+        let text = $('#saveStatusText');
+        
+        badge.removeClass('bg-light text-muted bg-danger text-white bg-success').addClass('bg-warning text-dark');
+        text.html('<i class="fas fa-spinner fa-spin mr-1"></i>Saving...');
+
+        $.ajax({
+            url: 'save_answer_ajax.php',
+            method: 'POST',
+            data: {
+                attempt_id: attemptId,
+                exam_id: examId,
+                question_id: questionId,
+                chosen_option: chosenOption,
+                csrf_token: csrfToken
+            },
+            dataType: 'json'
+        }).done(function(res) {
+            if (res.success) {
+                badge.removeClass('bg-warning text-dark bg-danger').addClass('bg-success text-white');
+                text.html('<i class="fas fa-check-circle mr-1"></i>Saved');
+                setTimeout(function() {
+                    badge.removeClass('bg-success text-white').addClass('bg-light text-muted');
+                    text.html('<i class="fas fa-cloud text-primary mr-1"></i>All Answers Saved');
+                }, 2000);
+            } else {
+                badge.removeClass('bg-warning text-dark').addClass('bg-danger text-white');
+                text.html('<i class="fas fa-exclamation-triangle mr-1"></i>Save Warning');
+            }
+        }).fail(function(xhr) {
+            badge.removeClass('bg-warning text-dark').addClass('bg-secondary text-white');
+            text.html('<i class="fas fa-wifi mr-1"></i>Saved Locally');
+        });
+    }
+
+    $('.q-radio').change(function() {
+        saveState();
+        let qNum = $(this).data('qnum');
+        let qId = $(this).data('qid');
+        let optVal = $(this).val();
+        
+        updatePalette(qNum);
+        autoSaveToServer(qId, optVal);
     });
-}
+
+    // High-friction submit confirmation modal
+    function openSubmitModal() {
+        let ans = $('.q-radio:checked').length;
+        let unans = totalQuestions - ans;
+        
+        $('#modalTotalQ').text(totalQuestions);
+        $('#modalAnsweredQ').text(ans);
+        $('#modalUnansweredQ').text(unans);
+        
+        if (unans > 0) {
+            $('#unansweredWarningCount').text(unans);
+            $('#unansweredWarningAlert').removeClass('d-none');
+        } else {
+            $('#unansweredWarningAlert').addClass('d-none');
+        }
+        
+        $('#submitConfirmModal').modal('show');
+    }
+
+    function finalizeAndSubmitExam() {
+        let btn = document.getElementById('btnFinalSubmitConfirm');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Submitting Final Exam...';
+        localStorage.removeItem(lsKey);
+        document.getElementById('examForm').submit();
+    }
+
+    $(document).ready(function() {
+        restoreState();
+    });
+
+    // Active Exam Session Heartbeat Beacon - Keeps student session live during long exams
+    (function() {
+        let consecutiveFailures = 0;
+        function pingExamHeartbeat() {
+            $.ajax({
+                url: 'heartbeat.php',
+                method: 'POST',
+                data: { current_page: 'Active Exam ID: ' + examId },
+                dataType: 'json'
+            }).done(function() {
+                consecutiveFailures = 0;
+            }).fail(function(xhr) {
+                consecutiveFailures++;
+                if (xhr.status === 401 && consecutiveFailures >= 3) {
+                    try {
+                        var resp = JSON.parse(xhr.responseText);
+                        if (resp.error === 'concurrent') {
+                            alert("Session Alert: Your account was logged in from another device.");
+                            window.location.href = 'login.php?msg=concurrent';
+                        }
+                    } catch(e) {}
+                }
+            });
+        }
+        setInterval(pingExamHeartbeat, 25000);
+    })();
+
+    // Doubt Flagging Handlers
+    let currentFlaggingQNum = null;
+
+    function openFlagModal(questionId, qNum) {
+        currentFlaggingQNum = qNum;
+        document.getElementById('flagQuestionId').value = questionId;
+        document.getElementById('flagModalQNum').textContent = 'Q' + qNum;
+        $('#flagModal').modal('show');
+    }
+
+    function handleFlagSubmit(e) {
+        e.preventDefault();
+        const btn = document.getElementById('flagSubmitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Submitting...';
+
+        const formData = new FormData(e.target);
+
+        fetch('flag_question_ajax.php', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-flag mr-1"></i>Submit Doubt Flag';
+            if (data.success) {
+                $('#flagModal').modal('hide');
+                const flagBtn = document.getElementById('flagBtn' + currentFlaggingQNum);
+                if (flagBtn) {
+                    flagBtn.classList.remove('btn-outline-warning');
+                    flagBtn.classList.add('btn-warning');
+                    flagBtn.querySelector('.flag-text').textContent = 'Flagged';
+                }
+                const navBtn = document.getElementById('nav_btn_' + currentFlaggingQNum);
+                if (navBtn) {
+                    navBtn.classList.add('flagged');
+                }
+                const navBtnMobile = document.getElementById('nav_btn_mobile_' + currentFlaggingQNum);
+                if (navBtnMobile) {
+                    navBtnMobile.classList.add('flagged');
+                }
+                alert('Question marked and recorded for teacher review!');
+            } else {
+                alert(data.error || 'Failed to submit flag.');
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-flag mr-1"></i>Submit Doubt Flag';
+            alert('An error occurred: ' + err);
+        });
+    }
 </script>
 </body>
 </html>
