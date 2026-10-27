@@ -206,6 +206,10 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             <div class="drawer-category text-warning"><i class="fas fa-crown mr-1"></i> Super Admin</div>
             <a href="<?php echo BASE_URL; ?>/admin/admins/index.php" class="drawer-link text-warning"><i class="fas fa-users-cog"></i> Admin Accounts</a>
             <a href="<?php echo BASE_URL; ?>/admin/admins/billing.php" class="drawer-link text-warning"><i class="fas fa-file-invoice-dollar"></i> Billing & Payments</a>
+            <a href="<?php echo BASE_URL; ?>/admin/server_backup.php" class="drawer-link text-info"><i class="fas fa-server"></i> Server & Cloud Backups</a>
+            <?php elseif (admin_has_feature('server_backup')): ?>
+            <div class="drawer-category text-info"><i class="fas fa-server mr-1"></i> System</div>
+            <a href="<?php echo BASE_URL; ?>/admin/server_backup.php" class="drawer-link text-info"><i class="fas fa-server"></i> Server & Cloud Backups</a>
             <?php endif; ?>
 
             <!-- Questions -->
@@ -331,6 +335,14 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                         <a class="dropdown-item py-2 font-weight-bold text-dark" href="<?php echo BASE_URL; ?>/admin/admins/billing.php">
                             <i class="fas fa-file-invoice-dollar mr-2 text-success"></i>Billing & Payments
                         </a>
+                        <a class="dropdown-item py-2 font-weight-bold text-dark" href="<?php echo BASE_URL; ?>/admin/server_backup.php">
+                            <i class="fas fa-server mr-2 text-info"></i>Server & Cloud Backups
+                        </a>
+                        <div class="dropdown-divider"></div>
+                    <?php elseif (admin_has_feature('server_backup')): ?>
+                        <a class="dropdown-item py-2 font-weight-bold text-dark" href="<?php echo BASE_URL; ?>/admin/server_backup.php">
+                            <i class="fas fa-server mr-2 text-info"></i>Server & Cloud Backups
+                        </a>
                         <div class="dropdown-divider"></div>
                     <?php endif; ?>
                     <?php if (can_manage_sub_admins()): ?>
@@ -401,6 +413,22 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                     <li class="nav-item">
                         <a class="nav-link font-weight-bold text-warning" href="<?php echo BASE_URL; ?>/admin/admins/billing.php">
                             <i class="fas fa-file-invoice-dollar mr-2 fa-fw"></i> Billing & Payments
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link font-weight-bold text-info" href="<?php echo BASE_URL; ?>/admin/server_backup.php">
+                            <i class="fas fa-server mr-2 fa-fw"></i> Server & Cloud Backups
+                        </a>
+                    </li>
+                </ul>
+                <?php elseif (admin_has_feature('server_backup')): ?>
+                <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mb-2 text-white-50 font-weight-bold">
+                    <span>System</span>
+                </h6>
+                <ul class="nav flex-column mb-4">
+                    <li class="nav-item">
+                        <a class="nav-link font-weight-bold text-info" href="<?php echo BASE_URL; ?>/admin/server_backup.php">
+                            <i class="fas fa-server mr-2 fa-fw"></i> Server & Cloud Backups
                         </a>
                     </li>
                 </ul>

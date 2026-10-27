@@ -36,6 +36,7 @@ Engineered for reliability, ultra-fast load times, and high concurrency on cost-
   - [12. Staff Payroll System](#12-staff-payroll-system)
   - [13. Academic Reporting & Batch Percentile Analytics](#13-academic-reporting--batch-percentile-analytics)
   - [14. Exam Integrity & Anti-Cheat Monitoring](#14-exam-integrity--anti-cheat-monitoring)
+  - [15. Server Telemetry & Dual Cloud Backup Engine (Telegram & Rclone)](#15-server-telemetry--dual-cloud-backup-engine-telegram--rclone)
 - [High-Concurrency Performance & Resilience](#-high-concurrency-performance--resilience)
 - [Technology Stack](#-technology-stack)
 - [Repository Directory Structure](#-repository-directory-structure)
@@ -215,6 +216,15 @@ The system maintains a granular permissions matrix to protect administrative pri
 * **Fullscreen Lock Enforcement:** Prompts students into fullscreen examination mode to minimize background application usage.
 * **Copy/Paste Prevention:** Context menu and clipboard inspection prevention during active assessment sessions.
 
+### 15. Server Telemetry & Dual Cloud Backup Engine (Telegram & Rclone)
+* **Real-Time Hardware & Container Telemetry:** Dedicated administrative console ([`admin/server_backup.php`](admin/server_backup.php)) rendering live CPU load, core temperature sensors, RAM utilization, NVMe/SSD disk capacity, system uptime, active student connections, and Docker service health.
+* **Dual-Destination Cloud Redundancy:** Automated pipeline bundling compressed MariaDB database dumps (`.sql.gz`) and student submission media (`uploads.tar.gz`). Backups are synchronized to external cloud providers (Google Drive, Cloudflare R2, AWS S3) via **Rclone** and dispatched directly to administrators' mobile devices via **Telegram Bot API**.
+* **Interactive Telegram Admin Bot Daemon:** Systemd-managed background service ([`scripts/telegram_bot_daemon.py`](scripts/telegram_bot_daemon.py)) enabling complete mobile remote control and server observability without requiring SSH:
+  * `📊 Server Status` (`/status`): Hardware load, thermals, battery state, running containers, and online student count.
+  * `💾 Instant Backup` (`/backup`): Triggers live database dump, compresses with Gzip, and streams the `.sql.gz` snapshot directly to the administrator's Telegram conversation.
+  * `🏓 Ping` (`/ping`): Instant connection heartbeat and round-trip latency check.
+* **Web Management Console:** Direct UI to manage Telegram Bot credentials, verify destination Chat IDs, execute 1-click test pings, trigger instant backups, and browse/download existing database snapshots directly from the web browser.
+
 ---
 
 ## ⚡ High-Concurrency Performance & Resilience
@@ -316,6 +326,8 @@ EduERP/
 │   │   └── resolve_flag_ajax.php    # Doubt flag resolution endpoint
 │   ├── reports/               # Student report cards, batch percentiles & attendance transcripts
 │   ├── schedule/              # Teacher timetables and class slot planning
+│   ├── server_backup.php      # Live hardware telemetry, Telegram bot control & cloud backup console
+│   ├── settings.php           # Institute branding, system configurations & credentials
 │   ├── students/              # Student directory, profile management, CSV export & password resets
 │   ├── subjects/              # Board, class, and academic subject configurations
 │   └── sub_admins/            # Teacher & Accountant role delegation and permissions
@@ -335,9 +347,11 @@ EduERP/
 │   ├── student_auth.php       # Student session validation, timeout rules & exam resilience guard
 │   └── student_header.php     # Student portal navigation layout and session guard
 ├── scripts/
-│   ├── backup.sh / .bat       # Automated database backup scripts
+│   ├── backup.sh / .bat       # Automated dual-cloud backup engine (MariaDB, Rclone sync & Telegram delivery)
+│   ├── eduerp-bot.service     # Systemd unit file for Telegram health daemon background service
 │   ├── publish.sh             # Zero-downtime remote host deployment with pre-update backups
 │   ├── restore.sh             # Database restore utility from backup SQL files
+│   ├── telegram_bot_daemon.py # Long-polling Telegram daemon for remote server telemetry & on-demand backups
 │   └── update.sh / .bat       # Zero-downtime VPS update automation
 ├── student/                   # Student portal modules
 │   ├── coding/                # Coding practice arena, code editor & contest leaderboard
@@ -463,6 +477,30 @@ For safe production deployments with automatic host-level database backups:
 ```bash
 bash scripts/publish.sh
 ```
+
+### Dual Cloud Backup Engine & Telegram Admin Bot
+EduERP incorporates an enterprise-grade automated backup and remote server telemetry architecture:
+
+1. **Dual-Destination Cloud Synchronization (`scripts/backup.sh`):**
+   - Dumps MariaDB into a timestamped, Gzip-compressed snapshot (`backup_YYYYMMDD_HHMMSS.sql.gz`).
+   - Packages user upload media into `uploads_YYYYMMDD_HHMMSS.tar.gz`.
+   - **Option 1 (Offsite Cloud Storage):** Syncs directly to cloud storage (Google Drive, OneDrive, Cloudflare R2, AWS S3) via configured Rclone remotes (`RCLONE_REMOTE`).
+   - **Option 2 (Telegram Smartphone Delivery):** Streams the compressed `.sql.gz` database file directly into the administrator's Telegram conversation via Telegram Bot API (`TELEGRAM_BOT_TOKEN` & `TELEGRAM_CHAT_ID`).
+   - Maintains a rolling 30-day snapshot retention policy on disk.
+
+2. **Telegram Server Management Daemon (`scripts/telegram_bot_daemon.py`):**
+   - Runs as a persistent Linux `systemd` service (`eduerp-bot.service`).
+   - Securely responds **only** to the authorized `TELEGRAM_CHAT_ID`.
+   - Provides an interactive keyboard with buttons:
+     - `📊 Server Status` (`/status`): Hardware CPU load, core thermals, RAM utilization, SSD disk space, system uptime, and live Docker container mesh.
+     - `💾 Instant Backup` (`/backup`): Triggers live snapshot generation and sends the backup directly to Telegram.
+     - `🏓 Ping` (`/ping`): Instant latency test.
+
+3. **Web Management Console (`admin/server_backup.php`):**
+   - Accessible by Super Admins directly from the admin dashboard and navigation header.
+   - Live hardware gauges (CPU, RAM, Disk, System Temp, Online Students).
+   - Form to update Telegram API Bot Token and Chat ID without touching raw configuration files.
+   - Test Ping button and 1-Click "Trigger Instant Backup" with direct browser snapshot download links.
 
 ### Manual Database Snapshot & Restore
 - **Backup:**
