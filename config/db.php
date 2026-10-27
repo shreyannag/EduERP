@@ -1,5 +1,17 @@
 <?php
 // config/db.php
+
+// Application Version & Release Metadata
+if (!defined('EDUERP_VERSION')) {
+    define('EDUERP_VERSION', 'v2.4.0');
+}
+if (!defined('EDUERP_EDITION')) {
+    define('EDUERP_EDITION', 'Enterprise LTS');
+}
+if (!defined('EDUERP_BUILD')) {
+    define('EDUERP_BUILD', '2026.10');
+}
+
 if (!defined('BASE_URL')) {
     if (getenv('BASE_URL') !== false) {
         define('BASE_URL', rtrim(getenv('BASE_URL'), '/'));
@@ -38,4 +50,3 @@ try {
 }
 
 return $pdo;
-

@@ -2,7 +2,7 @@
 // includes/admin_footer.php
 ?>
             <footer class="pt-5 pb-3 text-muted border-top mt-5 text-center small">
-                <p class="mb-0">&copy; <?php echo date('Y'); ?> Developed by <strong>SN Technologies (Shreyan Nag Technologies)</strong></p>
+                <p class="mb-0">&copy; <?php echo date('Y'); ?> Developed by <strong>SN Technologies (Shreyan Nag Technologies)</strong> &bull; EduERP <?= h(defined('EDUERP_VERSION') ? EDUERP_VERSION : 'v2.4.0') ?> (<?= h(defined('EDUERP_EDITION') ? EDUERP_EDITION : 'Enterprise LTS') ?>)</p>
             </footer>
         </main>
     </div>
