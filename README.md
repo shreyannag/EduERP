@@ -12,7 +12,7 @@
 
 **EduERP** is an enterprise-grade, multi-tenant Educational Resource Planning (ERP) and Assessment Platform tailored for coaching institutes, schools, tutoring networks, and STEM academies. 
 
-Engineered for reliability, ultra-fast load times, and high concurrency on cost-effective hardware, EduERP consolidates **academic scheduling, student information management, online MCQ examinations, competitive coding arenas, digital homework grading, fee ledgers, attendance registers, staff payroll, and administrative governance** into a single cohesive system.
+Engineered for reliability, ultra-fast load times, and high concurrency on cost-effective hardware, EduERP consolidates **academic scheduling, student information management, online MCQ examinations with real-time answer persistence, competitive coding arenas, digital homework grading, fee ledgers, attendance registers, staff payroll, and administrative governance** into a single cohesive system.
 
 ---
 
@@ -56,7 +56,7 @@ Modern educational institutes frequently struggle with fragmented software stack
 EduERP unites all institute operations under **one unified codebase**:
 - **Zero Bloat & Peak Speed:** Built with optimized native PHP 8.x PDO and clean Bootstrap 4.6 components—delivering sub-50ms query responses without bulky runtime framework overhead.
 - **True Multi-Tenancy & Isolation:** Host dozens of independent coaching centers or franchises with distinct branding, isolated question banks, independent student enrollments, and dedicated fee ledgers.
-- **Hardware-Friendly Concurrency:** Designed to sustain high student loads during timed examinations through ACID transactions, lock-free status caching, composite indexing, and Gzip wire compression.
+- **Hardware-Friendly Concurrency:** Designed to sustain high student loads during timed examinations through ACID transactions, real-time background auto-saving, lock-free status caching, composite indexing, and Gzip wire compression.
 - **Built-in STEM Coding Judge:** Integrated multi-language code compiler and execution judge supporting Python, Java, C++, C, JavaScript, and PHP with automated test case evaluation.
 - **Administrative Governance:** Staff actions, question edits, and item deletions are guarded by approval queues and audit logs for total institutional control.
 
@@ -139,6 +139,13 @@ The system maintains a granular permissions matrix to protect administrative pri
 * **Attempt Tracking:** Increments `blocked_attempts_count` and updates `last_blocked_at` to monitor prevented spam attempts.
 
 ### 4. Online Examination & Assessment Engine (MCQ)
+* **Real-Time Asynchronous AJAX Answer Auto-Saver:** Every option selected by a student immediately triggers a background AJAX call to [`student/save_answer_ajax.php`](student/save_answer_ajax.php), persisting their choice into `attempt_answers` in real-time with visual header confirmation (`<i class="fas fa-check-circle"></i> Saved`). Guarantees zero answer loss even if the browser crashes, phone battery dies, or tab unloads.
+* **Server-Side Answer Pre-Loading:** When an exam reloads, previously chosen answers are pre-loaded directly from the database and merged with client state, ensuring complete exam resilience.
+* **Question-by-Question Navigation Controls:** Under every question card, dedicated **"Previous Question"** and **"Next Question"** buttons facilitate intuitive, step-by-step progression across mobile and desktop devices.
+* **High-Friction Submit Modal (`#submitConfirmModal`):** Replaces basic browser confirmation dialogs with a clear modal summarizing Total, Answered, and Unanswered questions. An explicit warning alert (`"You have X unanswered questions! If you submit now, they will be marked as skipped"`) eliminates accidental early submissions after answering only one question.
+* **Mid-Exam Session Kick-Out Immunity:** Updated session guard in [`includes/student_auth.php`](includes/student_auth.php) ensures students taking an active exam are never booted out to login due to transient token mismatches or mobile double-tap logins; sessions are safely resynchronized.
+* **Automated Expired Exam Finalization:** When an exam's scheduled time passes, [`student/dashboard.php`](student/dashboard.php) automatically grades and finalizes any open attempts in real-time. Students who attended are properly credited with their score and attendance rather than unfairly marked as "Missed".
+* **Robust Option & LaTeX Formatting:** Unescapes mathematical operators (`<`, `>`, `&`) within LaTeX formulas (`$...$`, `\(...\)`) and preserves literal values (including `'0'`), guaranteeing that valid options never render as blank.
 * **Timed Assessments:** Configurable start date, start time, and duration countdown timer with automated submission on zero.
 * **Randomization:** Dynamic question shuffling and answer option permutation (`A, B, C, D`) to prevent peer copying.
 * **Negative Marking:** Flexible scoring models (e.g., +4 for correct, -1 for incorrect, 0 for unattempted).
@@ -239,13 +246,17 @@ EduERP is engineered to deliver high throughput and stability during peak traffi
 ### 1. Transient Query Throttling ([`includes/functions.php`](includes/functions.php))
 Background exam auto-completion queries previously ran on every student page request. A 30-second lock-free transient file throttle eliminates database table locks, reducing background status update queries by **99.9%** during simultaneous exam starts.
 
-### 2. ACID Transactions & Submission Deduplication ([`student/submit.php`](student/submit.php))
-Submissions are wrapped inside an ACID transaction (`$pdo->beginTransaction()` ... `$pdo->commit()`). Multiple answer rows are processed with `ON DUPLICATE KEY UPDATE` to safely handle double-submits or flaky network retries without database deadlocks or duplicate key exceptions.
+### 2. Real-Time Background AJAX Auto-Save ([`student/save_answer_ajax.php`](student/save_answer_ajax.php))
+Every click on an option triggers an asynchronous background AJAX call that upserts into `attempt_answers`. This prevents network congestion spikes at the end of the exam and guarantees that even if a student disconnects, all selected answers are safely in the database.
 
-### 3. Race-Condition Safe Exam Starts ([`student/exam.php`](student/exam.php))
-Attempt record creation uses protected `try...catch (\PDOException $e)` blocks with automatic fallback recovery. If a student rapidly double-clicks "Start Exam" or opens multiple tabs, the system gracefully binds to the existing attempt without failing.
+### 3. ACID Transactions & Submission Deduplication ([`student/submit.php`](student/submit.php))
+Submissions are wrapped inside an ACID transaction (`$pdo->beginTransaction()` ... `$pdo->commit()`). Pre-saved database answers are merged with any POST answers, ensuring that no responses are dropped even under network fluctuations or low-memory device reloads.
 
-### 4. High-Performance Composite Indexes ([`docker/migrate.php`](docker/migrate.php))
+### 4. Race-Condition Safe Exam Starts & Mobile Login Debounce
+- Attempt record creation in [`student/exam.php`](student/exam.php) uses protected `try...catch (\PDOException $e)` blocks with automatic fallback recovery to prevent duplicate attempts on double-click.
+- In [`student/login.php`](student/login.php), form buttons are disabled immediately upon submit, and recent active session tokens are re-used within a 60-second window, completely eliminating mobile double-tap login session invalidations.
+
+### 5. High-Performance Composite Indexes ([`docker/migrate.php`](docker/migrate.php))
 The database features 10 specialized composite indexes:
 - `attempts`: `(student_id, exam_id)`, `(exam_id, is_submitted)`
 - `attempt_answers`: `(attempt_id, question_id)`
@@ -256,7 +267,7 @@ The database features 10 specialized composite indexes:
 - `batch_students`: `(student_id)`
 - `blocked_enrollment_ips`: `(ip_address)`, `(admin_id)`, `(is_active)`
 
-### 5. Network Wire Compression & Browser Caching ([`.htaccess`](.htaccess))
+### 6. Network Wire Compression & Browser Caching ([`.htaccess`](.htaccess))
 Apache `mod_deflate` compresses all text, HTML, JSON, CSS, and JS payloads, cutting egress bandwidth consumption by **65%–80%**. Static CSS, JS, fonts, and images are cached in the student's browser for 30 days, optimizing performance on standard 100–150 Mbps network uplinks.
 
 ---
@@ -321,7 +332,7 @@ EduERP/
 │   ├── admin_auth.php         # Admin role guards, session management & tenant resolution
 │   ├── admin_header.php       # Administrative navigation layout and session guard
 │   ├── functions.php          # Global utility functions, IP detection, status throttling & helpers
-│   ├── student_auth.php       # Student session validation and tenant isolation
+│   ├── student_auth.php       # Student session validation, timeout rules & exam resilience guard
 │   └── student_header.php     # Student portal navigation layout and session guard
 ├── scripts/
 │   ├── backup.sh / .bat       # Automated database backup scripts
@@ -330,15 +341,18 @@ EduERP/
 │   └── update.sh / .bat       # Zero-downtime VPS update automation
 ├── student/                   # Student portal modules
 │   ├── coding/                # Coding practice arena, code editor & contest leaderboard
-│   ├── dashboard.php          # Student dashboard (active exams, homework, fee balance)
-│   ├── exam.php               # Live timed examination interface with anti-cheat hooks & doubt flags
+│   ├── dashboard.php          # Student dashboard (active exams, auto-finalization, scorecards)
+│   ├── exam.php               # Live timed exam interface with AJAX auto-saver & confirm modal
 │   ├── fees.php               # Personal fee ledger and downloadable invoice receipts
 │   ├── flag_question_ajax.php # Student question doubt submission endpoint
+│   ├── heartbeat.php          # Student session activity beacon
 │   ├── homework.php           # Homework assignments view and submission modal
 │   ├── homework_view.php      # Submitted solution viewer with embedded PDF reader
+│   ├── login.php              # Student authentication with debounce & multi-tap protection
 │   ├── report_card.php        # Printable student academic performance transcripts
 │   ├── review.php             # Post-exam question-by-question review, explanations & doubts
-│   └── submit.php             # Atomic ACID exam submission processing
+│   ├── save_answer_ajax.php   # Real-time background option auto-saver endpoint
+│   └── submit.php             # Atomic ACID exam submission & answer merge processing
 └── uploads/                   # User-uploaded files (homework attachments, student avatars)
 ```
 
@@ -473,6 +487,9 @@ EduERP includes regression test suites to guarantee code stability, database int
 # Run Core Bug Regression & Examination Logic Verification
 php scratch/test_bugs_verification.php
 
+# Run Live Auto-Save, Answer Merge & Dashboard Resilience Test Suite
+php scratch/test_exam_fixes.php
+
 # Run Coding Platform & Automated Judge Test Suite
 php scratch/test_coding_full_system.php
 ```
@@ -485,7 +502,7 @@ All test suites execute end-to-end assertions against the active database and re
 
 - **Prepared SQL Statements:** 100% of database interactions utilize PDO prepared statements with strict parameter binding to eliminate SQL injection vulnerabilities.
 - **XSS Protection:** Output sanitization through HTML entity encoding ([`h()`](includes/functions.php)) and purified input strings.
-- **Session Integrity & Fixation Defense:** Dynamic session cookie configuration with `httponly`, `samesite=Lax`, and periodic ID regeneration.
+- **Session Integrity & Mid-Exam Protection:** Dynamic session cookie configuration with `httponly`, `samesite=Lax`, periodic ID regeneration, and exam context resynchronization to prevent active test takers from being prematurely kicked out.
 - **IP Blacklisting & Subnet Shielding:** Restricts fraudulent admissions and automated bot scrapers based on exact IP, wildcard patterns, or CIDR network blocks.
 - **Governance Approval Workflow:** Intercepts deletions requested by sub-admins/teachers, requiring explicit Super Admin review to prevent accidental data loss.
 - **Accountant Privacy Guard:** Accountants cannot see total institutional collections, keeping institute financial health confidential from non-administrative staff.
