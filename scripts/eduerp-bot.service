@@ -1,0 +1,17 @@
+[Unit]
+Description=EduERP Telegram Health & Control Bot Daemon
+After=network.target docker.service
+Wants=docker.service
+
+[Service]
+Type=simple
+User=shreyan
+WorkingDirectory=/home/shreyan/EduERP
+ExecStart=/usr/bin/python3 /home/shreyan/EduERP/scripts/telegram_bot_daemon.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
