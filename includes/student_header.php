@@ -255,6 +255,9 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
                             <p class="mb-0 small text-muted font-family-monospace"><?php echo h($current_student['username'] ?? ''); ?></p>
                             <div class="small text-primary font-weight-bold mt-1"><i class="fas fa-university mr-1"></i><?php echo h($current_student['institute_name'] ?? 'Main Campus'); ?></div>
                         </div>
+                        <a class="dropdown-item py-2 text-dark font-weight-bold" href="<?php echo BASE_URL; ?>/student/report_card.php">
+                            <i class="fas fa-award mr-2 text-primary"></i>My Report Card
+                        </a>
                         <a class="dropdown-item py-2 text-dark font-weight-bold" href="<?php echo BASE_URL; ?>/student/homework.php">
                             <i class="fas fa-book-reader mr-2 text-primary"></i>My Homework
                         </a>
