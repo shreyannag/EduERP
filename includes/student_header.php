@@ -36,16 +36,7 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Portal - Online Examination Platform</title>
-    <!-- PWA Progressive Web App Manifest & Meta Tags -->
-    <link rel="manifest" href="<?php echo BASE_URL; ?>/manifest.json">
-    <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>/assets/icons/favicon.png">
-    <link rel="apple-touch-icon" href="<?php echo BASE_URL; ?>/assets/icons/icon-192.png">
-    <meta name="theme-color" content="#1e3a8a">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="EduERP">
-    <script src="<?php echo BASE_URL; ?>/assets/js/pwa.js" defer></script>
+
     <!-- PWA Progressive Web App Manifest & Meta Tags -->
     <link rel="manifest" href="<?php echo BASE_URL; ?>/manifest.json">
     <link rel="icon" type="image/png" href="<?php echo BASE_URL; ?>/assets/icons/favicon.png">
@@ -85,12 +76,24 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     <style>
-        /* Universal Scrollbar Stability: Prevents horizontal layout shifts / page jerking */
+        /* Universal Scrollbar & Viewport Stability: Prevents horizontal layout shifts / page jerking */
         html {
-            overflow-y: scroll;
+            overflow-y: scroll !important;
+            overflow-x: hidden !important;
             scrollbar-gutter: stable;
+            width: 100% !important;
+            max-width: 100% !important;
         }
-        body { background-color: #f3f4f6; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; flex-direction: column; min-height: 100vh; }
+        body { 
+            overflow-x: hidden !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            background-color: #f3f4f6; 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            min-height: 100vh; 
+        }
         .student-navbar { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); }
         .student-navbar .navbar-brand { font-weight: 800; letter-spacing: -0.5px; }
         .main-content { padding-top: 40px; padding-bottom: 60px; flex-grow: 1; }
@@ -154,9 +157,10 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
             border: none !important;
             background: transparent !important;
             outline: none !important;
+            overflow: hidden !important;
         }
         .student-mobile-nav-item i { font-size: 1.25rem; margin-bottom: 2px; }
-        .student-mobile-nav-item.active { color: #1e3a8a !important; font-weight: 700 !important; }
+        .student-mobile-nav-item.active { color: #1e3a8a !important; font-weight: 600 !important; }
         .student-mobile-nav-item.active i { color: #041e49 !important; }
         .student-mobile-nav-item .mobile-icon-wrapper {
             display: flex;

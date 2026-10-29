@@ -77,12 +77,13 @@ $overallTotal = count($allHomework);
 
 <style>
 .hw-card {
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
     border-radius: 12px;
+    overflow: hidden !important;
 }
 .hw-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+    border-color: #93c5fd !important;
 }
 .badge-tech {
     padding: 0.25rem 0.55rem;
@@ -94,6 +95,26 @@ $overallTotal = count($allHomework);
 .badge-code { background: #1e293b; color: #38bdf8; border: 1px solid #334155; }
 .badge-latex { background: #fdf2f8; color: #db2777; border: 1px solid #fbcfe8; }
 .badge-pic { background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }
+
+/* Jitter-free Tabs */
+#homeworkTabs .nav-link {
+    color: #475569 !important;
+    font-weight: 600 !important;
+    border-radius: 999px;
+    padding: 0.6rem 1.3rem !important;
+    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
+    border: 1px solid transparent;
+}
+#homeworkTabs .nav-link.active {
+    background: #1e3a8a !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25) !important;
+    font-weight: 600 !important;
+}
+#homeworkTabsContent {
+    min-height: 250px;
+    position: relative;
+}
 </style>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4 pb-2 border-bottom">

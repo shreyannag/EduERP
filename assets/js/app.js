@@ -56,6 +56,14 @@ function createMaterialRipple(trigger, event) {
 
     if (!trigger || !trigger.classList || trigger.classList.contains('disabled') || trigger.disabled) return;
 
+    // Do NOT trigger DOM-mutating ripples on standard page navigation links to avoid layout jerks right before page unload
+    if (trigger.tagName === 'A' && trigger.href && !trigger.getAttribute('data-toggle') && !trigger.getAttribute('href').startsWith('#') && !trigger.getAttribute('href').startsWith('javascript:')) {
+        return;
+    }
+
+    // Always enforce overflow containment on trigger to prevent any sub-pixel overflow or screen jerk
+    trigger.style.overflow = 'hidden';
+
     var computedPos = window.getComputedStyle(trigger).position;
     if (computedPos === 'static') {
         trigger.style.position = 'relative';
@@ -76,11 +84,15 @@ function createMaterialRipple(trigger, event) {
         Math.max(y, rect.height - y)
     );
 
+    // Limit ripple dimension to avoid excessive offscreen bounds
+    maxRadius = Math.min(maxRadius, Math.max(rect.width, rect.height) * 1.2);
+
     var diameter = maxRadius * 2;
     ripple.style.width = diameter + 'px';
     ripple.style.height = diameter + 'px';
     ripple.style.left = (x - maxRadius) + 'px';
     ripple.style.top = (y - maxRadius) + 'px';
+    ripple.style.pointerEvents = 'none';
 
     trigger.appendChild(ripple);
 
