@@ -85,6 +85,11 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     <style>
+        /* Universal Scrollbar Stability: Prevents horizontal layout shifts / page jerking */
+        html {
+            overflow-y: scroll;
+            scrollbar-gutter: stable;
+        }
         body { background-color: #f3f4f6; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; flex-direction: column; min-height: 100vh; }
         .student-navbar { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); }
         .student-navbar .navbar-brand { font-weight: 800; letter-spacing: -0.5px; }
@@ -92,11 +97,11 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
         
         /* Student Navbar Links */
         .student-navbar .nav-link {
-            color: rgba(219, 234, 254, 0.75) !important; /* Soft muted periwinkle-blue */
-            font-weight: 600;
+            color: rgba(219, 234, 254, 0.8) !important;
+            font-weight: 600 !important;
             padding: 0.55rem 1.15rem !important;
             border-radius: 999px;
-            transition: all 0.2s ease-in-out;
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
             margin: 0 3px;
             border: 1px solid transparent;
         }
@@ -109,7 +114,7 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
             background: rgba(255, 255, 255, 0.22) !important;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
             border-color: rgba(255, 255, 255, 0.3) !important;
-            font-weight: 700;
+            font-weight: 600 !important;
         }
     </style>
     <!-- Critical Mobile Bottom Nav Inline CSS (Cache-Proof) -->
@@ -161,7 +166,7 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
             height: 30px;
             border-radius: 16px;
             margin-bottom: 2px;
-            transition: all 0.25s cubic-bezier(0.2, 0, 0, 1);
+            transition: background-color 0.2s ease, color 0.2s ease !important;
         }
         .student-mobile-nav-item.active .mobile-icon-wrapper {
             background: #d3e3fd !important;

@@ -148,11 +148,61 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
         }
     }
     body.modal-open .admin-mobile-bottom-nav { display: none !important; }
+
+    /* Universal Scrollbar Stability to prevent horizontal layout jerk */
+    html {
+        overflow-y: scroll;
+        scrollbar-gutter: stable;
+    }
+
+    /* Desktop Sidebar - Sticky & Independently Scrollable */
+    @media (min-width: 768px) {
+        .sidebar {
+            position: sticky !important;
+            top: 56px !important;
+            height: calc(100vh - 56px) !important;
+            align-self: flex-start !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            overscroll-behavior: contain !important;
+            background: #1e293b !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+            padding-top: 1rem !important;
+            padding-bottom: 3rem !important;
+            z-index: 100 !important;
+        }
+        .sidebar-sticky {
+            position: relative !important;
+            height: 100% !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+        }
+        .sidebar::-webkit-scrollbar,
+        .sidebar-sticky::-webkit-scrollbar {
+            width: 5px;
+        }
+        .sidebar::-webkit-scrollbar-track,
+        .sidebar-sticky::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        .sidebar::-webkit-scrollbar-thumb,
+        .sidebar-sticky::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35);
+            border-radius: 999px;
+        }
+        .sidebar::-webkit-scrollbar-thumb:hover,
+        .sidebar-sticky::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.65);
+        }
+        main[role="main"] {
+            min-height: calc(100vh - 56px);
+        }
+    }
     </style>
 </head>
 <body class="has-admin-bottom-nav">
 
-<nav class="navbar navbar-expand-md navbar-dark bg-dark shadow-sm py-2">
+<nav class="navbar navbar-expand-md navbar-dark bg-dark shadow-sm py-2 sticky-top" style="z-index: 1030;">
     <a class="navbar-brand font-weight-bold d-flex align-items-center" href="<?php echo BASE_URL; ?>/admin/dashboard.php" style="letter-spacing: -0.5px;">
         <i class="fas fa-graduation-cap text-primary mr-2"></i>
         <span><?php echo h($_SESSION['institute_name'] ?? 'Exam Admin'); ?></span>

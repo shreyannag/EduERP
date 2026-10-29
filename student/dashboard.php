@@ -149,11 +149,11 @@ if (!in_array($active_tab_request, ['active', 'upcoming', 'completed'])) {
 }
 #dashboardTabs .nav-link {
     color: #475569 !important;
-    font-weight: 600;
+    font-weight: 600 !important;
     border-radius: 999px;
     border: none;
     padding: 0.65rem 1.4rem !important;
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
     background: transparent;
 }
 #dashboardTabs .nav-link:hover {
@@ -164,7 +164,7 @@ if (!in_array($active_tab_request, ['active', 'upcoming', 'completed'])) {
     background: #1e3a8a !important;
     color: #ffffff !important;
     box-shadow: 0 4px 12px rgba(30, 58, 138, 0.25) !important;
-    font-weight: 700;
+    font-weight: 600 !important;
 }
 #dashboardTabs .nav-link.active i {
     color: #ffffff !important;
@@ -173,6 +173,10 @@ if (!in_array($active_tab_request, ['active', 'upcoming', 'completed'])) {
     background-color: rgba(255, 255, 255, 0.25) !important;
     color: #ffffff !important;
     border: 1px solid rgba(255, 255, 255, 0.4) !important;
+}
+#dashboardTabContent {
+    min-height: 280px;
+    position: relative;
 }
 @media (max-width: 767.98px) {
     #dashboardTabs {

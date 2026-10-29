@@ -1,4 +1,10 @@
 /* assets/css/custom.css */
+/* Universal Scrollbar Stability: Prevents horizontal layout shifts / page jerking */
+html {
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+}
+
 body {
     font-family: 'Inter', sans-serif;
     background-color: #f8f9fa;
@@ -30,11 +36,10 @@ body.admin-login-bg {
 
 /* Micro animations */
 .btn {
-    transition: all 0.2s ease-in-out;
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease !important;
 }
 .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.12);
 }
 
 /* Custom Nav tabs for exam */
@@ -76,10 +81,51 @@ body.admin-login-bg {
     color: #0d6efd;
 }
 
-/* General Layout Tweaks */
+/* General Layout Tweaks - Desktop Sidebar Sticky & Independently Scrollable */
+@media (min-width: 768px) {
+    .sidebar {
+        position: sticky !important;
+        top: 56px !important;
+        height: calc(100vh - 56px) !important;
+        align-self: flex-start !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        overscroll-behavior: contain !important;
+        background: #1e293b !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+        padding-top: 1rem !important;
+        padding-bottom: 3rem !important;
+        z-index: 100 !important;
+    }
+    .sidebar-sticky {
+        position: relative !important;
+        height: 100% !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+    }
+    .sidebar::-webkit-scrollbar,
+    .sidebar-sticky::-webkit-scrollbar {
+        width: 5px;
+    }
+    .sidebar::-webkit-scrollbar-track,
+    .sidebar-sticky::-webkit-scrollbar-track {
+        background: rgba(15, 23, 42, 0.5);
+    }
+    .sidebar::-webkit-scrollbar-thumb,
+    .sidebar-sticky::-webkit-scrollbar-thumb {
+        background: rgba(148, 163, 184, 0.35);
+        border-radius: 999px;
+    }
+    .sidebar::-webkit-scrollbar-thumb:hover,
+    .sidebar-sticky::-webkit-scrollbar-thumb:hover {
+        background: rgba(148, 163, 184, 0.65);
+    }
+    main[role="main"] {
+        min-height: calc(100vh - 56px);
+    }
+}
 .sidebar {
-    min-height: calc(100vh - 56px);
-    background: #343a40;
+    background: #1e293b;
 }
 .sidebar .nav-link {
     color: rgba(255,255,255,.75);
@@ -839,4 +885,24 @@ label.text-muted, .card-body label {
 .admin-mobile-nav-item.active .mobile-icon-wrapper {
     background: rgba(56, 189, 248, 0.25) !important;
     color: #38bdf8 !important;
+}
+
+
+/* Smooth Tab Content Transitions (No height collapse, no horizontal layout jerk) */
+.tab-content {
+    min-height: 250px;
+    position: relative;
+}
+.tab-content > .tab-pane {
+    display: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+.tab-content > .tab-pane.active {
+    display: block;
+}
+.tab-content > .tab-pane.show {
+    opacity: 1;
+    transform: translateY(0);
 }

@@ -119,6 +119,10 @@ $csrf_token = generate_csrf_token();
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
     <style>
+        html {
+            overflow-y: scroll;
+            scrollbar-gutter: stable;
+        }
         body { background-color: #f3f4f6; font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding-top: 85px; padding-bottom: 50px; }
         .exam-header { background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); position: fixed; top: 0; left: 0; right: 0; z-index: 1030; display: flex; align-items: center; padding: 12px 24px; border-bottom: 1px solid #e5e7eb; }
         .timer-box { font-family: monospace; font-size: 1.45rem; font-weight: bold; background: #fff0f2; color: #dc2626; padding: 6px 18px; border-radius: 999px; border: 1px solid #fecdd3; display: inline-flex; align-items: center; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
@@ -127,12 +131,12 @@ $csrf_token = generate_csrf_token();
         .q-num { background: linear-gradient(135deg, #1e3a8a, #3b82f6); color: #fff; padding: 5px 12px; border-radius: 6px; margin-right: 16px; font-size: 0.9rem; font-weight: bold; box-shadow: 0 2px 5px rgba(59,130,246,0.3); flex-shrink: 0; }
         .q-body { padding: 25px; }
         .opt-row { margin-bottom: 15px; }
-        .opt-label { cursor: pointer; display: flex; align-items: center; padding: 16px 20px; border: 2px solid #e5e7eb; border-radius: 10px; transition: all 0.2s; background: #fff; margin: 0; width: 100%; font-weight: 500; color: #4b5563; }
+        .opt-label { cursor: pointer; display: flex; align-items: center; padding: 16px 20px; border: 2px solid #e5e7eb; border-radius: 10px; transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease !important; background: #fff; margin: 0; width: 100%; font-weight: 500; color: #4b5563; }
         .opt-label:hover { border-color: #cbd5e1; background: #f8fafc; }
         .custom-control-input:focus ~ .opt-label { box-shadow: 0 0 0 3px rgba(59,130,246,0.3); border-color: #93c5fd; }
-        .custom-control-input:checked ~ .opt-label { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: bold; box-shadow: 0 2px 8px rgba(37,99,235,0.1); }
+        .custom-control-input:checked ~ .opt-label { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; font-weight: 600; box-shadow: 0 2px 8px rgba(37,99,235,0.1); }
         .custom-control-input:checked ~ .opt-label .letter { background: #2563eb; color: #fff; border-color: #2563eb; }
-        .letter { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #cbd5e1; border-radius: 50%; margin-right: 18px; font-size: 0.9rem; background: #f8fafc; color: #64748b; font-weight: bold; flex-shrink: 0; transition: all 0.2s; }
+        .letter { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 2px solid #cbd5e1; border-radius: 50%; margin-right: 18px; font-size: 0.9rem; background: #f8fafc; color: #64748b; font-weight: bold; flex-shrink: 0; transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease !important; }
         .nav-sidebar { position: sticky; top: 110px; max-height: calc(100vh - 130px); overflow-y: auto; background: #fff; padding: 25px; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
         .q-btn { width: 42px; height: 42px; margin: 0 6px 12px 6px; border-radius: 8px; font-weight: bold; font-family: monospace; border-width: 2px; }
         .q-btn:hover { background: #f1f5f9; }
