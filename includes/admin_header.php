@@ -155,13 +155,28 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
         scrollbar-gutter: stable;
     }
 
-    /* Desktop Sidebar - Sticky & Independently Scrollable */
+    /* Desktop Layout - Permanently Fixed Top Navbar & Full-Height Fixed Left Sidebar */
     @media (min-width: 768px) {
+        body.has-admin-bottom-nav {
+            padding-top: 56px !important;
+            padding-bottom: 0 !important;
+        }
+        nav.navbar.sticky-top,
+        nav.navbar.navbar-expand-md {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            height: 56px !important;
+            z-index: 1030 !important;
+        }
         .sidebar {
-            position: sticky !important;
+            position: fixed !important;
             top: 56px !important;
+            bottom: 0 !important;
+            left: 0 !important;
             height: calc(100vh - 56px) !important;
-            align-self: flex-start !important;
+            z-index: 1000 !important;
             overflow-y: auto !important;
             overflow-x: hidden !important;
             overscroll-behavior: contain !important;
@@ -169,7 +184,6 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
             padding-top: 1rem !important;
             padding-bottom: 3rem !important;
-            z-index: 100 !important;
         }
         .sidebar-sticky {
             position: relative !important;
@@ -194,8 +208,27 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
         .sidebar-sticky::-webkit-scrollbar-thumb:hover {
             background: rgba(148, 163, 184, 0.65);
         }
+    }
+
+    @media (min-width: 768px) and (max-width: 991.98px) {
+        .sidebar {
+            width: 25% !important;
+        }
         main[role="main"] {
-            min-height: calc(100vh - 56px);
+            margin-left: 25% !important;
+            max-width: 75% !important;
+            min-height: calc(100vh - 56px) !important;
+        }
+    }
+
+    @media (min-width: 992px) {
+        .sidebar {
+            width: 16.666667% !important;
+        }
+        main[role="main"] {
+            margin-left: 16.666667% !important;
+            max-width: 83.333333% !important;
+            min-height: calc(100vh - 56px) !important;
         }
     }
     </style>
