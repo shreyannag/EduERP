@@ -108,6 +108,16 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
         }
         .student-navbar .navbar-brand { font-weight: 800; letter-spacing: -0.5px; }
         .student-navbar .navbar-nav { align-items: center !important; }
+        .student-navbar .dropdown { position: relative !important; }
+        .student-navbar .dropdown-menu-right {
+            right: 0 !important;
+            left: auto !important;
+            transform: none !important;
+            min-width: 250px;
+            max-width: calc(100vw - 24px) !important;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+            border-radius: 12px !important;
+        }
         .main-content { padding-top: 32px; padding-bottom: 60px; flex-grow: 1; }
         
         /* Student Navbar Links */
@@ -259,7 +269,7 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
                 </li>
 
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle text-white font-weight-bold d-flex align-items-center" href="#" id="studentDropdown" role="button" data-toggle="dropdown">
+                    <a class="nav-link dropdown-toggle text-white font-weight-bold d-flex align-items-center" href="#" id="studentDropdown" role="button" data-toggle="dropdown" data-display="static" aria-haspopup="true" aria-expanded="false">
                         <div class="bg-white text-primary rounded-circle d-flex align-items-center justify-content-center mr-2 shadow-sm font-weight-bold" style="width:32px; height:32px; font-size:14px;">
                             <?php echo strtoupper(substr($current_student['full_name'] ?? 'S', 0, 1)); ?>
                         </div>

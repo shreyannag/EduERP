@@ -1044,3 +1044,19 @@ label.text-muted, .card-body label {
 .student-navbar .navbar-nav {
     align-items: center !important;
 }
+
+/* Top Navbar Dropdown Menu Alignment: Strictly Anchored to Right Edge */
+.navbar .dropdown,
+.student-navbar .dropdown {
+    position: relative !important;
+}
+.navbar .dropdown-menu-right,
+.student-navbar .dropdown-menu-right {
+    right: 0 !important;
+    left: auto !important;
+    transform: none !important;
+    min-width: 250px;
+    max-width: calc(100vw - 24px) !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+    border-radius: 12px !important;
+}

@@ -397,7 +397,7 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
                 </button>
             </li>
             <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle font-weight-bold text-white px-3" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <a class="nav-link dropdown-toggle font-weight-bold text-white px-3" href="#" id="userDropdown" role="button" data-toggle="dropdown" data-display="static" aria-haspopup="true" aria-expanded="false">
                     <i class="fas fa-user-circle mr-1"></i> <?php echo h($adminUser ?: 'Admin'); ?>
                 </a>
                 <div class="dropdown-menu dropdown-menu-right shadow-sm border-0 mt-2" aria-labelledby="userDropdown">
