@@ -161,8 +161,7 @@ $total_unread_msg_count = $unread_msg_count + $unread_admin_msg_count;
             padding-top: 56px !important;
             padding-bottom: 0 !important;
         }
-        nav.navbar.sticky-top,
-        nav.navbar.navbar-expand-md {
+        body.has-admin-bottom-nav nav.navbar {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;

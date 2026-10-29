@@ -93,8 +93,7 @@ body.admin-login-bg {
         padding-top: 56px !important;
         padding-bottom: 0 !important;
     }
-    nav.navbar.sticky-top,
-    nav.navbar.navbar-expand-md {
+    body.has-admin-bottom-nav nav.navbar {
         position: fixed !important;
         top: 0 !important;
         left: 0 !important;
@@ -1033,4 +1032,15 @@ label.text-muted, .card-body label {
 }
 .student-action-card:hover .action-icon {
     opacity: 0.9;
+}
+
+/* Explicit Student Navbar Height & Vertical Centering */
+.student-navbar {
+    height: auto !important;
+    min-height: 70px !important;
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+}
+.student-navbar .navbar-nav {
+    align-items: center !important;
 }

@@ -94,9 +94,21 @@ $coding_platform_active = is_coding_platform_enabled($pdo, $student_admin_id);
             flex-direction: column; 
             min-height: 100vh; 
         }
-        .student-navbar { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .student-navbar {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-top: 0.75rem !important;
+            padding-bottom: 0.75rem !important;
+            min-height: 70px !important;
+            height: auto !important;
+            position: sticky !important;
+            top: 0 !important;
+            z-index: 1030 !important;
+        }
         .student-navbar .navbar-brand { font-weight: 800; letter-spacing: -0.5px; }
-        .main-content { padding-top: 40px; padding-bottom: 60px; flex-grow: 1; }
+        .student-navbar .navbar-nav { align-items: center !important; }
+        .main-content { padding-top: 32px; padding-bottom: 60px; flex-grow: 1; }
         
         /* Student Navbar Links */
         .student-navbar .nav-link {
