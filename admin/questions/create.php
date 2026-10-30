@@ -24,6 +24,13 @@ $aiConfig = get_openrouter_config($pdo, $current_admin_id);
 $error = '';
 $success = '';
 
+// Reset sticky form settings handler
+if (isset($_GET['reset_settings'])) {
+    unset($_SESSION['last_q_settings']);
+    header("Location: create.php");
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf_token($_POST['csrf_token'] ?? '');
     
@@ -102,12 +109,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $all_classes[] = $class_id;
             sync_question_classes($new_q_id, $all_classes, $pdo);
 
+            // Save sticky form settings for seamless consecutive question entry
+            $_SESSION['last_q_settings'] = [
+                'class_id' => $class_id,
+                'board_id' => $board_id,
+                'subject_id' => $subject_id,
+                'topic_id' => $topic_id,
+                'marks' => $marks,
+                'additional_classes' => $additional_classes,
+                'question_type' => $question_type,
+            ];
+
             $success = ($question_type === 'fill_blank' ? "Fill in the Blanks" : "Multiple Choice") . " question instantiated successfully in your question bank (Class availability mapped).";
         } catch (\PDOException $e) {
             $error = "Persistence execution failure via database boundary: " . $e->getMessage();
         }
     }
 }
+
+// Form state persistence / sticky settings
+$sticky = $_SESSION['last_q_settings'] ?? [];
+$has_sticky = !empty($sticky);
+$is_post_success = ($success !== '');
+
+$sel_class_id = (isset($_POST['class_id']) && !$is_post_success) ? intval($_POST['class_id']) : intval($sticky['class_id'] ?? 0);
+$sel_board_id = (isset($_POST['board_id']) && !$is_post_success) ? intval($_POST['board_id']) : intval($sticky['board_id'] ?? 0);
+$sel_subject_id = (isset($_POST['subject_id']) && !$is_post_success) ? intval($_POST['subject_id']) : intval($sticky['subject_id'] ?? 0);
+$sel_topic_id = (isset($_POST['topic_id']) && !$is_post_success) ? intval($_POST['topic_id']) : intval($sticky['topic_id'] ?? 0);
+$sel_marks = (isset($_POST['marks']) && !$is_post_success) ? intval($_POST['marks']) : intval($sticky['marks'] ?? 1);
+$sel_additional_classes = (isset($_POST['additional_classes']) && !$is_post_success) ? (array)$_POST['additional_classes'] : (array)($sticky['additional_classes'] ?? []);
+$sel_question_type = (isset($_POST['question_type']) && !$is_post_success) ? $_POST['question_type'] : ($sticky['question_type'] ?? 'mcq');
+if (!in_array($sel_question_type, ['mcq', 'fill_blank'])) $sel_question_type = 'mcq';
+
+// Input values for prompt, options, and correct option choice
+$val_q = ($error !== '') ? ($_POST['question_text'] ?? '') : '';
+$val_o1 = ($error !== '') ? ($_POST['option1'] ?? '') : '';
+$val_o2 = ($error !== '') ? ($_POST['option2'] ?? '') : '';
+$val_o3 = ($error !== '') ? ($_POST['option3'] ?? '') : '';
+$val_o4 = ($error !== '') ? ($_POST['option4'] ?? '') : '';
+$val_c = ($error !== '') ? intval($_POST['correct_option'] ?? 1) : 1;
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center mb-4">
@@ -137,6 +177,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 <?php endif; ?>
 
+<?php if($has_sticky): ?>
+    <div class="alert alert-light border shadow-sm rounded-lg d-flex justify-content-between align-items-center mb-4 py-2 px-3 max-w-4xl mx-auto">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-thumbtack text-primary mr-2"></i>
+            <span class="small font-weight-bold text-dark">
+                <strong>Sticky Settings Active:</strong> Class, Board, Subject, Topic, and Marks configurations are remembered for fast question creation.
+            </span>
+        </div>
+        <a href="create.php?reset_settings=1" class="btn btn-xs btn-outline-danger font-weight-bold rounded-pill px-3 shadow-xs flex-shrink-0 ml-2" title="Clear sticky configuration">
+            <i class="fas fa-undo-alt mr-1"></i>Reset to Defaults
+        </a>
+    </div>
+<?php endif; ?>
+
 <div class="card shadow-sm border-0 rounded-lg max-w-4xl mx-auto">
     <div class="card-header bg-white border-bottom-0 py-4 px-4 px-md-5 mt-2">
         <h5 class="mb-0 font-weight-bold text-dark"><i class="fas fa-pencil-alt text-primary mr-3 shadow-sm p-2 bg-light rounded-circle"></i>Author Custom Problem</h5>
@@ -152,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <select name="class_id" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold" required>
                             <option value="">-- Dropdown: Isolate Class --</option>
                             <?php foreach($classes as $c): ?>
-                                <option value="<?php echo $c['id']; ?>">Class <?php echo h($c['name']); ?></option>
+                                <option value="<?php echo $c['id']; ?>" <?php echo ($sel_class_id === (int)$c['id']) ? 'selected' : ''; ?>>Class <?php echo h($c['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -161,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <select name="board_id" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold" required>
                             <option value="">-- Dropdown: Isolate Board --</option>
                             <?php foreach($boards as $b): ?>
-                                <option value="<?php echo $b['id']; ?>"><?php echo h($b['name']); ?></option>
+                                <option value="<?php echo $b['id']; ?>" <?php echo ($sel_board_id === (int)$b['id']) ? 'selected' : ''; ?>><?php echo h($b['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -170,9 +224,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <i class="fas fa-layer-group text-primary mr-1"></i>Also Available For Other Classes (Optional)
                         </label>
                         <div class="d-flex flex-wrap p-2 bg-white rounded border shadow-sm" style="gap: 15px;">
-                            <?php foreach($classes as $c): ?>
+                            <?php foreach($classes as $c): 
+                                $isAddChecked = in_array((int)$c['id'], array_map('intval', $sel_additional_classes)) ? 'checked' : '';
+                            ?>
                                 <div class="custom-control custom-checkbox mr-3">
-                                    <input type="checkbox" name="additional_classes[]" value="<?php echo $c['id']; ?>" class="custom-control-input" id="addClass<?php echo $c['id']; ?>">
+                                    <input type="checkbox" name="additional_classes[]" value="<?php echo $c['id']; ?>" class="custom-control-input" id="addClass<?php echo $c['id']; ?>" <?php echo $isAddChecked; ?>>
                                     <label class="custom-control-label font-weight-bold text-dark" for="addClass<?php echo $c['id']; ?>">Class <?php echo h($c['name']); ?></label>
                                 </div>
                             <?php endforeach; ?>
@@ -186,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <select name="subject_id" id="subject_select" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold">
                             <option value="">-- Select Subject --</option>
                             <?php foreach($subjects as $s): ?>
-                                <option value="<?php echo $s['id']; ?>"><?php echo h($s['name']); ?></option>
+                                <option value="<?php echo $s['id']; ?>" <?php echo ($sel_subject_id === (int)$s['id']) ? 'selected' : ''; ?>><?php echo h($s['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -195,13 +251,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <select name="topic_id" id="topic_select" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold">
                             <option value="">-- Select Topic --</option>
                             <?php foreach($topics as $t): ?>
-                                <option value="<?php echo $t['id']; ?>" data-subject="<?php echo $t['subject_id']; ?>" style="display:none;"><?php echo h($t['name']); ?></option>
+                                <option value="<?php echo $t['id']; ?>" data-subject="<?php echo $t['subject_id']; ?>" <?php echo ($sel_topic_id === (int)$t['id']) ? 'selected' : ''; ?> style="<?php echo ($sel_subject_id && $sel_subject_id === (int)$t['subject_id']) ? '' : 'display:none;'; ?>"><?php echo h($t['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="col-md-4 form-group mb-0">
                         <label class="font-weight-bold small text-muted text-uppercase">Marks Allocation</label>
-                        <input type="number" name="marks" class="form-control bg-white shadow-sm border-0 font-weight-bold" value="1" min="1" required>
+                        <input type="number" name="marks" class="form-control bg-white shadow-sm border-0 font-weight-bold" value="<?php echo $sel_marks; ?>" min="1" required>
                     </div>
                 </div>
             </div>
@@ -216,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col-md-6 mb-2 mb-md-0">
                             <label class="q-type-card d-block p-3 bg-white border rounded-lg shadow-sm mb-0 transition cursor-pointer" id="labelTypeMCQ" style="cursor: pointer; border-width: 2px !important; border-color: #3b82f6 !important;">
                                 <div class="custom-control custom-radio">
-                                    <input type="radio" id="type_mcq" name="question_type" value="mcq" class="custom-control-input" checked>
+                                    <input type="radio" id="type_mcq" name="question_type" value="mcq" class="custom-control-input" <?php echo ($sel_question_type === 'mcq') ? 'checked' : ''; ?>>
                                     <label class="custom-control-label font-weight-bold text-dark mb-0" for="type_mcq" style="cursor: pointer;">
                                         <i class="fas fa-list-ul text-primary mr-1"></i> Multiple Choice Question (MCQ)
                                     </label>
@@ -227,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="col-md-6">
                             <label class="q-type-card d-block p-3 bg-white border rounded-lg shadow-sm mb-0 transition cursor-pointer" id="labelTypeFillBlank" style="cursor: pointer; border-width: 2px !important; border-color: #e5e7eb !important;">
                                 <div class="custom-control custom-radio">
-                                    <input type="radio" id="type_fill_blank" name="question_type" value="fill_blank" class="custom-control-input">
+                                    <input type="radio" id="type_fill_blank" name="question_type" value="fill_blank" class="custom-control-input" <?php echo ($sel_question_type === 'fill_blank') ? 'checked' : ''; ?>>
                                     <label class="custom-control-label font-weight-bold text-dark mb-0" for="type_fill_blank" style="cursor: pointer;">
                                         <i class="fas fa-pen-alt text-warning mr-1"></i> Fill in the Blanks
                                     </label>
@@ -284,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </button>
                 </div>
 
-                <textarea name="question_text" class="form-control font-weight-bold text-dark shadow-sm" rows="4" placeholder="Articulate the full structure of the computational prompt..." required style="resize: none;"></textarea>
+                <textarea name="question_text" class="form-control font-weight-bold text-dark shadow-sm" rows="4" placeholder="Articulate the full structure of the computational prompt..." required style="resize: none;"><?php echo h($val_q); ?></textarea>
             </div>
             
             <!-- Fill in the Blanks Answer Declaration Section -->
@@ -324,51 +380,98 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <!-- MCQ Options Section -->
             <div id="mcqOptionsSection">
                 <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-2 rounded border-left border-warning" style="border-width: 4px !important;">
-                    <label class="font-weight-bold text-dark h5 mb-0"><i class="fas fa-list-ol text-muted mx-2 opacity-50 text-sm"></i>Option Variations</label>
-                    <span class="text-muted small font-weight-normal"><i class="fas fa-info-circle mr-1 text-primary"></i>Use <code>$...$</code> or <code>+ LaTeX</code> for mathematical options</span>
+                    <label class="font-weight-bold text-dark h5 mb-0"><i class="fas fa-list-ol text-muted mx-2 opacity-50 text-sm"></i>Option Variations (A, B, C, D)</label>
+                    <span class="text-muted small font-weight-normal"><i class="fas fa-info-circle mr-1 text-primary"></i>Multi-line text, equations & code snippets supported (Shift+Enter / Enter)</span>
                 </div>
                 <div class="row">
+                    <!-- Option A -->
                     <div class="col-md-6 form-group mb-4">
-                        <div class="input-group shadow-sm">
-                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">A</span></div>
-                            <input type="text" name="option1" id="option1_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 1" required>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt1" title="Insert LaTeX into Option A">
-                                    <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
-                                </button>
+                        <div class="card border shadow-sm h-100">
+                            <div class="card-header bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold text-dark"><span class="badge badge-primary mr-1 px-2 py-1">A</span> Option A</span>
+                                <div class="d-flex align-items-center">
+                                    <button type="button" class="btn btn-xs btn-white border text-primary font-weight-bold btn-opt-latex px-2 mr-2" data-target-opt="opt1" title="Insert LaTeX into Option A">
+                                        <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
+                                    </button>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" name="opt_correct_radio" id="correct_radio_1" value="1" class="custom-control-input opt-correct-radio" <?php echo ($val_c === 1) ? 'checked' : ''; ?>>
+                                        <label class="custom-control-label font-weight-bold text-success small" for="correct_radio_1" style="cursor: pointer;">
+                                            <i class="fas fa-check-circle mr-1"></i>Correct Choice
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <textarea name="option1" id="option1_input" rows="3" class="form-control border-0 bg-white opt-math-input font-weight-normal" placeholder="Option A text, multi-line code snippet, or formula..." required style="resize: vertical; font-family: inherit; line-height: 1.5; min-height: 80px;"><?php echo h($val_o1); ?></textarea>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Option B -->
                     <div class="col-md-6 form-group mb-4">
-                        <div class="input-group shadow-sm">
-                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">B</span></div>
-                            <input type="text" name="option2" id="option2_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 2" required>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt2" title="Insert LaTeX into Option B">
-                                    <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
-                                </button>
+                        <div class="card border shadow-sm h-100">
+                            <div class="card-header bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold text-dark"><span class="badge badge-primary mr-1 px-2 py-1">B</span> Option B</span>
+                                <div class="d-flex align-items-center">
+                                    <button type="button" class="btn btn-xs btn-white border text-primary font-weight-bold btn-opt-latex px-2 mr-2" data-target-opt="opt2" title="Insert LaTeX into Option B">
+                                        <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
+                                    </button>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" name="opt_correct_radio" id="correct_radio_2" value="2" class="custom-control-input opt-correct-radio" <?php echo ($val_c === 2) ? 'checked' : ''; ?>>
+                                        <label class="custom-control-label font-weight-bold text-success small" for="correct_radio_2" style="cursor: pointer;">
+                                            <i class="fas fa-check-circle mr-1"></i>Correct Choice
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <textarea name="option2" id="option2_input" rows="3" class="form-control border-0 bg-white opt-math-input font-weight-normal" placeholder="Option B text, multi-line code snippet, or formula..." required style="resize: vertical; font-family: inherit; line-height: 1.5; min-height: 80px;"><?php echo h($val_o2); ?></textarea>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Option C -->
                     <div class="col-md-6 form-group mb-4">
-                        <div class="input-group shadow-sm">
-                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">C</span></div>
-                            <input type="text" name="option3" id="option3_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 3" required>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt3" title="Insert LaTeX into Option C">
-                                    <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
-                                </button>
+                        <div class="card border shadow-sm h-100">
+                            <div class="card-header bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold text-dark"><span class="badge badge-primary mr-1 px-2 py-1">C</span> Option C</span>
+                                <div class="d-flex align-items-center">
+                                    <button type="button" class="btn btn-xs btn-white border text-primary font-weight-bold btn-opt-latex px-2 mr-2" data-target-opt="opt3" title="Insert LaTeX into Option C">
+                                        <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
+                                    </button>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" name="opt_correct_radio" id="correct_radio_3" value="3" class="custom-control-input opt-correct-radio" <?php echo ($val_c === 3) ? 'checked' : ''; ?>>
+                                        <label class="custom-control-label font-weight-bold text-success small" for="correct_radio_3" style="cursor: pointer;">
+                                            <i class="fas fa-check-circle mr-1"></i>Correct Choice
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <textarea name="option3" id="option3_input" rows="3" class="form-control border-0 bg-white opt-math-input font-weight-normal" placeholder="Option C text, multi-line code snippet, or formula..." required style="resize: vertical; font-family: inherit; line-height: 1.5; min-height: 80px;"><?php echo h($val_o3); ?></textarea>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Option D -->
                     <div class="col-md-6 form-group mb-4">
-                        <div class="input-group shadow-sm">
-                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">D</span></div>
-                            <input type="text" name="option4" id="option4_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 4" required>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt4" title="Insert LaTeX into Option D">
-                                    <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
-                                </button>
+                        <div class="card border shadow-sm h-100">
+                            <div class="card-header bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold text-dark"><span class="badge badge-primary mr-1 px-2 py-1">D</span> Option D</span>
+                                <div class="d-flex align-items-center">
+                                    <button type="button" class="btn btn-xs btn-white border text-primary font-weight-bold btn-opt-latex px-2 mr-2" data-target-opt="opt4" title="Insert LaTeX into Option D">
+                                        <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
+                                    </button>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" name="opt_correct_radio" id="correct_radio_4" value="4" class="custom-control-input opt-correct-radio" <?php echo ($val_c === 4) ? 'checked' : ''; ?>>
+                                        <label class="custom-control-label font-weight-bold text-success small" for="correct_radio_4" style="cursor: pointer;">
+                                            <i class="fas fa-check-circle mr-1"></i>Correct Choice
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <textarea name="option4" id="option4_input" rows="3" class="form-control border-0 bg-white opt-math-input font-weight-normal" placeholder="Option D text, multi-line code snippet, or formula..." required style="resize: vertical; font-family: inherit; line-height: 1.5; min-height: 80px;"><?php echo h($val_o4); ?></textarea>
                             </div>
                         </div>
                     </div>
@@ -445,11 +548,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <div id="mcqCorrectSection" class="form-group mb-0 p-4 bg-success bg-opacity-10 rounded-lg border border-success">
                 <label class="font-weight-bold text-success text-uppercase small"><i class="fas fa-check-circle mr-2"></i>Declare Correct Option Map</label>
-                <select name="correct_option" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold text-success" required>
-                    <option value="1">Option 1 contains the verified mapped value</option>
-                    <option value="2">Option 2 contains the verified mapped value</option>
-                    <option value="3">Option 3 contains the verified mapped value</option>
-                    <option value="4">Option 4 contains the verified mapped value</option>
+                <select name="correct_option" id="correct_option_select" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold text-success" required>
+                    <option value="1" <?php echo ($val_c === 1) ? 'selected' : ''; ?>>Option A is the verified correct answer</option>
+                    <option value="2" <?php echo ($val_c === 2) ? 'selected' : ''; ?>>Option B is the verified correct answer</option>
+                    <option value="3" <?php echo ($val_c === 3) ? 'selected' : ''; ?>>Option C is the verified correct answer</option>
+                    <option value="4" <?php echo ($val_c === 4) ? 'selected' : ''; ?>>Option D is the verified correct answer</option>
                 </select>
             </div>
         </div>
@@ -885,12 +988,12 @@ $(document).ready(function() {
         height: 150,
         toolbar: [
             ['style', ['style']],
-            ['font', ['bold', 'underline', 'clear']],
-            ['color', ['color']],
+            ['font', ['bold', 'italic', 'underline', 'clear']],
+            ['color', ['forecolor']],
             ['para', ['ul', 'ol', 'paragraph']],
             ['table', ['table']],
             ['insert', ['link', 'picture']],
-            ['view', ['fullscreen', 'codeview', 'help']]
+            ['more', ['backcolor', 'fullscreen', 'codeview', 'help']]
         ],
         callbacks: {
             onImageUpload: function(files) {
@@ -1059,17 +1162,17 @@ $(document).ready(function() {
                 $('#livePreviewQuestion').html('<span class="text-muted font-italic">Question prompt preview will render here with LaTeX equations formatted...</span>');
             }
 
-            var correctOpt = $('select[name="correct_option"]').val();
+            var correctOpt = $('#correct_option_select').val() || $('select[name="correct_option"]').val();
             for (var i = 1; i <= 4; i++) {
-                var optVal = $('input[name="option' + i + '"]').val().trim();
+                var optVal = $('[name="option' + i + '"]').val().trim();
                 var card = $('#liveOptCard' + i);
                 var badge = $('#liveCorrectBadge' + i);
                 var textSpan = $('#liveOptText' + i);
 
                 if (optVal) {
-                    textSpan.text(optVal);
+                    textSpan.css({'white-space': 'pre-wrap', 'word-break': 'break-word'}).text(optVal);
                 } else {
-                    textSpan.html('<em class="text-muted">Option ' + i + ' preview</em>');
+                    textSpan.html('<em class="text-muted">Option ' + String.fromCharCode(64 + i) + ' preview</em>');
                 }
 
                 if (String(i) === String(correctOpt)) {
@@ -1101,8 +1204,18 @@ $(document).ready(function() {
         livePreviewTimer = setTimeout(updateLivePreview, 250);
     }
 
+    // Option card radio button sync with bottom selector
+    $('.opt-correct-radio').change(function() {
+        var val = $(this).val();
+        $('#correct_option_select').val(val).trigger('change');
+    });
+    $('#correct_option_select').change(function() {
+        var val = $(this).val();
+        $('.opt-correct-radio[value="' + val + '"]').prop('checked', true);
+    });
+
     // Attach live preview listeners
-    $('input[name^="option"]').on('input', debouncedLivePreview);
+    $('[name^="option"]').on('input', debouncedLivePreview);
     $('select[name="correct_option"]').on('change', debouncedLivePreview);
     $('#btnRefreshPreview').click(updateLivePreview);
 
@@ -1114,7 +1227,7 @@ $(document).ready(function() {
             $('#mcqOptionsSection, #mcqCorrectSection').slideUp(200);
             $('#fillBlankAnswerSection, #fillBlankPromptHelp, #btnInsertBlankTag').fadeIn(200);
 
-            $('input[name^="option"]').prop('required', false);
+            $('[name^="option"]').prop('required', false);
             $('select[name="correct_option"]').prop('required', false);
             $('.blank-answer-input').prop('required', true);
         } else {
@@ -1123,7 +1236,7 @@ $(document).ready(function() {
             $('#mcqOptionsSection, #mcqCorrectSection').slideDown(200);
             $('#fillBlankAnswerSection, #fillBlankPromptHelp, #btnInsertBlankTag').fadeOut(200);
 
-            $('input[name^="option"]').prop('required', true);
+            $('[name^="option"]').prop('required', true);
             $('select[name="correct_option"]').prop('required', true);
             $('.blank-answer-input').prop('required', false);
         }
@@ -1256,7 +1369,7 @@ $(document).ready(function() {
             $('textarea[name="question_text"]').summernote('insertText', ' ' + code + ' ');
         } else if (target && target.startsWith('opt')) {
             var optNum = target.replace('opt', '');
-            var optInput = $('input[name="option' + optNum + '"]');
+            var optInput = $('[name="option' + optNum + '"]');
             var curVal = optInput.val();
             if (curVal.trim().length > 0) {
                 optInput.val(curVal + ' ' + code);
@@ -1489,11 +1602,11 @@ $(document).ready(function() {
         } else {
             $('#type_mcq').prop('checked', true);
             syncQuestionType('mcq');
-            $('input[name="option1"]').val(lastGeneratedData.option1);
-            $('input[name="option2"]').val(lastGeneratedData.option2);
-            $('input[name="option3"]').val(lastGeneratedData.option3);
-            $('input[name="option4"]').val(lastGeneratedData.option4);
-            $('select[name="correct_option"]').val(lastGeneratedData.correct_option);
+            $('[name="option1"]').val(lastGeneratedData.option1);
+            $('[name="option2"]').val(lastGeneratedData.option2);
+            $('[name="option3"]').val(lastGeneratedData.option3);
+            $('[name="option4"]').val(lastGeneratedData.option4);
+            $('#correct_option_select').val(lastGeneratedData.correct_option).trigger('change');
         }
 
         // Populate Marks
@@ -1526,6 +1639,20 @@ $(document).ready(function() {
             scrollTop: $('textarea[name="question_text"]').offset().top - 100
         }, 400);
     });
+
+    // Initialize topics if sticky subject exists
+    var initSub = $('#subject_select').val();
+    if (initSub) {
+        var stickyTopic = '<?php echo $sel_topic_id; ?>';
+        $('#topic_select option').each(function() {
+            if($(this).val() === '') return;
+            if($(this).data('subject') == initSub) $(this).show();
+            else $(this).hide();
+        });
+        if (stickyTopic) {
+            $('#topic_select').val(stickyTopic);
+        }
+    }
 
     // Initial run for live preview
     setTimeout(updateLivePreview, 400);

@@ -788,7 +788,13 @@ $migrations = [
     // Fill in the Blanks Question Support
     "ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_type VARCHAR(30) NOT NULL DEFAULT 'mcq' AFTER topic_id",
     "ALTER TABLE questions ADD COLUMN IF NOT EXISTS correct_answer_text TEXT NULL AFTER correct_option",
-    "ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS answer_text TEXT NULL AFTER chosen_option"
+    "ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS answer_text TEXT NULL AFTER chosen_option",
+
+    // Multi-Line Options Support
+    "ALTER TABLE questions MODIFY option1 TEXT NULL",
+    "ALTER TABLE questions MODIFY option2 TEXT NULL",
+    "ALTER TABLE questions MODIFY option3 TEXT NULL",
+    "ALTER TABLE questions MODIFY option4 TEXT NULL"
 ];
 
 $successCount = 0;

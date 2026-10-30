@@ -407,7 +407,7 @@ if ($is_super) {
                                     </span>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <span class="badge badge-info bg-opacity-75" id="qcorr-<?php echo $q['id']; ?>">Option <?php echo $q['correct_option']; ?></span>
+                                <span class="badge badge-info bg-opacity-75" id="qcorr-<?php echo $q['id']; ?>">Option <?php echo chr(64 + (int)$q['correct_option']); ?></span>
                             <?php endif; ?>
                         </td>
                         <td class="small text-muted align-middle"><?php echo date('M d, Y', strtotime($q['updated_at'])); ?></td>
@@ -599,43 +599,78 @@ if ($is_super) {
             <!-- MCQ Edit Options Section -->
             <div id="editMcqOptionsSection">
                 <div class="row">
+                    <!-- Option A -->
                     <div class="col-md-6 form-group mb-3">
-                        <label class="font-weight-bold small text-muted text-uppercase">Option 1</label>
-                        <div class="input-group shadow-sm">
-                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">A</span></div>
-                            <input type="text" id="edit-o1" name="option1" class="form-control border-0 bg-white" required>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="1" title="Insert formula into Option 1"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                        <div class="card border shadow-sm h-100">
+                            <div class="card-header bg-light py-1 px-3 d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold text-dark small"><span class="badge badge-primary mr-1">A</span> Option A</span>
+                                <div class="d-flex align-items-center">
+                                    <button type="button" class="btn btn-xs btn-white border text-primary font-weight-bold btn-edit-opt-latex px-2 mr-2" data-opt="1" title="Insert formula into Option A"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" name="edit_opt_correct_radio" id="edit_correct_radio_1" value="1" class="custom-control-input edit-opt-correct-radio">
+                                        <label class="custom-control-label font-weight-bold text-success small cursor-pointer" for="edit_correct_radio_1" style="cursor: pointer;">Correct</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <textarea id="edit-o1" name="option1" rows="3" class="form-control border-0 bg-white" placeholder="Option A text, code snippet, or formula..." required style="resize: vertical; font-family: inherit; line-height: 1.5;"></textarea>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Option B -->
                     <div class="col-md-6 form-group mb-3">
-                        <label class="font-weight-bold small text-muted text-uppercase">Option 2</label>
-                        <div class="input-group shadow-sm">
-                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">B</span></div>
-                            <input type="text" id="edit-o2" name="option2" class="form-control border-0 bg-white" required>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="2" title="Insert formula into Option 2"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                        <div class="card border shadow-sm h-100">
+                            <div class="card-header bg-light py-1 px-3 d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold text-dark small"><span class="badge badge-primary mr-1">B</span> Option B</span>
+                                <div class="d-flex align-items-center">
+                                    <button type="button" class="btn btn-xs btn-white border text-primary font-weight-bold btn-edit-opt-latex px-2 mr-2" data-opt="2" title="Insert formula into Option B"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" name="edit_opt_correct_radio" id="edit_correct_radio_2" value="2" class="custom-control-input edit-opt-correct-radio">
+                                        <label class="custom-control-label font-weight-bold text-success small cursor-pointer" for="edit_correct_radio_2" style="cursor: pointer;">Correct</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <textarea id="edit-o2" name="option2" rows="3" class="form-control border-0 bg-white" placeholder="Option B text, code snippet, or formula..." required style="resize: vertical; font-family: inherit; line-height: 1.5;"></textarea>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Option C -->
                     <div class="col-md-6 form-group mb-3">
-                        <label class="font-weight-bold small text-muted text-uppercase">Option 3</label>
-                        <div class="input-group shadow-sm">
-                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">C</span></div>
-                            <input type="text" id="edit-o3" name="option3" class="form-control border-0 bg-white" required>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="3" title="Insert formula into Option 3"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                        <div class="card border shadow-sm h-100">
+                            <div class="card-header bg-light py-1 px-3 d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold text-dark small"><span class="badge badge-primary mr-1">C</span> Option C</span>
+                                <div class="d-flex align-items-center">
+                                    <button type="button" class="btn btn-xs btn-white border text-primary font-weight-bold btn-edit-opt-latex px-2 mr-2" data-opt="3" title="Insert formula into Option C"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" name="edit_opt_correct_radio" id="edit_correct_radio_3" value="3" class="custom-control-input edit-opt-correct-radio">
+                                        <label class="custom-control-label font-weight-bold text-success small cursor-pointer" for="edit_correct_radio_3" style="cursor: pointer;">Correct</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <textarea id="edit-o3" name="option3" rows="3" class="form-control border-0 bg-white" placeholder="Option C text, code snippet, or formula..." required style="resize: vertical; font-family: inherit; line-height: 1.5;"></textarea>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Option D -->
                     <div class="col-md-6 form-group mb-3">
-                        <label class="font-weight-bold small text-muted text-uppercase">Option 4</label>
-                        <div class="input-group shadow-sm">
-                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">D</span></div>
-                            <input type="text" id="edit-o4" name="option4" class="form-control border-0 bg-white" required>
-                            <div class="input-group-append">
-                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="4" title="Insert formula into Option 4"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                        <div class="card border shadow-sm h-100">
+                            <div class="card-header bg-light py-1 px-3 d-flex justify-content-between align-items-center">
+                                <span class="font-weight-bold text-dark small"><span class="badge badge-primary mr-1">D</span> Option D</span>
+                                <div class="d-flex align-items-center">
+                                    <button type="button" class="btn btn-xs btn-white border text-primary font-weight-bold btn-edit-opt-latex px-2 mr-2" data-opt="4" title="Insert formula into Option D"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                                    <div class="custom-control custom-radio">
+                                        <input type="radio" name="edit_opt_correct_radio" id="edit_correct_radio_4" value="4" class="custom-control-input edit-opt-correct-radio">
+                                        <label class="custom-control-label font-weight-bold text-success small cursor-pointer" for="edit_correct_radio_4" style="cursor: pointer;">Correct</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body p-2">
+                                <textarea id="edit-o4" name="option4" rows="3" class="form-control border-0 bg-white" placeholder="Option D text, code snippet, or formula..." required style="resize: vertical; font-family: inherit; line-height: 1.5;"></textarea>
                             </div>
                         </div>
                     </div>
@@ -685,11 +720,11 @@ if ($is_super) {
             
             <div id="editMcqCorrectSection" class="form-group mt-3 mb-0">
                 <label class="font-weight-bold text-muted small text-uppercase">Correct Option Choice</label>
-                <select id="edit-c" name="correct_option" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold" required>
-                    <option value="1">Option 1 is correct</option>
-                    <option value="2">Option 2 is correct</option>
-                    <option value="3">Option 3 is correct</option>
-                    <option value="4">Option 4 is correct</option>
+                <select id="edit-c" name="correct_option" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold text-success" required>
+                    <option value="1">Option A is the correct answer</option>
+                    <option value="2">Option B is the correct answer</option>
+                    <option value="3">Option C is the correct answer</option>
+                    <option value="4">Option D is the correct answer</option>
                 </select>
             </div>
           </div>
@@ -860,8 +895,8 @@ $(document).ready(function() {
                         let optText = rawOpt.indexOf('<') !== -1 ? rawOpt : $('<div>').text(rawOpt).html();
                         let isCorr = (i == q.correct_option);
                         let cls = isCorr ? 'list-group-item-success font-weight-bold border-success' : '';
-                        let badge = isCorr ? '<span class="badge badge-success float-right px-2 py-1 shadow-sm"><i class="fas fa-check mr-1"></i> Correct Option</span>' : '';
-                        html += '<div class="list-group-item list-group-item-action py-3 ' + cls + '"><span class="mr-2 font-weight-bold">[ ' + String.fromCharCode(64 + i) + ' ]</span> <span>' + optText + '</span> ' + badge + '</div>';
+                        let badge = isCorr ? '<span class="badge badge-success float-right px-2 py-1 shadow-sm"><i class="fas fa-check mr-1"></i> Correct Option (' + String.fromCharCode(64 + i) + ')</span>' : '';
+                        html += '<div class="list-group-item list-group-item-action py-3 ' + cls + '" style="white-space: pre-wrap; word-break: break-word;"><span class="mr-2 font-weight-bold">[ ' + String.fromCharCode(64 + i) + ' ]</span> <span>' + optText + '</span> ' + badge + '</div>';
                     }
                     html += '</div>';
                 }
@@ -909,9 +944,9 @@ $(document).ready(function() {
             var textSpan = $('#editLiveOptText' + i);
 
             if (optVal) {
-                textSpan.text(optVal);
+                textSpan.css({'white-space': 'pre-wrap', 'word-break': 'break-word'}).text(optVal);
             } else {
-                textSpan.html('<em class="text-muted">Option ' + i + '</em>');
+                textSpan.html('<em class="text-muted">Option ' + String.fromCharCode(64 + i) + '</em>');
             }
 
             if (String(i) === String(correctOpt)) {
@@ -1026,7 +1061,17 @@ $(document).ready(function() {
         addEditBlankRow('');
     });
 
-    $('#editForm input[name^="option"]').on('input', debouncedEditPreview);
+    // Radio button sync with #edit-c dropdown
+    $('.edit-opt-correct-radio').change(function() {
+        var val = $(this).val();
+        $('#edit-c').val(val).trigger('change');
+    });
+    $('#edit-c').change(function() {
+        var val = $(this).val();
+        $('.edit-opt-correct-radio[value="' + val + '"]').prop('checked', true);
+    });
+
+    $('#editForm [name^="option"]').on('input', debouncedEditPreview);
     $('#edit-c').on('change', debouncedEditPreview);
 
     // Quick LaTeX toolbar for edit prompt
@@ -1088,6 +1133,7 @@ $(document).ready(function() {
                 $('#edit-o3').val(q.option3);
                 $('#edit-o4').val(q.option4);
                 $('#edit-c').val(q.correct_option || 1);
+                $('.edit-opt-correct-radio[value="' + (q.correct_option || 1) + '"]').prop('checked', true);
                 syncEditType(qType);
                 $('#edit-cid').val(q.class_id);
                 $('#edit-bid').val(q.board_id);
@@ -1167,12 +1213,12 @@ $(document).ready(function() {
         height: 150,
         toolbar: [
             ['style', ['style']],
-            ['font', ['bold', 'underline', 'clear']],
-            ['color', ['color']],
+            ['font', ['bold', 'italic', 'underline', 'clear']],
+            ['color', ['forecolor']],
             ['para', ['ul', 'ol', 'paragraph']],
             ['table', ['table']],
             ['insert', ['picture']],
-            ['view', ['fullscreen', 'codeview', 'help']]
+            ['more', ['backcolor', 'fullscreen', 'codeview', 'help']]
         ],
         callbacks: {
             onImageUpload: function(files) {

@@ -330,7 +330,7 @@ $csrf_token = generate_csrf_token();
                                 <input type="radio" class="custom-control-input q-radio d-none" name="answers[<?php echo $q['id']; ?>]" id="<?php echo $identifier; ?>" value="<?php echo $i; ?>" data-qnum="<?php echo $qNum; ?>" data-qid="<?php echo $q['id']; ?>" <?php echo $isChecked; ?>>
                                 <label class="opt-label shadow-sm" for="<?php echo $identifier; ?>">
                                     <span class="letter shadow-sm"><?php echo chr(64+$i); ?></span>
-                                    <span class="flex-grow-1"><?php echo render_formatted_content($optText); ?></span>
+                                    <span class="flex-grow-1" style="white-space: pre-wrap; word-break: break-word;"><?php echo render_formatted_content($optText); ?></span>
                                 </label>
                             </div>
                         </div>

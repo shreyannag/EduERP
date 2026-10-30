@@ -133,7 +133,7 @@ $is_draft = strpos($exam['status'], 'draft') !== false;
                         <span class="review-opt-letter mr-3">
                             <?php echo chr(64+$i); ?>
                         </span>
-                        <div class="review-opt-content pr-2">
+                        <div class="review-opt-content pr-2" style="white-space: pre-wrap; word-break: break-word;">
                             <?php echo render_formatted_content($optText); ?>
                         </div>
                         <?php if($isCorrect): ?>
