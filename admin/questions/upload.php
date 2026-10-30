@@ -37,8 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                         return trim(preg_replace('/[\x00-\x1F\x80-\xFF]/', '', (string)$val));
                     }, $header ?: []);
 
-                    if (implode(',', $clean_header) !== 'Class,Board,Question,Option1,Option2,Option3,Option4,CorrectOption' 
-                        && implode(',', $clean_header) !== 'Class,Board,Question,Option 1,Option 2,Option 3,Option 4,Correct Option') {
+                    $header_base = implode(',', array_slice($clean_header, 0, 8));
+                    if ($header_base !== 'Class,Board,Question,Option1,Option2,Option3,Option4,CorrectOption' 
+                        && $header_base !== 'Class,Board,Question,Option 1,Option 2,Option 3,Option 4,Correct Option') {
                         $error_msg = "Invalid CSV header format. Please check the sample file.";
                         // fallback check to allow slight variations if user used standard sample
                     }
@@ -71,11 +72,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                             if ($question === '') { $isValid = false; $errorText[] = "Empty Question"; }
 
                             $blank_ans = '';
+                            $blank_answers = [];
                             if ($is_fill_blank) {
-                                $blank_ans = $opt1 !== '' ? $opt1 : $correct;
-                                if ($blank_ans === '') {
+                                if ($q_format === 'fill_blank' && ($opt2 !== '' || $opt3 !== '' || $opt4 !== '')) {
+                                    $candidates = [$opt1, $opt2, $opt3, $opt4];
+                                    foreach ($candidates as $cand) {
+                                        if ($cand !== '') $blank_answers[] = $cand;
+                                    }
+                                } elseif ($opt1 !== '') {
+                                    $blank_answers = array_values(parse_fill_blank_answers($opt1));
+                                } elseif ($correct !== '') {
+                                    $blank_answers = array_values(parse_fill_blank_answers($correct));
+                                }
+
+                                if (empty($blank_answers)) {
                                     $isValid = false;
                                     $errorText[] = "Fill-in-the-blank answer cannot be empty";
+                                } else {
+                                    $blank_ans = count($blank_answers) > 1 ? json_encode($blank_answers, JSON_UNESCAPED_UNICODE) : $blank_answers[0];
                                 }
                             } else {
                                 if ($opt1 === '' || $opt2 === '' || $opt3 === '' || $opt4 === '') { $isValid = false; $errorText[] = "Options cannot be empty"; }
@@ -164,10 +178,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_import'])) {
 
                     $new_upload_id = 0;
                     if ($is_fill_blank) {
-                        $blank_ans = $opt1 !== '' ? $opt1 : $correct;
-                        if ($blank_ans !== '') {
+                        $blank_answers = [];
+                        if ($q_format === 'fill_blank' && ($opt2 !== '' || $opt3 !== '' || $opt4 !== '')) {
+                            $candidates = [$opt1, $opt2, $opt3, $opt4];
+                            foreach ($candidates as $cand) {
+                                if ($cand !== '') $blank_answers[] = $cand;
+                            }
+                        } elseif ($opt1 !== '') {
+                            $blank_answers = array_values(parse_fill_blank_answers($opt1));
+                        } elseif ($correct !== '') {
+                            $blank_answers = array_values(parse_fill_blank_answers($correct));
+                        }
+
+                        if (!empty($blank_answers)) {
+                            $blank_ans_save = count($blank_answers) > 1 ? json_encode($blank_answers, JSON_UNESCAPED_UNICODE) : $blank_answers[0];
+                            $opt1_display = implode(' / ', $blank_answers);
                             $stmt_ins_blank = $pdo->prepare("INSERT INTO questions (admin_id, class_id, board_id, question_type, question_text, option1, correct_answer_text) VALUES (?, ?, ?, 'fill_blank', ?, ?, ?)");
-                            $stmt_ins_blank->execute([$current_admin_id, $c_id, $b_id, $question, $blank_ans, $blank_ans]);
+                            $stmt_ins_blank->execute([$current_admin_id, $c_id, $b_id, $question, $opt1_display, $blank_ans_save]);
                             $new_upload_id = (int)$pdo->lastInsertId();
                             $imported++;
                         }

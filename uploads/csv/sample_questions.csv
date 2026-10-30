@@ -6,3 +6,5 @@ Class,Board,Question,Option 1,Option 2,Option 3,Option 4,Correct Option,Question
 12,CBSE,"Evaluate the definite integral $\int_{0}^{\pi} \sin(x) \, dx$:","2","0","1","-2",1,mcq
 10,ICSE,"The powerhouse of the cell is the [blank].","Mitochondria | mitochondrion","","","",1,fill_blank
 10,CBSE,"The SI unit of electric current is the [blank].","Ampere | A","","","",1,fill_blank
+10,ICSE,"In Java, a class inherits another class using [blank] and implements an interface using [blank].",extends,implements,"","",1,fill_blank
+10,CBSE,"Photosynthesis takes place in [blank] and releases [blank].","chloroplast /// oxygen | O2","","","",1,fill_blank

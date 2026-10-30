@@ -106,14 +106,29 @@ try {
     }
 
     // 5. Count total distinct answered questions for this attempt
-    $stmt_count = $pdo->prepare("
-        SELECT COUNT(DISTINCT question_id) 
-        FROM attempt_answers 
-        WHERE attempt_id = ? 
-          AND (chosen_option IS NOT NULL OR (answer_text IS NOT NULL AND TRIM(answer_text) != ''))
-    ");
-    $stmt_count->execute([$attempt_id]);
-    $answered_count = (int)$stmt_count->fetchColumn();
+    $stmt_all_ans = $pdo->prepare("SELECT question_id, chosen_option, answer_text FROM attempt_answers WHERE attempt_id = ?");
+    $stmt_all_ans->execute([$attempt_id]);
+    $all_saved = $stmt_all_ans->fetchAll();
+    $answered_count = 0;
+    $seen_qids = [];
+    foreach ($all_saved as $as) {
+        $qid = (int)$as['question_id'];
+        if (isset($seen_qids[$qid])) continue;
+        if ($as['chosen_option'] !== null) {
+            $answered_count++;
+            $seen_qids[$qid] = true;
+        } elseif ($as['answer_text'] !== null && trim($as['answer_text']) !== '') {
+            $parsed = parse_student_fill_blank_answers($as['answer_text']);
+            $hasVal = false;
+            foreach ($parsed as $v) {
+                if (trim((string)$v) !== '') { $hasVal = true; break; }
+            }
+            if ($hasVal) {
+                $answered_count++;
+                $seen_qids[$qid] = true;
+            }
+        }
+    }
 
     echo json_encode([
         'success' => true,

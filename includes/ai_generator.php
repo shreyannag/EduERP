@@ -507,16 +507,17 @@ function generate_fill_blank_question(array $params, $pdo = null, $admin_id = nu
     $systemPrompt = "You are an elite academic curriculum specialist and examination author.
 Your task is to generate an academically rigorous, engaging Fill in the Blanks question strictly formatted as a JSON object.
 Follow these academic quality requirements:
-1. Question text must contain a sentence or problem with a clear blank indicated by [blank] (e.g., \"The capital city of France is [blank].\"). Wrap paragraphs in standard HTML <p>...</p> tags.
+1. Question text can contain one or multiple blanks, each indicated clearly by [blank] (e.g., \"Photosynthesis occurs in [blank] and produces [blank].\"). Wrap paragraphs in standard HTML <p>...</p> tags.
 2. Mathematical, scientific, and physics formulas, equations, expressions, and Greek variables MUST be formatted using standard LaTeX syntax enclosed in single dollar signs (\$ ... \$) or double dollar signs (\$\$ ... \$\$).
-3. Provide the exact correct word, number, or phrase in \"correct_answer\". If there are common acceptable alternate spellings, separate them with vertical bars (e.g. \"Paris | Paris, France\").
+3. For each blank, provide acceptable target answers and common synonyms separated by vertical bars (e.g. \"Chloroplast | Chloroplasts\"). Provide all blanks as a JSON array in \"correct_answers\", as well as a string in \"correct_answer\".
 4. Provide a concise explanation justifying the answer.
 
 Respond ONLY with a single valid JSON object containing NO markdown wrappers, strictly matching this structure:
 {
   \"question_type\": \"fill_blank\",
   \"question_text\": \"<p>Question prompt with [blank]...</p>\",
-  \"correct_answer\": \"Correct word or phrase\",
+  \"correct_answers\": [\"Accepted answer for blank 1\", \"Accepted answer for blank 2\"],
+  \"correct_answer\": \"Accepted answer for blank 1 /// Accepted answer for blank 2\",
   \"explanation\": \"Step-by-step reasoning or justification\",
   \"marks\": {$marks}
 }";
@@ -610,19 +611,30 @@ Respond ONLY with a single valid JSON object containing NO markdown wrappers, st
         }
     }
 
-    if (!is_array($parsed) || empty($parsed['question_text']) || empty($parsed['correct_answer'])) {
+    if (!is_array($parsed) || empty($parsed['question_text']) || (empty($parsed['correct_answer']) && empty($parsed['correct_answers']))) {
         return [
             'success' => false,
             'error'   => 'AI returned invalid fill-in-the-blank question formatting. Raw text: ' . substr($cleanContent, 0, 300)
         ];
     }
 
+    $answers = [];
+    if (!empty($parsed['correct_answers']) && is_array($parsed['correct_answers'])) {
+        $answers = array_values(array_filter(array_map('trim', $parsed['correct_answers']), 'strlen'));
+    } elseif (!empty($parsed['correct_answer'])) {
+        $answers = array_values(parse_fill_blank_answers($parsed['correct_answer']));
+    }
+    if (empty($answers)) $answers = [''];
+
+    $ansText = count($answers) > 1 ? json_encode($answers, JSON_UNESCAPED_UNICODE) : $answers[0];
+
     return [
         'success'             => true,
         'question_type'       => 'fill_blank',
         'question_text'       => trim($parsed['question_text']),
-        'correct_answer_text' => trim($parsed['correct_answer']),
-        'correct_answer'      => trim($parsed['correct_answer']),
+        'correct_answers'     => $answers,
+        'correct_answer_text' => $ansText,
+        'correct_answer'      => implode(' /// ', $answers),
         'explanation'         => trim($parsed['explanation'] ?? ''),
         'marks'               => (int)($parsed['marks'] ?? $marks),
         'model_used'          => $model

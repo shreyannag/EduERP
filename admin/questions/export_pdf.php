@@ -82,9 +82,18 @@ $questions = $stmt->fetchAll();
             <?php echo htmlspecialchars(($index + 1) . ". ", ENT_QUOTES, 'UTF-8'); ?>
             <span style="font-weight: normal;"><?php echo clean_html($q['question_text']); ?></span>
         </div>
-        <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
+        <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): 
+            $bAnswers = parse_fill_blank_answers($q['correct_answer_text'] ?: $q['option1']);
+            $bTotal = max(1, count($bAnswers), count_question_blanks($q['question_text']));
+        ?>
             <div style="margin: 10px 0 15px 0; font-size: 13px;">
-                <strong>Answer:</strong> __________________________________________________
+                <?php if ($bTotal > 1): ?>
+                    <?php for ($bi = 1; $bi <= $bTotal; $bi++): ?>
+                        <div style="margin-bottom: 6px;"><strong>Blank <?php echo $bi; ?>:</strong> ___________________________________________</div>
+                    <?php endfor; ?>
+                <?php else: ?>
+                    <strong>Answer:</strong> __________________________________________________
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <div class="options-grid">

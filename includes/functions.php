@@ -924,28 +924,212 @@ function get_git_commit_info(): array {
 }
 
 /**
- * Evaluates whether a student's fill-in-the-blank answer matches the acceptable answer(s).
- * Matching is case-insensitive and trims extraneous whitespace.
- * Multiple acceptable answers can be delimited by '|' (e.g. "Paris|Paris, France") or newlines.
+ * Normalizes and parses official correct fill-in-the-blank answer(s) into a 1-based array:
+ * [1 => "ans1", 2 => "ans2", ...]
+ * Supports single strings, pipe-delimited variants per blank, '///' multi-blank delimiter,
+ * and JSON arrays/objects.
  */
-function is_fill_blank_correct($student_answer, $correct_answer): bool {
-    if ($student_answer === null || trim((string)$student_answer) === '') {
-        return false;
-    }
-    if ($correct_answer === null || trim((string)$correct_answer) === '') {
-        return false;
+function parse_fill_blank_answers($correct_answer_text): array {
+    if ($correct_answer_text === null) return [];
+    $rawArray = null;
+    if (is_array($correct_answer_text)) {
+        $rawArray = $correct_answer_text;
+    } else {
+        $raw = trim((string)$correct_answer_text);
+        if ($raw === '') return [];
+        if (strpos($raw, '///') !== false) {
+            $rawArray = explode('///', $raw);
+        } elseif (($raw[0] === '[' && substr($raw, -1) === ']') || ($raw[0] === '{' && substr($raw, -1) === '}')) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $rawArray = $decoded;
+            }
+        }
+        if ($rawArray === null) {
+            return [1 => $raw];
+        }
     }
 
-    // Normalize student answer: trim, lower case, collapse multiple internal spaces
-    $clean_student = preg_replace('/\s+/', ' ', trim(mb_strtolower((string)$student_answer, 'UTF-8')));
+    $result = [];
+    $idx = 1;
+    foreach ($rawArray as $v) {
+        $t = trim((string)$v);
+        if ($t !== '') {
+            $result[$idx++] = $t;
+        }
+    }
+    return !empty($result) ? $result : [1 => ''];
+}
 
-    // Split acceptable answers by '|' or newlines
-    $options = preg_split('/[|\r\n]+/', (string)$correct_answer);
-    foreach ($options as $opt) {
-        $clean_opt = preg_replace('/\s+/', ' ', trim(mb_strtolower((string)$opt, 'UTF-8')));
-        if ($clean_opt !== '' && $clean_student === $clean_opt) {
+/**
+ * Normalizes and parses a student's submitted fill-in-the-blank response into a 1-based array:
+ * [1 => "student ans 1", 2 => "student ans 2", ...]
+ * Supports single strings, associative or indexed arrays, and JSON strings.
+ */
+function parse_student_fill_blank_answers($student_answer): array {
+    if ($student_answer === null) return [];
+    $rawArray = null;
+    if (is_array($student_answer)) {
+        $rawArray = $student_answer;
+    } else {
+        $raw = trim((string)$student_answer);
+        if ($raw === '') return [];
+        if (($raw[0] === '[' && substr($raw, -1) === ']') || ($raw[0] === '{' && substr($raw, -1) === '}')) {
+            $decoded = json_decode($raw, true);
+            if (is_array($decoded)) {
+                $rawArray = $decoded;
+            }
+        }
+        if ($rawArray === null) {
+            return [1 => $raw];
+        }
+    }
+
+    $result = [];
+    $isOneBased = true;
+    foreach (array_keys($rawArray) as $k) {
+        if (!is_numeric($k) || (int)$k < 1) {
+            $isOneBased = false;
+            break;
+        }
+    }
+
+    if ($isOneBased && !empty($rawArray)) {
+        foreach ($rawArray as $k => $v) {
+            $result[(int)$k] = trim((string)$v);
+        }
+    } else {
+        $idx = 1;
+        foreach ($rawArray as $v) {
+            $result[$idx++] = trim((string)$v);
+        }
+    }
+    return $result;
+}
+
+/**
+ * Counts the number of blank placeholders in a question prompt.
+ * Recognizes [blank], [blank 1], [blank1], [blank_1], [blank-1], and 3+ underscores (e.g. ___).
+ */
+function count_question_blanks($prompt): int {
+    if (!$prompt) return 1;
+    $count = preg_match_all('/\[blank(?:\s*|_|-)?(?:\d*)\]|_{3,}/i', (string)$prompt);
+    return max(1, (int)$count);
+}
+
+/**
+ * Returns the effective total number of blanks in a question,
+ * by checking both the declared answer keys and the question prompt placeholders.
+ */
+function get_question_total_blanks($prompt, $correct_answer_text): int {
+    $ans_map = parse_fill_blank_answers($correct_answer_text);
+    $ans_count = count($ans_map);
+    $prompt_count = count_question_blanks($prompt);
+    return max(1, $ans_count, $prompt_count);
+}
+
+/**
+ * Checks if a single student response matches an accepted answer string
+ * (case-insensitive, whitespace-normalized, and matching any '|' alternate variant).
+ */
+function check_single_blank_match($student_single, $correct_single): bool {
+    if ($student_single === null || trim((string)$student_single) === '') return false;
+    if ($correct_single === null || trim((string)$correct_single) === '') return false;
+
+    $clean_student = preg_replace('/\s+/', ' ', trim(mb_strtolower((string)$student_single, 'UTF-8')));
+    $variants = preg_split('/[|\r\n]+/', (string)$correct_single);
+    foreach ($variants as $var) {
+        $clean_var = preg_replace('/\s+/', ' ', trim(mb_strtolower((string)$var, 'UTF-8')));
+        if ($clean_var !== '' && $clean_student === $clean_var) {
             return true;
         }
     }
     return false;
+}
+
+/**
+ * Evaluates all blanks in a question.
+ * Returns comprehensive evaluation details including total blanks, correct count,
+ * whether all blanks are correct, and per-blank evaluation details.
+ */
+function evaluate_fill_blanks($student_answer, $correct_answer, $prompt = ''): array {
+    $correct_map = parse_fill_blank_answers($correct_answer);
+    $student_map = parse_student_fill_blank_answers($student_answer);
+
+    $total_blanks = max(1, count($correct_map));
+    if ($prompt !== '') {
+        $total_blanks = max($total_blanks, count_question_blanks($prompt));
+    }
+
+    $correct_count = 0;
+    $details = [];
+
+    for ($i = 1; $i <= $total_blanks; $i++) {
+        $cor = $correct_map[$i] ?? ($correct_map[1] ?? '');
+        $stu = $student_map[$i] ?? '';
+
+        $is_correct = false;
+        if ($cor !== '' && $stu !== '') {
+            $is_correct = check_single_blank_match($stu, $cor);
+        }
+
+        if ($is_correct) {
+            $correct_count++;
+        }
+
+        $details[$i] = [
+            'student' => $stu,
+            'correct' => $cor,
+            'is_correct' => $is_correct
+        ];
+    }
+
+    $is_all_correct = ($correct_count === $total_blanks && $total_blanks > 0);
+    $fraction = ($total_blanks > 0) ? (float)($correct_count / $total_blanks) : 0.0;
+
+    return [
+        'total_blanks' => $total_blanks,
+        'correct_blanks' => $correct_count,
+        'is_all_correct' => $is_all_correct,
+        'fraction_correct' => $fraction,
+        'details' => $details
+    ];
+}
+
+/**
+ * Calculates awarded marks for a fill-in-the-blank question attempt.
+ */
+function calculate_blank_score(array $eval, int $marks): int {
+    if (empty($eval['total_blanks']) || $eval['total_blanks'] <= 0) return 0;
+    if (!empty($eval['is_all_correct'])) {
+        return $marks;
+    }
+    // Proportional grading if marks >= total blanks
+    if ($eval['total_blanks'] > 1 && $marks >= $eval['total_blanks']) {
+        return (int)floor(($eval['correct_blanks'] / $eval['total_blanks']) * $marks);
+    }
+    return 0;
+}
+
+/**
+ * Formats question prompt HTML by replacing [blank], [blank 1], etc. with styled badge placeholders:
+ * e.g. [Blank 1: _______], [Blank 2: _______]
+ */
+function format_blank_prompt($html_content): string {
+    if (!$html_content) return '';
+    $blankCounter = 0;
+    $pattern = '/\[blank(?:\s*|_|-)?(?:\d*)\]|_{3,}/i';
+    return preg_replace_callback($pattern, function($m) use (&$blankCounter) {
+        $blankCounter++;
+        return '<span class="badge badge-light border border-primary text-primary font-weight-bold px-2 py-1 mx-1 shadow-xs" style="font-size: 0.9em; vertical-align: baseline;"><i class="fas fa-pen-alt mr-1 text-warning"></i>Blank ' . $blankCounter . ': _________</span>';
+    }, $html_content);
+}
+
+/**
+ * Evaluates whether a student's fill-in-the-blank answer matches the acceptable answer(s).
+ * Retains backwards-compatible boolean return signature.
+ */
+function is_fill_blank_correct($student_answer, $correct_answer): bool {
+    $eval = evaluate_fill_blanks($student_answer, $correct_answer);
+    return $eval['is_all_correct'];
 }

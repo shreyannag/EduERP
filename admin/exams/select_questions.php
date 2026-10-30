@@ -150,10 +150,13 @@ $selected_count = count(array_filter($questions, function($q){ return $q['is_sel
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                                <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
-                                    <div class="small text-muted mt-2 d-flex align-items-center">
-                                        <span class="badge badge-warning text-dark mr-2 font-weight-bold shadow-sm"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank</span>
-                                        <span><i class="fas fa-key text-success mr-1"></i>Accepted: <strong class="text-success"><?php echo h($q['correct_answer_text'] ?: $q['option1']); ?></strong></span>
+                                <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): 
+                                    $bAnswers = parse_fill_blank_answers($q['correct_answer_text'] ?: $q['option1']);
+                                    $bCount = count($bAnswers);
+                                ?>
+                                    <div class="small text-muted mt-2 d-flex align-items-center flex-wrap">
+                                        <span class="badge badge-warning text-dark mr-2 font-weight-bold shadow-sm"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank (<?php echo $bCount; ?>)</span>
+                                        <span><i class="fas fa-key text-success mr-1"></i>Accepted: <strong class="text-success"><?php echo h(implode(' / ', $bAnswers)); ?></strong></span>
                                     </div>
                                 <?php else: ?>
                                     <div class="small text-muted mt-2 d-flex flex-wrap gap-2">

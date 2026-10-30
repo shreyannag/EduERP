@@ -91,7 +91,16 @@ if ($attempt_id > 0) {
     foreach ($raw_saved as $r) {
         $qid = (int)$r['question_id'];
         if ($r['chosen_option'] !== null) $saved_answers[$qid] = (int)$r['chosen_option'];
-        if ($r['answer_text'] !== null && trim($r['answer_text']) !== '') $saved_text_answers[$qid] = $r['answer_text'];
+        if ($r['answer_text'] !== null && trim($r['answer_text']) !== '') {
+            $parsed = parse_student_fill_blank_answers($r['answer_text']);
+            $hasContent = false;
+            foreach ($parsed as $v) {
+                if (trim((string)$v) !== '') { $hasContent = true; break; }
+            }
+            if ($hasContent) {
+                $saved_text_answers[$qid] = $r['answer_text'];
+            }
+        }
     }
 }
 $total_answered_initial = count($saved_answers) + count($saved_text_answers);
@@ -236,7 +245,7 @@ $csrf_token = generate_csrf_token();
                     <div class="q-header d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center flex-grow-1 pr-3">
                             <span class="q-num">Q<?php echo $qNum; ?></span>
-                            <div class="q-text-content"><?php echo render_formatted_content($q['question_text']); ?></div>
+                            <div class="q-text-content"><?php echo render_formatted_content(($q['question_type'] ?? 'mcq') === 'fill_blank' ? format_blank_prompt($q['question_text']) : $q['question_text']); ?></div>
                         </div>
                         <div class="flex-shrink-0 text-right">
                             <button type="button" class="btn btn-sm btn-outline-warning text-dark font-weight-bold rounded-pill px-3 shadow-sm btn-flag-q" id="flagBtn<?php echo $qNum; ?>" onclick="openFlagModal(<?php echo $q['id']; ?>, <?php echo $qNum; ?>)">
@@ -245,31 +254,67 @@ $csrf_token = generate_csrf_token();
                         </div>
                     </div>
                     <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): 
-                        $savedText = $saved_text_answers[$q['id']] ?? '';
+                        $savedRaw = $saved_text_answers[$q['id']] ?? '';
+                        $parsedSaved = parse_student_fill_blank_answers($savedRaw);
+                        $totalBlanks = get_question_total_blanks($q['question_text'], $q['correct_answer_text'] ?? '');
                     ?>
                     <div class="q-body px-4 pb-3">
                         <div class="p-4 bg-light rounded-lg border border-primary shadow-sm">
                             <div class="d-flex align-items-center justify-content-between mb-2">
                                 <label class="font-weight-bold text-dark small text-uppercase mb-0 d-flex align-items-center">
-                                    <i class="fas fa-pen-alt text-primary mr-2"></i>Fill in the Blank
+                                    <i class="fas fa-pen-alt text-primary mr-2"></i>Fill in the Blank<?php echo $totalBlanks > 1 ? " ({$totalBlanks} Blanks)" : ''; ?>
                                 </label>
                                 <span class="badge badge-success px-3 py-1 font-weight-bold rounded-pill shadow-sm"><i class="fas fa-spell-check mr-1"></i>Case Insensitive</span>
                             </div>
-                            <p class="text-muted small mb-3">Type your response below. Your answer is automatically saved to the cloud as you type.</p>
-                            <div class="input-group input-group-lg shadow-sm">
-                                <div class="input-group-prepend">
-                                    <span class="input-group-text bg-white border-right-0 text-primary"><i class="fas fa-keyboard"></i></span>
+                            <p class="text-muted small mb-3">Type your response below. Your progress auto-saves continuously to the cloud.</p>
+                            
+                            <?php if ($totalBlanks > 1): ?>
+                                <div class="row">
+                                    <?php for ($bi = 1; $bi <= $totalBlanks; $bi++): 
+                                        $val = $parsedSaved[$bi] ?? '';
+                                    ?>
+                                        <div class="col-md-6 mb-3">
+                                            <div class="p-3 bg-white rounded border shadow-xs">
+                                                <div class="small font-weight-bold text-primary mb-2 d-flex align-items-center">
+                                                    <span class="badge badge-primary mr-2 px-2 py-1">Blank <?php echo $bi; ?></span> Enter response:
+                                                </div>
+                                                <div class="input-group">
+                                                    <div class="input-group-prepend">
+                                                        <span class="input-group-text bg-light border-right-0 text-primary"><i class="fas fa-keyboard"></i></span>
+                                                    </div>
+                                                    <input type="text" 
+                                                           name="text_answers[<?php echo $q['id']; ?>][<?php echo $bi; ?>]" 
+                                                           id="q_fill_<?php echo $q['id']; ?>_<?php echo $bi; ?>" 
+                                                           class="form-control form-control-lg border-left-0 bg-white font-weight-bold text-dark q-fill-input" 
+                                                           placeholder="Type response for Blank <?php echo $bi; ?>..."
+                                                           value="<?php echo h($val); ?>"
+                                                           data-qnum="<?php echo $qNum; ?>"
+                                                           data-qid="<?php echo $q['id']; ?>"
+                                                           data-blank-idx="<?php echo $bi; ?>"
+                                                           autocomplete="off">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    <?php endfor; ?>
                                 </div>
-                                <input type="text" 
-                                       name="text_answers[<?php echo $q['id']; ?>]" 
-                                       id="q_fill_<?php echo $q['id']; ?>" 
-                                       class="form-control form-control-lg border-left-0 bg-white font-weight-bold text-dark q-fill-input" 
-                                       placeholder="Type your answer here..."
-                                       value="<?php echo h($savedText); ?>"
-                                       data-qnum="<?php echo $qNum; ?>"
-                                       data-qid="<?php echo $q['id']; ?>"
-                                       autocomplete="off">
-                            </div>
+                            <?php else: ?>
+                                <?php $val = $parsedSaved[1] ?? (is_string($savedRaw) ? $savedRaw : ''); ?>
+                                <div class="input-group input-group-lg shadow-sm">
+                                    <div class="input-group-prepend">
+                                        <span class="input-group-text bg-white border-right-0 text-primary"><i class="fas fa-keyboard"></i></span>
+                                    </div>
+                                    <input type="text" 
+                                           name="text_answers[<?php echo $q['id']; ?>][1]" 
+                                           id="q_fill_<?php echo $q['id']; ?>" 
+                                           class="form-control form-control-lg border-left-0 bg-white font-weight-bold text-dark q-fill-input" 
+                                           placeholder="Type your answer here..."
+                                           value="<?php echo h($val); ?>"
+                                           data-qnum="<?php echo $qNum; ?>"
+                                           data-qid="<?php echo $q['id']; ?>"
+                                           data-blank-idx="1"
+                                           autocomplete="off">
+                                </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <?php else: ?>
@@ -594,7 +639,14 @@ $csrf_token = generate_csrf_token();
 
     function syncCounts() {
         let ansMCQ = $('.q-radio:checked').length;
-        let ansFill = $('.q-fill-input').filter(function() { return $(this).val().trim() !== ''; }).length;
+        let answeredQuestions = {};
+        $('.q-fill-input').each(function() {
+            let qid = $(this).data('qid');
+            if ($(this).val().trim() !== '') {
+                answeredQuestions[qid] = true;
+            }
+        });
+        let ansFill = Object.keys(answeredQuestions).length;
         let ans = ansMCQ + ansFill;
         let unans = totalQuestions - ans;
         $('#mobileAnsweredCount').text(ans);
@@ -610,9 +662,20 @@ $csrf_token = generate_csrf_token();
         let inputEl = $(this);
         let qNum = inputEl.data('qnum');
         let qId = inputEl.data('qid');
-        let textVal = inputEl.val().trim();
 
-        if (textVal.length > 0) {
+        let qInputs = $('.q-fill-input[data-qid="' + qId + '"]');
+        let hasAnyAnswer = false;
+        let answersObj = {};
+        let isMultiple = qInputs.length > 1;
+
+        qInputs.each(function() {
+            let bIdx = $(this).data('blank-idx') || 1;
+            let val = $(this).val().trim();
+            answersObj[bIdx] = val;
+            if (val.length > 0) hasAnyAnswer = true;
+        });
+
+        if (hasAnyAnswer) {
             updatePalette(qNum);
         } else {
             $('#nav_btn_' + qNum).removeClass('answered shadow text-white').addClass('unanswered');
@@ -620,9 +683,11 @@ $csrf_token = generate_csrf_token();
             syncCounts();
         }
 
+        let payload = isMultiple ? JSON.stringify(answersObj) : (qInputs.first().val().trim());
+
         clearTimeout(fillDebounceTimers[qId]);
         fillDebounceTimers[qId] = setTimeout(function() {
-            autoSaveTextToServer(qId, textVal);
+            autoSaveTextToServer(qId, payload);
         }, 400);
     });
 
@@ -711,7 +776,14 @@ $csrf_token = generate_csrf_token();
     // High-friction submit confirmation modal
     function openSubmitModal() {
         let ansMCQ = $('.q-radio:checked').length;
-        let ansFill = $('.q-fill-input').filter(function() { return $(this).val().trim() !== ''; }).length;
+        let answeredQuestions = {};
+        $('.q-fill-input').each(function() {
+            let qid = $(this).data('qid');
+            if ($(this).val().trim() !== '') {
+                answeredQuestions[qid] = true;
+            }
+        });
+        let ansFill = Object.keys(answeredQuestions).length;
         let ans = ansMCQ + ansFill;
         let unans = totalQuestions - ans;
         

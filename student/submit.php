@@ -74,7 +74,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (!empty($post_text_answers) && is_array($post_text_answers)) {
             foreach ($post_text_answers as $q_id => $txt_ans) {
-                if ($txt_ans !== null && trim((string)$txt_ans) !== '') {
+                if (is_array($txt_ans)) {
+                    $all_text_answers[intval($q_id)] = $txt_ans;
+                } elseif ($txt_ans !== null && trim((string)$txt_ans) !== '') {
                     $all_text_answers[intval($q_id)] = trim((string)$txt_ans);
                 }
             }
@@ -82,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 3. Fetch questions, types, correct options, acceptable text, and marks for grading
         $stmt_q = $pdo->prepare("
-            SELECT q.id, q.question_type, q.correct_option, q.correct_answer_text, q.option1, q.marks
+            SELECT q.id, q.question_type, q.question_text, q.correct_option, q.correct_answer_text, q.option1, q.marks
             FROM questions q
             JOIN exam_questions eq ON q.id = eq.question_id
             WHERE eq.exam_id = ?
@@ -104,16 +106,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($q_type === 'fill_blank') {
                 $student_text = $all_text_answers[$qid] ?? null;
-                if ($student_text !== null && trim($student_text) !== '') {
+                $clean_student_ans = null;
+                if (is_array($student_text)) {
+                    $hasAny = false;
+                    foreach ($student_text as $v) {
+                        if (trim((string)$v) !== '') { $hasAny = true; break; }
+                    }
+                    if ($hasAny) {
+                        $clean_student_ans = json_encode($student_text, JSON_UNESCAPED_UNICODE);
+                    }
+                } elseif ($student_text !== null && trim((string)$student_text) !== '') {
+                    $clean_student_ans = trim((string)$student_text);
+                }
+
+                if ($clean_student_ans !== null) {
                     $total_answered_count++;
                     $cor_text = !empty($q_row['correct_answer_text']) ? $q_row['correct_answer_text'] : ($q_row['option1'] ?? '');
-                    if (is_fill_blank_correct($student_text, $cor_text)) {
-                        $score += $marks;
-                    }
+                    $eval = evaluate_fill_blanks($clean_student_ans, $cor_text, $q_row['question_text'] ?? '');
+                    $score += calculate_blank_score($eval, $marks);
+
                     if ($existing_ans_id) {
-                        $pdo->prepare("UPDATE attempt_answers SET answer_text = ?, chosen_option = NULL WHERE id = ?")->execute([$student_text, $existing_ans_id]);
+                        $pdo->prepare("UPDATE attempt_answers SET answer_text = ?, chosen_option = NULL WHERE id = ?")->execute([$clean_student_ans, $existing_ans_id]);
                     } else {
-                        $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option, answer_text) VALUES (?, ?, NULL, ?)")->execute([$attempt_id, $qid, $student_text]);
+                        $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option, answer_text) VALUES (?, ?, NULL, ?)")->execute([$attempt_id, $qid, $clean_student_ans]);
                     }
                 }
             } else {

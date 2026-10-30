@@ -52,11 +52,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     $question_type = in_array($_POST['question_type'] ?? '', ['mcq', 'fill_blank']) ? $_POST['question_type'] : 'mcq';
-    $correct_answer_text = trim($_POST['correct_answer_text'] ?? '');
+    
+    // Support multiple fill in the blanks
+    $correct_blank_answers = (array)($_POST['correct_blank_answers'] ?? []);
+    $legacy_ans_text = trim($_POST['correct_answer_text'] ?? '');
+    
+    $clean_blanks = [];
+    foreach ($correct_blank_answers as $ba) {
+        $trimmed_ba = trim((string)$ba);
+        if ($trimmed_ba !== '') {
+            $clean_blanks[] = $trimmed_ba;
+        }
+    }
+    if (empty($clean_blanks) && $legacy_ans_text !== '') {
+        $clean_blanks = array_values(parse_fill_blank_answers($legacy_ans_text));
+    }
+
+    if (count($clean_blanks) > 1) {
+        $correct_answer_text = json_encode($clean_blanks, JSON_UNESCAPED_UNICODE);
+    } else {
+        $correct_answer_text = $clean_blanks[0] ?? '';
+    }
 
     if ($question_type === 'fill_blank') {
         if (!$class_id || !$board_id || $q === '' || $correct_answer_text === '') {
-            $error = "Class, board, question prompt, and correct blank answer are all required for Fill in the Blanks.";
+            $error = "Class, board, question prompt, and at least one accepted blank answer are required for Fill in the Blanks.";
         }
     } else {
         if (!$class_id || !$board_id || $q === '' || strlen($o1) === 0 || strlen($o2) === 0 || strlen($o3) === 0 || strlen($o4) === 0 || !in_array($c, [1,2,3,4])) {
@@ -68,8 +88,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $q = process_question_images($q, $pdo, $current_admin_id);
             if ($question_type === 'fill_blank') {
+                $opt1_display = implode(' / ', $clean_blanks);
                 $stmt = $pdo->prepare("INSERT INTO questions (class_id, board_id, subject_id, topic_id, question_type, question_text, option1, option2, option3, option4, correct_option, correct_answer_text, marks, admin_id) VALUES (?, ?, ?, ?, 'fill_blank', ?, ?, NULL, NULL, NULL, NULL, ?, ?, ?)");
-                $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $correct_answer_text, $correct_answer_text, $marks, $current_admin_id]);
+                $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $opt1_display, $correct_answer_text, $marks, $current_admin_id]);
             } else {
                 $stmt = $pdo->prepare("INSERT INTO questions (class_id, board_id, subject_id, topic_id, question_type, question_text, option1, option2, option3, option4, correct_option, correct_answer_text, marks, admin_id) VALUES (?, ?, ?, ?, 'mcq', ?, ?, ?, ?, ?, ?, NULL, ?, ?)");
                 $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $o1, $o2, $o3, $o4, $c, $marks, $current_admin_id]);
@@ -268,20 +289,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- Fill in the Blanks Answer Declaration Section -->
             <div id="fillBlankAnswerSection" class="p-4 bg-light rounded-lg border border-primary mb-4" style="display: none;">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap">
                     <label class="font-weight-bold text-dark h5 mb-0">
                         <i class="fas fa-check-circle text-success mr-2"></i>Declare Correct Blank Answer(s)
                     </label>
-                    <span class="badge badge-success px-3 py-1 font-weight-bold rounded-pill shadow-sm"><i class="fas fa-spell-check mr-1"></i>Case-Insensitive Match</span>
-                </div>
-                <p class="text-muted small mb-3">Enter the accepted word, formula, or phrase students must input. If there are alternative accepted variants or synonyms, separate them using a vertical bar <code>|</code> (e.g. <code>Paris | Paris, France</code> or <code>Mitochondria | mitochondrion</code>).</p>
-                <div class="input-group input-group-lg shadow-sm mb-2">
-                    <div class="input-group-prepend">
-                        <span class="input-group-text bg-white border-0 text-success font-weight-bold px-3"><i class="fas fa-key"></i></span>
+                    <div class="d-flex align-items-center mt-2 mt-sm-0">
+                        <button type="button" class="btn btn-sm btn-outline-primary rounded-pill font-weight-bold mr-2 shadow-sm" id="btnAddAnotherBlank">
+                            <i class="fas fa-plus mr-1"></i>Add Another Blank
+                        </button>
+                        <span class="badge badge-success px-3 py-1 font-weight-bold rounded-pill shadow-sm"><i class="fas fa-spell-check mr-1"></i>Case-Insensitive</span>
                     </div>
-                    <input type="text" name="correct_answer_text" id="correct_answer_text_input" class="form-control border-0 bg-white font-weight-bold text-dark" placeholder="e.g. Photosynthesis or Newton | Isaac Newton">
                 </div>
-                <small class="text-muted d-block"><i class="fas fa-info-circle mr-1 text-primary"></i>During grading, students receive full marks if their response matches any of the pipe-separated values (ignoring uppercase/lowercase differences and extra spacing).</small>
+                <p class="text-muted small mb-3">
+                    Specify the accepted answer for each blank in your question. Multiple blanks (e.g. Blank 1, Blank 2) correspond sequentially to the <code>[blank]</code> placeholders in your prompt. For acceptable synonyms or spellings per blank, separate them with a pipe <code>|</code> (e.g. <code>extends | extend</code>).
+                </p>
+                
+                <div id="blankInputsContainer">
+                    <div class="blank-row p-3 bg-white rounded border mb-2 shadow-xs" data-blank-idx="1">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="badge badge-primary font-weight-bold px-2 py-1 blank-badge"><i class="fas fa-pen-alt mr-1"></i>Blank 1</span>
+                        </div>
+                        <div class="input-group input-group-lg shadow-sm">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text bg-light border-0 text-success font-weight-bold px-3"><i class="fas fa-key"></i></span>
+                            </div>
+                            <input type="text" name="correct_blank_answers[]" class="form-control border-0 bg-light font-weight-bold text-dark blank-answer-input" placeholder="Accepted answer(s) for Blank 1 (e.g. Mitochondria | mitochondrion)">
+                        </div>
+                    </div>
+                </div>
+                
+                <small class="text-muted d-block mt-2"><i class="fas fa-info-circle mr-1 text-primary"></i>Tip: Typing multiple <code>[blank]</code> tags in the question prompt automatically creates corresponding blank answer fields above.</small>
             </div>
 
             <!-- MCQ Options Section -->
@@ -393,16 +430,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     <!-- Fill in the Blank Live Preview Card -->
                     <div id="livePreviewBlankContainer" class="p-3 bg-white rounded border shadow-sm mb-2 d-none">
-                        <div class="d-flex align-items-center justify-content-between mb-3">
-                            <span class="badge badge-warning text-dark font-weight-bold px-3 py-1 shadow-sm rounded-pill"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank Format</span>
-                            <span class="badge badge-success px-3 py-1 font-weight-bold shadow-sm rounded-pill" id="liveBlankCorrectBadge"><i class="fas fa-check-circle mr-1"></i>Accepted: <span id="liveBlankCorrectText">None specified</span></span>
+                        <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap">
+                            <span class="badge badge-warning text-dark font-weight-bold px-3 py-1 shadow-sm rounded-pill mb-1"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank Format</span>
+                            <div id="liveBlankBadgesList" class="mb-1"></div>
                         </div>
                         <div class="p-3 bg-light rounded-lg border">
-                            <div class="small font-weight-bold text-uppercase mb-2 text-primary d-flex align-items-center"><i class="fas fa-keyboard mr-2"></i>Student Response Field (Typeset Preview):</div>
-                            <div class="input-group">
-                                <input type="text" class="form-control form-control-lg bg-white font-weight-bold text-dark border shadow-sm" disabled placeholder="Students will type their answer directly here...">
-                            </div>
-                            <small class="text-muted mt-2 d-block"><i class="fas fa-spell-check mr-1 text-success"></i>Answers are evaluated case-insensitively and space-normalized.</small>
+                            <div class="small font-weight-bold text-uppercase mb-2 text-primary d-flex align-items-center"><i class="fas fa-keyboard mr-2"></i>Student Response Fields (Typeset Preview):</div>
+                            <div id="liveBlankStudentFields"></div>
+                            <small class="text-muted mt-2 d-block"><i class="fas fa-spell-check mr-1 text-success"></i>Answers are evaluated case-insensitively and space-normalized per blank.</small>
                         </div>
                     </div>
                 </div>
@@ -869,6 +904,72 @@ $(document).ready(function() {
         }
     });
 
+    // --- Dynamic Multi-Blank Management ---
+    function getBlankInputsCount() {
+        return $('#blankInputsContainer .blank-row').length;
+    }
+
+    function addBlankRow(initialVal) {
+        var nextIdx = getBlankInputsCount() + 1;
+        var val = (typeof initialVal === 'string') ? initialVal : '';
+        var rowHtml = '<div class="blank-row p-3 bg-white rounded border mb-2 shadow-xs" data-blank-idx="' + nextIdx + '">' +
+            '<div class="d-flex justify-content-between align-items-center mb-2">' +
+                '<span class="badge badge-primary font-weight-bold px-2 py-1 blank-badge"><i class="fas fa-pen-alt mr-1"></i>Blank ' + nextIdx + '</span>' +
+                (nextIdx > 1 ? '<button type="button" class="btn btn-xs btn-outline-danger font-weight-bold btn-remove-blank py-0 px-2 rounded-pill"><i class="fas fa-times mr-1"></i>Remove</button>' : '') +
+            '</div>' +
+            '<div class="input-group input-group-lg shadow-sm">' +
+                '<div class="input-group-prepend">' +
+                    '<span class="input-group-text bg-light border-0 text-success font-weight-bold px-3"><i class="fas fa-key"></i></span>' +
+                '</div>' +
+                '<input type="text" name="correct_blank_answers[]" class="form-control border-0 bg-light font-weight-bold text-dark blank-answer-input" placeholder="Accepted answer(s) for Blank ' + nextIdx + ' (e.g. Mitochondria | mitochondrion)" value="' + $('<div>').text(val).html() + '" required>' +
+            '</div>' +
+        '</div>';
+        $('#blankInputsContainer').append(rowHtml);
+        reindexBlankRows();
+        debouncedLivePreview();
+    }
+
+    function reindexBlankRows() {
+        $('#blankInputsContainer .blank-row').each(function(i) {
+            var num = i + 1;
+            $(this).attr('data-blank-idx', num);
+            $(this).find('.blank-badge').html('<i class="fas fa-pen-alt mr-1"></i>Blank ' + num);
+            $(this).find('.blank-answer-input').attr('placeholder', 'Accepted answer(s) for Blank ' + num + ' (e.g. Mitochondria | mitochondrion)');
+            var removeBtn = $(this).find('.btn-remove-blank');
+            if (num === 1) {
+                removeBtn.remove();
+            } else if (!removeBtn.length) {
+                $(this).find('.d-flex').append('<button type="button" class="btn btn-xs btn-outline-danger font-weight-bold btn-remove-blank py-0 px-2 rounded-pill"><i class="fas fa-times mr-1"></i>Remove</button>');
+            }
+        });
+    }
+
+    // Auto-detect blanks from question prompt
+    function syncBlanksFromPrompt() {
+        var promptCode = $('textarea[name="question_text"]').summernote('code') || '';
+        var matches = promptCode.match(/\[blank(?:\s*|_|-)?(?:\d*)\]|_{3,}/gi);
+        var detectedCount = matches ? matches.length : 1;
+        var currentCount = getBlankInputsCount();
+        if (detectedCount > currentCount) {
+            for (var i = currentCount; i < detectedCount; i++) {
+                addBlankRow('');
+            }
+        }
+    }
+
+    $('#btnAddAnotherBlank').click(function() {
+        $('textarea[name="question_text"]').summernote('insertText', ' [blank] ');
+        addBlankRow('');
+    });
+
+    $(document).on('click', '.btn-remove-blank', function() {
+        $(this).closest('.blank-row').remove();
+        reindexBlankRows();
+        debouncedLivePreview();
+    });
+
+    $(document).on('input', '.blank-answer-input', debouncedLivePreview);
+
     // --- Live LaTeX & Question Preview Logic ---
     let livePreviewTimer = null;
     function updateLivePreview() {
@@ -879,21 +980,49 @@ $(document).ready(function() {
         var cleanPrompt = promptCode ? promptCode.replace(/<[^>]+>/g, '').trim() : '';
         var hasImg = promptCode && promptCode.indexOf('<img') !== -1;
 
-        if (cleanPrompt.length > 0 || hasImg) {
-            $('#livePreviewQuestion').html(promptCode);
-        } else {
-            $('#livePreviewQuestion').html('<span class="text-muted font-italic">Question prompt preview will render here with LaTeX equations formatted...</span>');
-        }
-
         var qType = $('input[name="question_type"]:checked').val() || 'mcq';
+
         if (qType === 'fill_blank') {
             $('#livePreviewOptionsRow').addClass('d-none');
             $('#livePreviewBlankContainer').removeClass('d-none');
-            var acceptedVal = $('#correct_answer_text_input').val().trim();
-            $('#liveBlankCorrectText').text(acceptedVal ? acceptedVal : 'None specified');
+            syncBlanksFromPrompt();
+
+            // Typeset blank badges into question prompt preview
+            var blankCounter = 0;
+            var formattedPrompt = (promptCode || '').replace(/\[blank(?:\s*|_|-)?(?:\d*)\]|_{3,}/gi, function() {
+                blankCounter++;
+                return '<span class="badge badge-light border border-primary text-primary font-weight-bold px-2 py-1 mx-1 shadow-xs" style="font-size: 0.9em;"><i class="fas fa-pen-alt mr-1 text-warning"></i>Blank ' + blankCounter + ': _________</span>';
+            });
+
+            if (cleanPrompt.length > 0 || hasImg) {
+                $('#livePreviewQuestion').html(formattedPrompt);
+            } else {
+                $('#livePreviewQuestion').html('<span class="text-muted font-italic">Question prompt preview will render here with blanks and equations formatted...</span>');
+            }
+
+            // Render live preview accepted answers & student fields
+            var blankBadgesHtml = '';
+            var studentFieldsHtml = '';
+            var rows = $('#blankInputsContainer .blank-row');
+            rows.each(function(i) {
+                var num = i + 1;
+                var val = $(this).find('.blank-answer-input').val().trim();
+                var dispVal = val ? val : 'None specified';
+                blankBadgesHtml += '<span class="badge badge-success px-2 py-1 font-weight-bold shadow-sm rounded-pill mr-1 mb-1"><i class="fas fa-check-circle mr-1"></i>Blank ' + num + ': ' + $('<div>').text(dispVal).html() + '</span> ';
+                studentFieldsHtml += '<div class="mb-2"><div class="small font-weight-bold text-dark mb-1"><span class="badge badge-primary mr-1">Blank ' + num + '</span>Student Response:</div><input type="text" class="form-control bg-white font-weight-bold text-dark border shadow-xs" disabled placeholder="Students will type response for Blank ' + num + '..."></div>';
+            });
+            $('#liveBlankBadgesList').html(blankBadgesHtml);
+            $('#liveBlankStudentFields').html(studentFieldsHtml);
         } else {
             $('#livePreviewOptionsRow').removeClass('d-none');
             $('#livePreviewBlankContainer').addClass('d-none');
+
+            if (cleanPrompt.length > 0 || hasImg) {
+                $('#livePreviewQuestion').html(promptCode);
+            } else {
+                $('#livePreviewQuestion').html('<span class="text-muted font-italic">Question prompt preview will render here with LaTeX equations formatted...</span>');
+            }
+
             var correctOpt = $('select[name="correct_option"]').val();
             for (var i = 1; i <= 4; i++) {
                 var optVal = $('input[name="option' + i + '"]').val().trim();
@@ -938,7 +1067,6 @@ $(document).ready(function() {
 
     // Attach live preview listeners
     $('input[name^="option"]').on('input', debouncedLivePreview);
-    $('#correct_answer_text_input').on('input', debouncedLivePreview);
     $('select[name="correct_option"]').on('change', debouncedLivePreview);
     $('#btnRefreshPreview').click(updateLivePreview);
 
@@ -952,7 +1080,7 @@ $(document).ready(function() {
 
             $('input[name^="option"]').prop('required', false);
             $('select[name="correct_option"]').prop('required', false);
-            $('#correct_answer_text_input').prop('required', true);
+            $('.blank-answer-input').prop('required', true);
         } else {
             $('#labelTypeMCQ').css({'border-color': '#3b82f6', 'background-color': '#eff6ff'});
             $('#labelTypeFillBlank').css({'border-color': '#e5e7eb', 'background-color': '#ffffff'});
@@ -961,7 +1089,7 @@ $(document).ready(function() {
 
             $('input[name^="option"]').prop('required', true);
             $('select[name="correct_option"]').prop('required', true);
-            $('#correct_answer_text_input').prop('required', false);
+            $('.blank-answer-input').prop('required', false);
         }
         updateLivePreview();
     }
@@ -974,7 +1102,7 @@ $(document).ready(function() {
     // Insert [blank] tag into Summernote
     $('#btnInsertBlankTag').click(function() {
         $('textarea[name="question_text"]').summernote('insertText', ' [blank] ');
-        debouncedLivePreview();
+        addBlankRow('');
     });
 
     // --- LaTeX Quick Toolbar Buttons (above prompt) ---
@@ -1303,8 +1431,25 @@ $(document).ready(function() {
         if (lastGeneratedData.question_type === 'fill_blank') {
             $('#type_fill_blank').prop('checked', true);
             syncQuestionType('fill_blank');
-            var ans = lastGeneratedData.correct_answer || lastGeneratedData.correct_answer_text || '';
-            $('#correct_answer_text_input').val(ans);
+            $('#blankInputsContainer').empty();
+            var answersList = [];
+            if (Array.isArray(lastGeneratedData.correct_answers)) {
+                answersList = lastGeneratedData.correct_answers;
+            } else if (lastGeneratedData.correct_answer) {
+                answersList = [lastGeneratedData.correct_answer];
+            } else if (lastGeneratedData.correct_answer_text) {
+                try {
+                    var parsed = JSON.parse(lastGeneratedData.correct_answer_text);
+                    if (Array.isArray(parsed)) answersList = parsed;
+                    else answersList = [lastGeneratedData.correct_answer_text];
+                } catch(e) {
+                    answersList = [lastGeneratedData.correct_answer_text];
+                }
+            }
+            if (answersList.length === 0) answersList = [''];
+            for (var bi = 0; bi < answersList.length; bi++) {
+                addBlankRow(answersList[bi]);
+            }
         } else {
             $('#type_mcq').prop('checked', true);
             syncQuestionType('mcq');

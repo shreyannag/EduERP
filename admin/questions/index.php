@@ -392,10 +392,20 @@ if ($is_super) {
                             </td>
                             <td class="text-center align-middle font-weight-bold text-success"><span id="qmarks-<?php echo $q['id']; ?>"><?php echo $q['marks']; ?></span></td>
                         <td class="align-middle">
-                            <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
-                                <span class="badge badge-success font-weight-bold text-truncate shadow-sm d-inline-block" style="max-width: 140px;" id="qcorr-<?php echo $q['id']; ?>" title="<?php echo h($q['correct_answer_text'] ?: $q['option1']); ?>">
-                                    <i class="fas fa-check mr-1"></i><?php echo h($q['correct_answer_text'] ?: $q['option1']); ?>
-                                </span>
+                            <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): 
+                                $bAnswers = parse_fill_blank_answers($q['correct_answer_text'] ?: $q['option1']);
+                                $bCount = count($bAnswers);
+                            ?>
+                                <?php if ($bCount > 1): ?>
+                                    <span class="badge badge-primary font-weight-bold shadow-sm mr-1"><i class="fas fa-layer-group mr-1"></i><?php echo $bCount; ?> Blanks</span>
+                                    <span class="badge badge-success font-weight-bold text-truncate shadow-sm d-inline-block align-middle" style="max-width: 110px;" id="qcorr-<?php echo $q['id']; ?>" title="<?php echo h(implode(' /// ', $bAnswers)); ?>">
+                                        <?php echo h(implode(' / ', $bAnswers)); ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="badge badge-success font-weight-bold text-truncate shadow-sm d-inline-block" style="max-width: 140px;" id="qcorr-<?php echo $q['id']; ?>" title="<?php echo h($bAnswers[1] ?? ($q['correct_answer_text'] ?: $q['option1'])); ?>">
+                                        <i class="fas fa-check mr-1"></i><?php echo h($bAnswers[1] ?? ($q['correct_answer_text'] ?: $q['option1'])); ?>
+                                    </span>
+                                <?php endif; ?>
                             <?php else: ?>
                                 <span class="badge badge-info bg-opacity-75" id="qcorr-<?php echo $q['id']; ?>">Option <?php echo $q['correct_option']; ?></span>
                             <?php endif; ?>
@@ -570,14 +580,20 @@ if ($is_super) {
             
             <!-- Fill in the Blank Edit Section -->
             <div id="editFillBlankSection" class="p-3 bg-white rounded border border-primary mb-4 shadow-sm" style="display: none;">
-                <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap">
                     <label class="font-weight-bold text-dark small text-uppercase mb-0">
                         <i class="fas fa-check-circle text-success mr-2"></i>Declare Correct Blank Answer(s)
                     </label>
-                    <span class="badge badge-success px-2 py-1"><i class="fas fa-spell-check mr-1"></i>Case-Insensitive</span>
+                    <div>
+                        <button type="button" class="btn btn-xs btn-outline-primary rounded-pill font-weight-bold mr-2" id="btnEditAddBlank">
+                            <i class="fas fa-plus mr-1"></i>Add Blank
+                        </button>
+                        <span class="badge badge-success px-2 py-1"><i class="fas fa-spell-check mr-1"></i>Case-Insensitive</span>
+                    </div>
                 </div>
-                <input type="text" id="edit-correct-blank" name="correct_answer_text" class="form-control font-weight-bold" placeholder="e.g. Photosynthesis or Newton | Isaac Newton">
-                <small class="text-muted mt-2 d-block"><i class="fas fa-info-circle mr-1 text-primary"></i>Separate alternative valid variations using vertical bar <code>|</code>.</small>
+                <p class="text-muted small mb-2">Specify accepted answer(s) for each blank. Multiple blanks correspond to sequential <code>[blank]</code> tags in the prompt.</p>
+                <div id="editBlankInputsContainer"></div>
+                <small class="text-muted mt-2 d-block"><i class="fas fa-info-circle mr-1 text-primary"></i>Separate alternative acceptable variants per blank with a pipe <code>|</code> (e.g. <code>extends | extend</code>).</small>
             </div>
 
             <!-- MCQ Edit Options Section -->
@@ -812,10 +828,30 @@ $(document).ready(function() {
 
                 if (isFill) {
                     let ansText = q.correct_answer_text || q.option1 || '';
+                    let ansList = [];
+                    try {
+                        let parsed = JSON.parse(ansText);
+                        if (Array.isArray(parsed)) ansList = parsed;
+                        else if (typeof parsed === 'object') ansList = Object.values(parsed);
+                        else ansList = [ansText];
+                    } catch(e) {
+                        if (ansText.indexOf('///') !== -1) {
+                            ansList = ansText.split('///').map(function(s) { return s.trim(); });
+                        } else {
+                            ansList = [ansText];
+                        }
+                    }
+                    if (ansList.length === 0) ansList = [''];
+
                     html += '<div class="p-4 bg-light rounded-lg border border-success shadow-sm">';
-                    html += '<div class="small font-weight-bold text-success text-uppercase mb-2"><i class="fas fa-check-circle mr-1"></i>Official Accepted Blank Answer(s)</div>';
-                    html += '<div class="h5 font-weight-bold text-dark mb-2">' + $('<div>').text(ansText).html() + '</div>';
-                    html += '<small class="text-muted"><i class="fas fa-spell-check mr-1 text-primary"></i>Evaluated case-insensitively and whitespace-normalized. Multiple variants separated with vertical bar (|).</small>';
+                    html += '<div class="small font-weight-bold text-success text-uppercase mb-3"><i class="fas fa-check-circle mr-1"></i>Official Accepted Blank Answer(s) (' + ansList.length + ' Blank' + (ansList.length > 1 ? 's' : '') + ')</div>';
+                    ansList.forEach(function(ansItem, idx) {
+                        html += '<div class="p-2 bg-white rounded border mb-2 shadow-xs d-flex align-items-center">';
+                        html += '<span class="badge badge-primary mr-2 px-2 py-1 font-weight-bold">Blank ' + (idx + 1) + '</span>';
+                        html += '<span class="h6 font-weight-bold text-dark mb-0">' + $('<div>').text(ansItem).html() + '</span>';
+                        html += '</div>';
+                    });
+                    html += '<small class="text-muted"><i class="fas fa-spell-check mr-1 text-primary"></i>Evaluated case-insensitively and whitespace-normalized per blank. Synonyms separated with vertical bar (|).</small>';
                     html += '</div>';
                 } else {
                     html += '<div class="list-group list-group-flush shadow-sm border rounded">';
@@ -923,9 +959,49 @@ $(document).ready(function() {
         }
     });
 
+    function addEditBlankRow(initialVal) {
+        var nextIdx = $('#editBlankInputsContainer .edit-blank-row').length + 1;
+        var val = (typeof initialVal === 'string') ? initialVal : '';
+        var rowHtml = '<div class="edit-blank-row p-2 bg-light rounded border mb-2" data-idx="' + nextIdx + '">' +
+            '<div class="d-flex justify-content-between align-items-center mb-1">' +
+                '<span class="badge badge-primary font-weight-bold px-2 py-1 edit-blank-badge"><i class="fas fa-pen-alt mr-1"></i>Blank ' + nextIdx + '</span>' +
+                (nextIdx > 1 ? '<button type="button" class="btn btn-xs btn-outline-danger font-weight-bold btn-remove-edit-blank py-0 px-2 rounded-pill"><i class="fas fa-times mr-1"></i>Remove</button>' : '') +
+            '</div>' +
+            '<input type="text" name="correct_blank_answers[]" class="form-control font-weight-bold edit-blank-input" placeholder="Accepted answer(s) for Blank ' + nextIdx + '" value="' + $('<div>').text(val).html() + '" required>' +
+        '</div>';
+        $('#editBlankInputsContainer').append(rowHtml);
+        reindexEditBlankRows();
+        debouncedEditPreview();
+    }
+
+    function reindexEditBlankRows() {
+        $('#editBlankInputsContainer .edit-blank-row').each(function(i) {
+            var num = i + 1;
+            $(this).attr('data-idx', num);
+            $(this).find('.edit-blank-badge').html('<i class="fas fa-pen-alt mr-1"></i>Blank ' + num);
+            $(this).find('.edit-blank-input').attr('placeholder', 'Accepted answer(s) for Blank ' + num);
+            var rem = $(this).find('.btn-remove-edit-blank');
+            if (num === 1) rem.remove();
+            else if (!rem.length) $(this).find('.d-flex').append('<button type="button" class="btn btn-xs btn-outline-danger font-weight-bold btn-remove-edit-blank py-0 px-2 rounded-pill"><i class="fas fa-times mr-1"></i>Remove</button>');
+        });
+    }
+
+    $('#btnEditAddBlank').click(function() {
+        $('#edit-q').summernote('insertText', ' [blank] ');
+        addEditBlankRow('');
+    });
+
+    $(document).on('click', '.btn-remove-edit-blank', function() {
+        $(this).closest('.edit-blank-row').remove();
+        reindexEditBlankRows();
+        debouncedEditPreview();
+    });
+
+    $(document).on('input', '.edit-blank-input', debouncedEditPreview);
+
     $('#btnEditInsertBlank').click(function() {
         $('#edit-q').summernote('insertText', ' [blank] ');
-        debouncedEditPreview();
+        addEditBlankRow('');
     });
 
     $('#editForm input[name^="option"]').on('input', debouncedEditPreview);
@@ -965,7 +1041,26 @@ $(document).ready(function() {
                 } else {
                     $('#edit-type-mcq').prop('checked', true);
                 }
-                $('#edit-correct-blank').val(q.correct_answer_text || q.option1 || '');
+                $('#editBlankInputsContainer').empty();
+                let bAnsText = q.correct_answer_text || q.option1 || '';
+                let bAnsList = [];
+                try {
+                    let parsed = JSON.parse(bAnsText);
+                    if (Array.isArray(parsed)) bAnsList = parsed;
+                    else if (typeof parsed === 'object') bAnsList = Object.values(parsed);
+                    else bAnsList = [bAnsText];
+                } catch(e) {
+                    if (bAnsText.indexOf('///') !== -1) {
+                        bAnsList = bAnsText.split('///').map(function(s) { return s.trim(); });
+                    } else {
+                        bAnsList = [bAnsText];
+                    }
+                }
+                if (bAnsList.length === 0) bAnsList = [''];
+                for (var bi = 0; bi < bAnsList.length; bi++) {
+                    addEditBlankRow(bAnsList[bi]);
+                }
+
                 $('#edit-o1').val(q.option1);
                 $('#edit-o2').val(q.option2);
                 $('#edit-o3').val(q.option3);

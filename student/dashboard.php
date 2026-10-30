@@ -36,7 +36,7 @@ try {
         // If exam scheduled window has ended, auto-finalize the attempt and score it
         if ($now_str > $end_dt) {
             $stmt_calc = $pdo->prepare("
-                SELECT q.id, q.question_type, q.correct_option, q.correct_answer_text, q.option1, COALESCE(q.marks, 1) as marks,
+                SELECT q.id, q.question_type, q.question_text, q.correct_option, q.correct_answer_text, q.option1, COALESCE(q.marks, 1) as marks,
                        ans.chosen_option, ans.answer_text
                 FROM attempt_answers ans
                 JOIN questions q ON ans.question_id = q.id
@@ -48,9 +48,8 @@ try {
             foreach ($ans_rows as $ar) {
                 if (($ar['question_type'] ?? 'mcq') === 'fill_blank') {
                     $cor_text = !empty($ar['correct_answer_text']) ? $ar['correct_answer_text'] : ($ar['option1'] ?? '');
-                    if (is_fill_blank_correct($ar['answer_text'], $cor_text)) {
-                        $calc_score += (int)$ar['marks'];
-                    }
+                    $eval = evaluate_fill_blanks($ar['answer_text'], $cor_text, $ar['question_text'] ?? '');
+                    $calc_score += calculate_blank_score($eval, (int)$ar['marks']);
                 } else {
                     if ((int)$ar['chosen_option'] === (int)$ar['correct_option']) {
                         $calc_score += (int)$ar['marks'];

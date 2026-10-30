@@ -127,8 +127,15 @@ require_once '../includes/student_header.php';
     $corText = !empty($q['correct_answer_text']) ? $q['correct_answer_text'] : ($q['option1'] ?? '');
 
     if ($isFill) {
-        $hasAttempted = ($selText !== null && trim((string)$selText) !== '');
-        $isCorrect = is_fill_blank_correct($selText, $corText);
+        $eval = evaluate_fill_blanks($selText, $corText, $q['question_text']);
+        $hasAttempted = false;
+        foreach ($eval['details'] as $det) {
+            if (trim((string)$det['student']) !== '') {
+                $hasAttempted = true;
+                break;
+            }
+        }
+        $isCorrect = $eval['is_all_correct'];
     } else {
         $hasAttempted = !empty($sel);
         $isCorrect = ($sel == $cor);
@@ -149,7 +156,7 @@ require_once '../includes/student_header.php';
     <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-start">
         <h5 class="font-weight-bold text-dark d-flex align-items-start mb-0">
             <span class="badge badge-dark mr-3 shadow-sm py-2 px-3 badge-pill text-uppercase flex-shrink-0">Question <?php echo $qNum; ?></span>
-            <div style="line-height: 1.6; min-width: 0; flex-grow: 1;" class="pt-1 text-dark review-q-text font-weight-normal"><?php echo render_formatted_content($q['question_text']); ?></div>
+            <div style="line-height: 1.6; min-width: 0; flex-grow: 1;" class="pt-1 text-dark review-q-text font-weight-normal"><?php echo render_formatted_content($isFill ? format_blank_prompt($q['question_text']) : $q['question_text']); ?></div>
         </h5>
         <div class="ml-4 flex-shrink-0 mt-1">
             <?php if(!$attempt['key_released']): ?>
@@ -170,30 +177,74 @@ require_once '../includes/student_header.php';
     </div>
     <div class="card-body px-4 pb-4 pt-3 ml-md-5 pl-md-4">
         <?php if ($isFill): ?>
-            <div class="row">
-                <div class="col-md-6 mb-3">
-                    <div class="p-3 rounded border shadow-sm <?php echo (!$attempt['key_released']) ? 'bg-light' : ($isCorrect ? 'bg-success text-white' : ($hasAttempted ? 'bg-danger text-white' : 'bg-light text-muted')); ?>">
-                        <div class="small font-weight-bold text-uppercase mb-1 opacity-75">
-                            <i class="fas fa-user-edit mr-1"></i>Your Submitted Answer
+            <?php if (!empty($eval['total_blanks']) && $eval['total_blanks'] > 1): ?>
+                <div class="mb-3 d-flex align-items-center justify-content-between flex-wrap">
+                    <span class="badge badge-info px-3 py-1 font-weight-bold rounded-pill shadow-xs"><i class="fas fa-layer-group mr-1"></i><?php echo $eval['total_blanks']; ?> Fill-in Blanks</span>
+                    <?php if ($attempt['key_released']): ?>
+                        <span class="badge <?php echo $isCorrect ? 'badge-success' : ($eval['correct_blanks'] > 0 ? 'badge-warning text-dark' : 'badge-danger'); ?> px-3 py-1 font-weight-bold rounded-pill shadow-xs">
+                            <i class="fas <?php echo $isCorrect ? 'fa-check-circle' : 'fa-info-circle'; ?> mr-1"></i><?php echo $eval['correct_blanks']; ?> / <?php echo $eval['total_blanks']; ?> Blanks Correct
+                        </span>
+                    <?php endif; ?>
+                </div>
+                <div class="row">
+                    <?php foreach ($eval['details'] as $bNum => $bDet): 
+                        $bHasAns = (trim((string)$bDet['student']) !== '');
+                        $bIsCorr = !empty($bDet['is_correct']);
+                    ?>
+                        <div class="col-md-6 mb-3">
+                            <div class="p-3 rounded border shadow-sm h-100 <?php echo (!$attempt['key_released']) ? 'bg-light' : ($bIsCorr ? 'border-success bg-white' : ($bHasAns ? 'border-danger bg-white' : 'bg-light text-muted')); ?>">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="badge badge-primary font-weight-bold px-2 py-1">Blank <?php echo $bNum; ?></span>
+                                    <?php if ($attempt['key_released']): ?>
+                                        <?php if ($bIsCorr): ?>
+                                            <span class="badge badge-success px-2 py-1"><i class="fas fa-check mr-1"></i>Correct</span>
+                                        <?php elseif ($bHasAns): ?>
+                                            <span class="badge badge-danger px-2 py-1"><i class="fas fa-times mr-1"></i>Incorrect</span>
+                                        <?php else: ?>
+                                            <span class="badge badge-secondary px-2 py-1">Unattempted</span>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="small font-weight-bold text-muted text-uppercase mb-1"><i class="fas fa-user-edit mr-1"></i>Your Answer:</div>
+                                <div class="h6 font-weight-bold <?php echo (!$attempt['key_released']) ? 'text-dark' : ($bIsCorr ? 'text-success' : ($bHasAns ? 'text-danger' : 'text-muted')); ?> mb-2">
+                                    <?php echo $bHasAns ? h($bDet['student']) : '<em class="text-muted">No response</em>'; ?>
+                                </div>
+                                <?php if ($attempt['key_released']): ?>
+                                    <div class="pt-2 border-top">
+                                        <div class="small font-weight-bold text-success text-uppercase mb-1"><i class="fas fa-key mr-1"></i>Accepted Key:</div>
+                                        <div class="small font-weight-bold text-dark mb-0"><?php echo h($bDet['correct']); ?></div>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                         </div>
-                        <div class="h5 font-weight-bold mb-0">
-                            <?php echo $hasAttempted ? h($selText) : '<em class="opacity-75">No answer entered</em>'; ?>
+                    <?php endforeach; ?>
+                </div>
+            <?php else: ?>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="p-3 rounded border shadow-sm <?php echo (!$attempt['key_released']) ? 'bg-light' : ($isCorrect ? 'bg-success text-white' : ($hasAttempted ? 'bg-danger text-white' : 'bg-light text-muted')); ?>">
+                            <div class="small font-weight-bold text-uppercase mb-1 opacity-75">
+                                <i class="fas fa-user-edit mr-1"></i>Your Submitted Answer
+                            </div>
+                            <div class="h5 font-weight-bold mb-0">
+                                <?php echo $hasAttempted ? h($selText) : '<em class="opacity-75">No answer entered</em>'; ?>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <?php if ($attempt['key_released']): ?>
-                <div class="col-md-6 mb-3">
-                    <div class="p-3 rounded border shadow-sm bg-light border-success">
-                        <div class="small font-weight-bold text-uppercase text-success mb-1">
-                            <i class="fas fa-check-circle mr-1"></i>Official Accepted Answer(s)
-                        </div>
-                        <div class="h5 font-weight-bold text-dark mb-0">
-                            <?php echo h($corText); ?>
+                    <?php if ($attempt['key_released']): ?>
+                    <div class="col-md-6 mb-3">
+                        <div class="p-3 rounded border shadow-sm bg-light border-success">
+                            <div class="small font-weight-bold text-uppercase text-success mb-1">
+                                <i class="fas fa-check-circle mr-1"></i>Official Accepted Answer(s)
+                            </div>
+                            <div class="h5 font-weight-bold text-dark mb-0">
+                                <?php echo h($corText); ?>
+                            </div>
                         </div>
                     </div>
+                    <?php endif; ?>
                 </div>
-                <?php endif; ?>
-            </div>
+            <?php endif; ?>
         <?php else: ?>
             <div class="row">
                 <?php for($i=1; $i<=4; $i++): 

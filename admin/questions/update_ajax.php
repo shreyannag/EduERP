@@ -17,7 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = intval($_POST['id'] ?? 0);
     $question_type = in_array($_POST['question_type'] ?? '', ['mcq', 'fill_blank']) ? $_POST['question_type'] : 'mcq';
     $q = trim($_POST['question_text'] ?? '');
-    $correct_blank = trim($_POST['correct_answer_text'] ?? '');
     $o1 = trim($_POST['option1'] ?? '');
     $o2 = trim($_POST['option2'] ?? '');
     $o3 = trim($_POST['option3'] ?? '');
@@ -28,13 +27,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $subject_id = !empty($_POST['subject_id']) ? intval($_POST['subject_id']) : null;
     $topic_id = !empty($_POST['topic_id']) ? intval($_POST['topic_id']) : null;
     $marks = intval($_POST['marks'] ?? 1);
+
+    // Support multiple fill in the blanks
+    $correct_blank_answers = (array)($_POST['correct_blank_answers'] ?? []);
+    $legacy_ans_text = trim($_POST['correct_answer_text'] ?? '');
+    
+    $clean_blanks = [];
+    foreach ($correct_blank_answers as $ba) {
+        $trimmed_ba = trim((string)$ba);
+        if ($trimmed_ba !== '') {
+            $clean_blanks[] = $trimmed_ba;
+        }
+    }
+    if (empty($clean_blanks) && $legacy_ans_text !== '') {
+        $clean_blanks = array_values(parse_fill_blank_answers($legacy_ans_text));
+    }
+
+    if (count($clean_blanks) > 1) {
+        $correct_blank = json_encode($clean_blanks, JSON_UNESCAPED_UNICODE);
+    } else {
+        $correct_blank = $clean_blanks[0] ?? '';
+    }
     
     if ($question_type === 'fill_blank') {
         if (!$id || $q === '' || $correct_blank === '' || !$class_id || !$board_id) {
-            echo json_encode(['success' => false, 'error' => 'Class, board, question prompt, and correct blank answer are required.']);
+            echo json_encode(['success' => false, 'error' => 'Class, board, question prompt, and at least one accepted blank answer are required.']);
             exit;
         }
-        $o1 = $correct_blank;
+        $o1 = implode(' / ', $clean_blanks);
         $o2 = null;
         $o3 = null;
         $o4 = null;

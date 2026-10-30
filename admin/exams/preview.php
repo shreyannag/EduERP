@@ -98,19 +98,27 @@ $is_draft = strpos($exam['status'], 'draft') !== false;
     <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2">
         <div class="font-weight-bold text-dark d-flex align-items-start" style="font-size: 1.15rem;">
             <span class="badge badge-dark mr-3 shadow-sm py-2 px-3 badge-pill text-uppercase flex-shrink-0">Q. <?php echo $index + 1; ?></span>
-            <div style="line-height: 1.6; min-width: 0; flex-grow: 1;" class="preview-q-text font-weight-normal"><?php echo render_formatted_content($q['question_text']); ?></div>
+            <div style="line-height: 1.6; min-width: 0; flex-grow: 1;" class="preview-q-text font-weight-normal"><?php echo render_formatted_content(($q['question_type'] ?? 'mcq') === 'fill_blank' ? format_blank_prompt($q['question_text']) : $q['question_text']); ?></div>
         </div>
     </div>
     <div class="card-body px-4 pb-4 pt-3 ml-md-5 pl-md-4">
-        <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
+        <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): 
+            $bAnswers = parse_fill_blank_answers($q['correct_answer_text'] ?: $q['option1']);
+        ?>
             <div class="p-3 bg-light rounded border border-primary">
                 <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="badge badge-warning text-dark font-weight-bold shadow-sm"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank</span>
+                    <span class="badge badge-warning text-dark font-weight-bold shadow-sm"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank (<?php echo count($bAnswers); ?> Blank<?php echo count($bAnswers) > 1 ? 's' : ''; ?>)</span>
                     <span class="badge badge-success font-weight-bold shadow-sm"><i class="fas fa-check-circle mr-1"></i>Official Answer Key</span>
                 </div>
-                <div class="p-3 bg-white rounded border">
-                    <span class="small font-weight-bold text-muted text-uppercase d-block mb-1">Accepted Input:</span>
-                    <span class="h5 font-weight-bold text-success mb-0"><?php echo h($q['correct_answer_text'] ?: $q['option1']); ?></span>
+                <div class="row">
+                    <?php foreach ($bAnswers as $bNum => $bAns): ?>
+                        <div class="col-md-<?php echo count($bAnswers) > 1 ? '6' : '12'; ?> mb-2">
+                            <div class="p-2 bg-white rounded border">
+                                <span class="badge badge-primary font-weight-bold px-2 py-1 mb-1">Blank <?php echo $bNum; ?></span>
+                                <div class="h6 font-weight-bold text-success mb-0"><?php echo h($bAns); ?></div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
         <?php else: ?>
