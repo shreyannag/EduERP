@@ -905,6 +905,8 @@ $(document).ready(function() {
     });
 
     // --- Dynamic Multi-Blank Management ---
+    var isModifyingBlanks = false;
+
     function getBlankInputsCount() {
         return $('#blankInputsContainer .blank-row').length;
     }
@@ -944,10 +946,30 @@ $(document).ready(function() {
         });
     }
 
-    // Auto-detect blanks from question prompt
+    // Remove the N-th [blank] placeholder from the Summernote prompt when user removes that blank
+    function removeNthBlankFromPrompt(n) {
+        var code = $('textarea[name="question_text"]').summernote('code') || '';
+        var count = 0;
+        var pattern = /\[blank(?:\s*|_|-)?(?:\d*)\]/gi;
+        var newCode = code.replace(pattern, function(match) {
+            count++;
+            if (count === n) {
+                return '';
+            }
+            return match;
+        });
+        if (count >= n) {
+            isModifyingBlanks = true;
+            $('textarea[name="question_text"]').summernote('code', newCode);
+            setTimeout(function() { isModifyingBlanks = false; }, 300);
+        }
+    }
+
+    // Auto-detect blanks from question prompt only when user types in editor
     function syncBlanksFromPrompt() {
+        if (isModifyingBlanks) return;
         var promptCode = $('textarea[name="question_text"]').summernote('code') || '';
-        var matches = promptCode.match(/\[blank(?:\s*|_|-)?(?:\d*)\]|_{3,}/gi);
+        var matches = promptCode.match(/\[blank(?:\s*|_|-)?(?:\d*)\]/gi);
         var detectedCount = matches ? matches.length : 1;
         var currentCount = getBlankInputsCount();
         if (detectedCount > currentCount) {
@@ -958,12 +980,27 @@ $(document).ready(function() {
     }
 
     $('#btnAddAnotherBlank').click(function() {
+        isModifyingBlanks = true;
         $('textarea[name="question_text"]').summernote('insertText', ' [blank] ');
         addBlankRow('');
+        setTimeout(function() { isModifyingBlanks = false; }, 300);
     });
 
-    $(document).on('click', '.btn-remove-blank', function() {
-        $(this).closest('.blank-row').remove();
+    $('#btnInsertBlankTag').click(function() {
+        isModifyingBlanks = true;
+        $('textarea[name="question_text"]').summernote('insertText', ' [blank] ');
+        addBlankRow('');
+        setTimeout(function() { isModifyingBlanks = false; }, 300);
+    });
+
+    $(document).on('click', '.btn-remove-blank', function(e) {
+        e.preventDefault();
+        var row = $(this).closest('.blank-row');
+        var idxToRemove = parseInt(row.attr('data-blank-idx'), 10) || 0;
+        if (idxToRemove > 0) {
+            removeNthBlankFromPrompt(idxToRemove);
+        }
+        row.remove();
         reindexBlankRows();
         debouncedLivePreview();
     });
@@ -985,7 +1022,6 @@ $(document).ready(function() {
         if (qType === 'fill_blank') {
             $('#livePreviewOptionsRow').addClass('d-none');
             $('#livePreviewBlankContainer').removeClass('d-none');
-            syncBlanksFromPrompt();
 
             // Typeset blank badges into question prompt preview
             var blankCounter = 0;

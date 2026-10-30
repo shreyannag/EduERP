@@ -991,8 +991,30 @@ $(document).ready(function() {
         addEditBlankRow('');
     });
 
-    $(document).on('click', '.btn-remove-edit-blank', function() {
-        $(this).closest('.edit-blank-row').remove();
+    function removeNthBlankFromEditPrompt(n) {
+        var code = $('#edit-q').summernote('code') || '';
+        var count = 0;
+        var pattern = /\[blank(?:\s*|_|-)?(?:\d*)\]/gi;
+        var newCode = code.replace(pattern, function(match) {
+            count++;
+            if (count === n) {
+                return '';
+            }
+            return match;
+        });
+        if (count >= n) {
+            $('#edit-q').summernote('code', newCode);
+        }
+    }
+
+    $(document).on('click', '.btn-remove-edit-blank', function(e) {
+        e.preventDefault();
+        var row = $(this).closest('.edit-blank-row');
+        var idxToRemove = parseInt(row.attr('data-idx'), 10) || 0;
+        if (idxToRemove > 0) {
+            removeNthBlankFromEditPrompt(idxToRemove);
+        }
+        row.remove();
         reindexEditBlankRows();
         debouncedEditPreview();
     });
