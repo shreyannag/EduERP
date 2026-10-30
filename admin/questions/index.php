@@ -10,6 +10,7 @@ $current_admin_id = (int)$_SESSION['admin_id'];
 // Fetch filters
 $filter_class = $_GET['class_id'] ?? '';
 $filter_board = $_GET['board_id'] ?? '';
+$filter_type = $_GET['question_type'] ?? '';
 $filter_admin = $_GET['admin_id'] ?? ($is_super ? 'my' : '');
 $search_keyword = trim($_GET['search'] ?? '');
 $check_duplicates = !empty($_GET['duplicates']);
@@ -31,11 +32,16 @@ if ($filter_board) {
     $where .= " AND q.board_id = ?";
     $params[] = (int)$filter_board;
 }
+if ($filter_type && in_array($filter_type, ['mcq', 'fill_blank'])) {
+    $where .= " AND q.question_type = ?";
+    $params[] = $filter_type;
+}
 
 // Search / Paste Question Matching
 if ($search_keyword !== '') {
-    $where .= " AND (q.question_text LIKE ? OR q.option1 LIKE ? OR q.option2 LIKE ? OR q.option3 LIKE ? OR q.option4 LIKE ?)";
+    $where .= " AND (q.question_text LIKE ? OR q.option1 LIKE ? OR q.option2 LIKE ? OR q.option3 LIKE ? OR q.option4 LIKE ? OR q.correct_answer_text LIKE ?)";
     $sParam = '%' . $search_keyword . '%';
+    $params[] = $sParam;
     $params[] = $sParam;
     $params[] = $sParam;
     $params[] = $sParam;
@@ -253,13 +259,21 @@ if ($is_super) {
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="<?php echo $is_super ? 'col-md-2' : 'col-md-3'; ?> mb-3 mb-md-0">
+            <div class="<?php echo $is_super ? 'col-md-2' : 'col-md-2'; ?> mb-3 mb-md-0">
                 <label class="font-weight-bold text-muted small text-uppercase">Filter by Board</label>
                 <select name="board_id" class="form-control custom-select bg-white">
                     <option value="">All Boards</option>
                     <?php foreach($boards as $b): ?>
                         <option value="<?php echo $b['id']; ?>" <?php echo $filter_board == $b['id'] ? 'selected' : ''; ?>><?php echo h($b['name']); ?></option>
                     <?php endforeach; ?>
+                </select>
+            </div>
+            <div class="<?php echo $is_super ? 'col-md-2' : 'col-md-2'; ?> mb-3 mb-md-0">
+                <label class="font-weight-bold text-muted small text-uppercase">Format</label>
+                <select name="question_type" class="form-control custom-select bg-white">
+                    <option value="">All Formats</option>
+                    <option value="mcq" <?php echo $filter_type === 'mcq' ? 'selected' : ''; ?>>MCQ (Options)</option>
+                    <option value="fill_blank" <?php echo $filter_type === 'fill_blank' ? 'selected' : ''; ?>>Fill in the Blanks</option>
                 </select>
             </div>
             <div class="<?php echo $is_super ? 'col-md-2' : 'col-md-2'; ?> mb-3 mb-md-0">
@@ -358,6 +372,11 @@ if ($is_super) {
                                     <?php if ($check_duplicates): ?>
                                         <span class="badge badge-danger font-weight-bold mr-1"><i class="fas fa-clone mr-1"></i>Duplicate</span>
                                     <?php endif; ?>
+                                    <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
+                                        <span class="badge badge-warning text-dark font-weight-bold mr-1 shadow-sm"><i class="fas fa-pen-alt mr-1"></i>Fill Blank</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-light border text-secondary font-weight-bold mr-1">MCQ</span>
+                                    <?php endif; ?>
                                     <?php if ($hasImg): ?>
                                         <span class="badge badge-light border text-primary mr-1"><i class="fas fa-image mr-1"></i>Image</span>
                                     <?php endif; ?>
@@ -372,7 +391,15 @@ if ($is_super) {
                                 <?php endif; ?>
                             </td>
                             <td class="text-center align-middle font-weight-bold text-success"><span id="qmarks-<?php echo $q['id']; ?>"><?php echo $q['marks']; ?></span></td>
-                        <td><span class="badge badge-info bg-opacity-75" id="qcorr-<?php echo $q['id']; ?>">Option <?php echo $q['correct_option']; ?></span></td>
+                        <td class="align-middle">
+                            <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
+                                <span class="badge badge-success font-weight-bold text-truncate shadow-sm d-inline-block" style="max-width: 140px;" id="qcorr-<?php echo $q['id']; ?>" title="<?php echo h($q['correct_answer_text'] ?: $q['option1']); ?>">
+                                    <i class="fas fa-check mr-1"></i><?php echo h($q['correct_answer_text'] ?: $q['option1']); ?>
+                                </span>
+                            <?php else: ?>
+                                <span class="badge badge-info bg-opacity-75" id="qcorr-<?php echo $q['id']; ?>">Option <?php echo $q['correct_option']; ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td class="small text-muted align-middle"><?php echo date('M d, Y', strtotime($q['updated_at'])); ?></td>
                         <td class="text-right text-nowrap align-middle">
                             <button type="button" class="btn btn-sm btn-light text-primary shadow-sm view-btn rounded-circle" data-id="<?php echo $q['id']; ?>" title="View details">
@@ -426,10 +453,44 @@ if ($is_super) {
             <input type="hidden" id="edit-id" name="id">
             <input type="hidden" name="csrf_token" id="csrf_token" value="<?php echo h(generate_csrf_token()); ?>">
             
+            <!-- Question Format Toggle -->
+            <div class="form-group mb-3 p-3 bg-white rounded border shadow-sm">
+                <label class="font-weight-bold small text-muted text-uppercase mb-2 d-flex align-items-center">
+                    <i class="fas fa-shapes text-primary mr-2"></i>Question Format
+                </label>
+                <div class="row">
+                    <div class="col-md-6 mb-2 mb-md-0">
+                        <label class="d-block p-2 bg-light border rounded mb-0 transition cursor-pointer" id="editLabelTypeMCQ" style="cursor: pointer; border-color: #3b82f6;">
+                            <div class="custom-control custom-radio">
+                                <input type="radio" id="edit-type-mcq" name="question_type" value="mcq" class="custom-control-input" checked>
+                                <label class="custom-control-label font-weight-bold text-dark mb-0" for="edit-type-mcq" style="cursor: pointer;">
+                                    <i class="fas fa-list-ul text-primary mr-1"></i> Multiple Choice (MCQ)
+                                </label>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="d-block p-2 bg-light border rounded mb-0 transition cursor-pointer" id="editLabelTypeFillBlank" style="cursor: pointer; border-color: #e5e7eb;">
+                            <div class="custom-control custom-radio">
+                                <input type="radio" id="edit-type-fill-blank" name="question_type" value="fill_blank" class="custom-control-input">
+                                <label class="custom-control-label font-weight-bold text-dark mb-0" for="edit-type-fill-blank" style="cursor: pointer;">
+                                    <i class="fas fa-pen-alt text-warning mr-1"></i> Fill in the Blanks
+                                </label>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <div class="form-group mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <label class="font-weight-bold text-muted small text-uppercase mb-0">Question Prompt Text</label>
-                    <span class="text-muted small"><i class="fas fa-info-circle mr-1 text-primary"></i>Supports LaTeX <code>$...$</code></span>
+                    <div>
+                        <button type="button" class="btn btn-xs btn-outline-warning text-dark font-weight-bold rounded-pill px-2 py-1 shadow-sm mr-2 d-none" id="btnEditInsertBlank" title="Insert [blank] placeholder into prompt">
+                            <i class="fas fa-plus mr-1 text-warning"></i>Insert [blank]
+                        </button>
+                        <span class="text-muted small"><i class="fas fa-info-circle mr-1 text-primary"></i>Supports LaTeX <code>$...$</code></span>
+                    </div>
                 </div>
                 <!-- Quick LaTeX Math Symbols Bar for Edit -->
                 <div class="latex-quick-bar mb-2 p-2 bg-white rounded border d-flex flex-wrap align-items-center shadow-sm" style="gap: 4px;">
@@ -507,44 +568,59 @@ if ($is_super) {
                 </div>
             </div>
             
-            <div class="row">
-                <div class="col-md-6 form-group mb-3">
-                    <label class="font-weight-bold small text-muted text-uppercase">Option 1</label>
-                    <div class="input-group shadow-sm">
-                        <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">A</span></div>
-                        <input type="text" id="edit-o1" name="option1" class="form-control border-0 bg-white" required>
-                        <div class="input-group-append">
-                            <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="1" title="Insert formula into Option 1"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+            <!-- Fill in the Blank Edit Section -->
+            <div id="editFillBlankSection" class="p-3 bg-white rounded border border-primary mb-4 shadow-sm" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="font-weight-bold text-dark small text-uppercase mb-0">
+                        <i class="fas fa-check-circle text-success mr-2"></i>Declare Correct Blank Answer(s)
+                    </label>
+                    <span class="badge badge-success px-2 py-1"><i class="fas fa-spell-check mr-1"></i>Case-Insensitive</span>
+                </div>
+                <input type="text" id="edit-correct-blank" name="correct_answer_text" class="form-control font-weight-bold" placeholder="e.g. Photosynthesis or Newton | Isaac Newton">
+                <small class="text-muted mt-2 d-block"><i class="fas fa-info-circle mr-1 text-primary"></i>Separate alternative valid variations using vertical bar <code>|</code>.</small>
+            </div>
+
+            <!-- MCQ Edit Options Section -->
+            <div id="editMcqOptionsSection">
+                <div class="row">
+                    <div class="col-md-6 form-group mb-3">
+                        <label class="font-weight-bold small text-muted text-uppercase">Option 1</label>
+                        <div class="input-group shadow-sm">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">A</span></div>
+                            <input type="text" id="edit-o1" name="option1" class="form-control border-0 bg-white" required>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="1" title="Insert formula into Option 1"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-6 form-group mb-3">
-                    <label class="font-weight-bold small text-muted text-uppercase">Option 2</label>
-                    <div class="input-group shadow-sm">
-                        <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">B</span></div>
-                        <input type="text" id="edit-o2" name="option2" class="form-control border-0 bg-white" required>
-                        <div class="input-group-append">
-                            <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="2" title="Insert formula into Option 2"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                    <div class="col-md-6 form-group mb-3">
+                        <label class="font-weight-bold small text-muted text-uppercase">Option 2</label>
+                        <div class="input-group shadow-sm">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">B</span></div>
+                            <input type="text" id="edit-o2" name="option2" class="form-control border-0 bg-white" required>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="2" title="Insert formula into Option 2"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-6 form-group mb-3">
-                    <label class="font-weight-bold small text-muted text-uppercase">Option 3</label>
-                    <div class="input-group shadow-sm">
-                        <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">C</span></div>
-                        <input type="text" id="edit-o3" name="option3" class="form-control border-0 bg-white" required>
-                        <div class="input-group-append">
-                            <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="3" title="Insert formula into Option 3"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                    <div class="col-md-6 form-group mb-3">
+                        <label class="font-weight-bold small text-muted text-uppercase">Option 3</label>
+                        <div class="input-group shadow-sm">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">C</span></div>
+                            <input type="text" id="edit-o3" name="option3" class="form-control border-0 bg-white" required>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="3" title="Insert formula into Option 3"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-6 form-group mb-3">
-                    <label class="font-weight-bold small text-muted text-uppercase">Option 4</label>
-                    <div class="input-group shadow-sm">
-                        <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">D</span></div>
-                        <input type="text" id="edit-o4" name="option4" class="form-control border-0 bg-white" required>
-                        <div class="input-group-append">
-                            <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="4" title="Insert formula into Option 4"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                    <div class="col-md-6 form-group mb-3">
+                        <label class="font-weight-bold small text-muted text-uppercase">Option 4</label>
+                        <div class="input-group shadow-sm">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">D</span></div>
+                            <input type="text" id="edit-o4" name="option4" class="form-control border-0 bg-white" required>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-edit-opt-latex px-2" data-opt="4" title="Insert formula into Option 4"><i class="fas fa-square-root-alt mr-1"></i>+ Math</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -591,7 +667,7 @@ if ($is_super) {
                 </div>
             </div>
             
-            <div class="form-group mt-3 mb-0">
+            <div id="editMcqCorrectSection" class="form-group mt-3 mb-0">
                 <label class="font-weight-bold text-muted small text-uppercase">Correct Option Choice</label>
                 <select id="edit-c" name="correct_option" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold" required>
                     <option value="1">Option 1 is correct</option>
@@ -726,17 +802,33 @@ $(document).ready(function() {
         $.get('get_question_ajax.php', { id: id }, function(res) {
             if(res.success) {
                 let q = res.data;
-                let html = '<div class="text-dark mb-4 pb-4 border-bottom" style="font-size: 1.15rem; line-height: 1.6;">' + q.question_text + '</div>';
-                html += '<div class="list-group list-group-flush shadow-sm border rounded">';
-                for(let i=1; i<=4; i++) {
-                    let rawOpt = q['option'+i] || '';
-                    let optText = rawOpt.indexOf('<') !== -1 ? rawOpt : $('<div>').text(rawOpt).html();
-                    let isCorr = (i == q.correct_option);
-                    let cls = isCorr ? 'list-group-item-success font-weight-bold border-success' : '';
-                    let badge = isCorr ? '<span class="badge badge-success float-right px-2 py-1 shadow-sm"><i class="fas fa-check mr-1"></i> Correct Option</span>' : '';
-                    html += '<div class="list-group-item list-group-item-action py-3 ' + cls + '"><span class="mr-2 font-weight-bold">[ ' + String.fromCharCode(64 + i) + ' ]</span> <span>' + optText + '</span> ' + badge + '</div>';
+                let isFill = (q.question_type === 'fill_blank');
+                let html = '<div class="d-flex align-items-center justify-content-between mb-3">';
+                html += isFill 
+                    ? '<span class="badge badge-warning text-dark font-weight-bold px-3 py-1 shadow-sm rounded-pill"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank</span>'
+                    : '<span class="badge badge-primary font-weight-bold px-3 py-1 shadow-sm rounded-pill"><i class="fas fa-list-ul mr-1"></i>Multiple Choice (MCQ)</span>';
+                html += '<span class="badge badge-secondary px-3 py-1 rounded-pill">' + q.marks + ' Mark(s)</span></div>';
+                html += '<div class="text-dark mb-4 pb-4 border-bottom" style="font-size: 1.15rem; line-height: 1.6;">' + q.question_text + '</div>';
+
+                if (isFill) {
+                    let ansText = q.correct_answer_text || q.option1 || '';
+                    html += '<div class="p-4 bg-light rounded-lg border border-success shadow-sm">';
+                    html += '<div class="small font-weight-bold text-success text-uppercase mb-2"><i class="fas fa-check-circle mr-1"></i>Official Accepted Blank Answer(s)</div>';
+                    html += '<div class="h5 font-weight-bold text-dark mb-2">' + $('<div>').text(ansText).html() + '</div>';
+                    html += '<small class="text-muted"><i class="fas fa-spell-check mr-1 text-primary"></i>Evaluated case-insensitively and whitespace-normalized. Multiple variants separated with vertical bar (|).</small>';
+                    html += '</div>';
+                } else {
+                    html += '<div class="list-group list-group-flush shadow-sm border rounded">';
+                    for(let i=1; i<=4; i++) {
+                        let rawOpt = q['option'+i] || '';
+                        let optText = rawOpt.indexOf('<') !== -1 ? rawOpt : $('<div>').text(rawOpt).html();
+                        let isCorr = (i == q.correct_option);
+                        let cls = isCorr ? 'list-group-item-success font-weight-bold border-success' : '';
+                        let badge = isCorr ? '<span class="badge badge-success float-right px-2 py-1 shadow-sm"><i class="fas fa-check mr-1"></i> Correct Option</span>' : '';
+                        html += '<div class="list-group-item list-group-item-action py-3 ' + cls + '"><span class="mr-2 font-weight-bold">[ ' + String.fromCharCode(64 + i) + ' ]</span> <span>' + optText + '</span> ' + badge + '</div>';
+                    }
+                    html += '</div>';
                 }
-                html += '</div>';
                 $('#viewModalBody').html(html);
                 if (window.MathJax && window.MathJax.typesetPromise) {
                     MathJax.typesetPromise([document.getElementById('viewModalBody')]);
@@ -806,6 +898,36 @@ $(document).ready(function() {
     }
 
     $('#btnRefreshEditPreview').click(updateEditPreview);
+    function syncEditType(type) {
+        if (type === 'fill_blank') {
+            $('#editLabelTypeFillBlank').css({'border-color': '#f59e0b', 'background-color': '#fffbeb'});
+            $('#editLabelTypeMCQ').css({'border-color': '#e5e7eb', 'background-color': '#f8f9fa'});
+            $('#editMcqOptionsSection, #editMcqCorrectSection, #editPreviewOptionsRow').slideUp(150);
+            $('#editFillBlankSection, #btnEditInsertBlank').fadeIn(150);
+            $('#edit-o1, #edit-o2, #edit-o3, #edit-o4, #edit-c').prop('required', false);
+            $('#edit-correct-blank').prop('required', true);
+        } else {
+            $('#editLabelTypeMCQ').css({'border-color': '#3b82f6', 'background-color': '#eff6ff'});
+            $('#editLabelTypeFillBlank').css({'border-color': '#e5e7eb', 'background-color': '#f8f9fa'});
+            $('#editMcqOptionsSection, #editMcqCorrectSection, #editPreviewOptionsRow').slideDown(150);
+            $('#editFillBlankSection, #btnEditInsertBlank').fadeOut(150);
+            $('#edit-o1, #edit-o2, #edit-o3, #edit-o4, #edit-c').prop('required', true);
+            $('#edit-correct-blank').prop('required', false);
+        }
+        updateEditPreview();
+    }
+
+    $('input[name="question_type"]').change(function() {
+        if ($(this).closest('#editForm').length) {
+            syncEditType($(this).val());
+        }
+    });
+
+    $('#btnEditInsertBlank').click(function() {
+        $('#edit-q').summernote('insertText', ' [blank] ');
+        debouncedEditPreview();
+    });
+
     $('#editForm input[name^="option"]').on('input', debouncedEditPreview);
     $('#edit-c').on('change', debouncedEditPreview);
 
@@ -837,11 +959,19 @@ $(document).ready(function() {
                 let q = res.data;
                 $('#edit-id').val(q.id);
                 $('#edit-q').summernote('code', q.question_text);
+                let qType = q.question_type || 'mcq';
+                if (qType === 'fill_blank') {
+                    $('#edit-type-fill-blank').prop('checked', true);
+                } else {
+                    $('#edit-type-mcq').prop('checked', true);
+                }
+                $('#edit-correct-blank').val(q.correct_answer_text || q.option1 || '');
                 $('#edit-o1').val(q.option1);
                 $('#edit-o2').val(q.option2);
                 $('#edit-o3').val(q.option3);
                 $('#edit-o4').val(q.option4);
-                $('#edit-c').val(q.correct_option);
+                $('#edit-c').val(q.correct_option || 1);
+                syncEditType(qType);
                 $('#edit-cid').val(q.class_id);
                 $('#edit-bid').val(q.board_id);
                 $('#edit-sub').val(q.subject_id);

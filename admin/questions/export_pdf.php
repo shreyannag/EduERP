@@ -82,12 +82,18 @@ $questions = $stmt->fetchAll();
             <?php echo htmlspecialchars(($index + 1) . ". ", ENT_QUOTES, 'UTF-8'); ?>
             <span style="font-weight: normal;"><?php echo clean_html($q['question_text']); ?></span>
         </div>
-        <div class="options-grid">
-            <div class="option">A. <?php echo htmlspecialchars($q['option1'], ENT_QUOTES, 'UTF-8'); ?></div>
-            <div class="option">B. <?php echo htmlspecialchars($q['option2'], ENT_QUOTES, 'UTF-8'); ?></div>
-            <div class="option">C. <?php echo htmlspecialchars($q['option3'], ENT_QUOTES, 'UTF-8'); ?></div>
-            <div class="option">D. <?php echo htmlspecialchars($q['option4'], ENT_QUOTES, 'UTF-8'); ?></div>
-        </div>
+        <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
+            <div style="margin: 10px 0 15px 0; font-size: 13px;">
+                <strong>Answer:</strong> __________________________________________________
+            </div>
+        <?php else: ?>
+            <div class="options-grid">
+                <div class="option">A. <?php echo htmlspecialchars($q['option1'], ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="option">B. <?php echo htmlspecialchars($q['option2'], ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="option">C. <?php echo htmlspecialchars($q['option3'], ENT_QUOTES, 'UTF-8'); ?></div>
+                <div class="option">D. <?php echo htmlspecialchars($q['option4'], ENT_QUOTES, 'UTF-8'); ?></div>
+            </div>
+        <?php endif; ?>
         <div class="meta">
             [Class: <?php echo htmlspecialchars($q['class_name'], ENT_QUOTES, 'UTF-8'); ?> | Board: <?php echo htmlspecialchars($q['board_name'], ENT_QUOTES, 'UTF-8'); ?> | Subject: <?php echo htmlspecialchars($q['subject_name'] ?? 'N/A', ENT_QUOTES, 'UTF-8'); ?> | Marks: <?php echo htmlspecialchars($q['marks'], ENT_QUOTES, 'UTF-8'); ?>]
         </div>

@@ -470,3 +470,161 @@ Respond ONLY with a single valid JSON object containing NO markdown wrappers, st
         ]
     ];
 }
+
+/**
+ * Generate a Fill in the Blanks Question via OpenRouter AI
+ */
+function generate_fill_blank_question(array $params, $pdo = null, $admin_id = null) {
+    if ($admin_id === null && !empty($_SESSION['admin_id'])) {
+        $admin_id = (int)$_SESSION['admin_id'];
+    }
+    $aiConfig = get_openrouter_config($pdo, $admin_id);
+
+    $apiKey = !empty($params['api_key']) ? trim((string)$params['api_key'], " \t\n\r\0\x0B\"'") : trim((string)$aiConfig['api_key'], " \t\n\r\0\x0B\"'");
+    if (empty($apiKey)) {
+        $errMsg = !empty($aiConfig['is_tenant'])
+            ? 'OpenRouter API Key is not configured for your institute account. Please enter your personal OpenRouter API key in AI Settings or Account Settings to generate questions.'
+            : 'OpenRouter API Key is not configured. Please enter your API key in AI Settings or Account Settings.';
+        return [
+            'success' => false,
+            'error'   => $errMsg
+        ];
+    }
+
+    if (!function_exists('curl_init')) {
+        return ['success' => false, 'error' => 'PHP cURL extension is required.'];
+    }
+
+    $model       = !empty($params['model']) ? trim($params['model']) : $aiConfig['model'];
+    $className   = $params['class_name'] ?? 'General';
+    $boardName   = $params['board_name'] ?? 'General';
+    $subjectName = $params['subject_name'] ?? 'General';
+    $topicName   = $params['topic_name'] ?? '';
+    $userPrompt  = trim($params['prompt'] ?? '');
+    $difficulty  = !empty($params['difficulty']) ? $params['difficulty'] : 'Medium';
+    $marks       = !empty($params['marks']) ? (int)$params['marks'] : 1;
+
+    $systemPrompt = "You are an elite academic curriculum specialist and examination author.
+Your task is to generate an academically rigorous, engaging Fill in the Blanks question strictly formatted as a JSON object.
+Follow these academic quality requirements:
+1. Question text must contain a sentence or problem with a clear blank indicated by [blank] (e.g., \"The capital city of France is [blank].\"). Wrap paragraphs in standard HTML <p>...</p> tags.
+2. Mathematical, scientific, and physics formulas, equations, expressions, and Greek variables MUST be formatted using standard LaTeX syntax enclosed in single dollar signs (\$ ... \$) or double dollar signs (\$\$ ... \$\$).
+3. Provide the exact correct word, number, or phrase in \"correct_answer\". If there are common acceptable alternate spellings, separate them with vertical bars (e.g. \"Paris | Paris, France\").
+4. Provide a concise explanation justifying the answer.
+
+Respond ONLY with a single valid JSON object containing NO markdown wrappers, strictly matching this structure:
+{
+  \"question_type\": \"fill_blank\",
+  \"question_text\": \"<p>Question prompt with [blank]...</p>\",
+  \"correct_answer\": \"Correct word or phrase\",
+  \"explanation\": \"Step-by-step reasoning or justification\",
+  \"marks\": {$marks}
+}";
+
+    $userInstructions = "Target Criteria:
+- Question Format: Fill in the Blanks
+- Class/Grade: {$className}
+- Board/Curriculum: {$boardName}
+- Subject: {$subjectName}" . (!empty($topicName) ? "\n- Topic/Chapter: {$topicName}" : "") . "
+- Difficulty Level: {$difficulty}
+- Assigned Marks: {$marks}";
+
+    if (!empty($userPrompt)) {
+        $userInstructions .= "\n\nSpecific Topic & Custom Instructions from Teacher:\n" . $userPrompt;
+    } else {
+        $userInstructions .= "\n\nGenerate an engaging, conceptual Fill in the Blanks question testing core understanding in this topic.";
+    }
+
+    $payload = [
+        'model'       => $model,
+        'messages'    => [
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user', 'content' => $userInstructions]
+        ],
+        'temperature' => $aiConfig['temperature'] ?: 0.7,
+        'max_tokens'  => 1200
+    ];
+
+    $sslOptions = get_openrouter_curl_ssl_options();
+    $curlOptions = [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $apiKey,
+            'Content-Type: application/json',
+            'HTTP-Referer: http://localhost:8080/shreyansir',
+            'X-Title: ShreyanSir Question Bank AI'
+        ],
+        CURLOPT_TIMEOUT        => 45
+    ] + $sslOptions;
+
+    $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
+    curl_setopt_array($ch, $curlOptions);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    $curlErrNo = curl_errno($ch);
+    curl_close($ch);
+
+    if ($curlErr && (in_array($curlErrNo, [60, 77, 35]) || stripos($curlErr, 'certificate') !== false)) {
+        $curlOptions[CURLOPT_SSL_VERIFYPEER] = false;
+        $curlOptions[CURLOPT_SSL_VERIFYHOST] = 0;
+        unset($curlOptions[CURLOPT_CAINFO]);
+
+        $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
+        curl_setopt_array($ch, $curlOptions);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
+    }
+
+    if ($curlErr) {
+        return ['success' => false, 'error' => 'cURL network error: ' . $curlErr];
+    }
+
+    $data = json_decode($response, true);
+    if ($httpCode < 200 || $httpCode >= 300) {
+        $errMsg = $data['error']['message'] ?? "OpenRouter API returned HTTP status {$httpCode}";
+        return ['success' => false, 'error' => $errMsg];
+    }
+
+    $rawContent = $data['choices'][0]['message']['content'] ?? '';
+    if (empty($rawContent)) {
+        return ['success' => false, 'error' => 'OpenRouter returned an empty response.'];
+    }
+
+    $cleanContent = trim($rawContent);
+    if (preg_match('/^```(?:json)?\s*([\s\S]*?)\s*```$/i', $cleanContent, $m)) {
+        $cleanContent = trim($m[1]);
+    }
+
+    $parsed = json_decode($cleanContent, true);
+    if (!is_array($parsed)) {
+        $start = strpos($cleanContent, '{');
+        $end = strrpos($cleanContent, '}');
+        if ($start !== false && $end !== false && $end > $start) {
+            $extracted = substr($cleanContent, $start, $end - $start + 1);
+            $parsed = json_decode($extracted, true);
+        }
+    }
+
+    if (!is_array($parsed) || empty($parsed['question_text']) || empty($parsed['correct_answer'])) {
+        return [
+            'success' => false,
+            'error'   => 'AI returned invalid fill-in-the-blank question formatting. Raw text: ' . substr($cleanContent, 0, 300)
+        ];
+    }
+
+    return [
+        'success'             => true,
+        'question_type'       => 'fill_blank',
+        'question_text'       => trim($parsed['question_text']),
+        'correct_answer_text' => trim($parsed['correct_answer']),
+        'correct_answer'      => trim($parsed['correct_answer']),
+        'explanation'         => trim($parsed['explanation'] ?? ''),
+        'marks'               => (int)($parsed['marks'] ?? $marks),
+        'model_used'          => $model
+    ];
+}

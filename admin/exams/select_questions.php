@@ -150,14 +150,27 @@ $selected_count = count(array_filter($questions, function($q){ return $q['is_sel
                                         <?php endif; ?>
                                     </div>
                                 </div>
-                                <div class="small text-muted mt-2 d-flex flex-wrap gap-2">
-                                    <span class="mr-3 border rounded px-1">[A] <?php echo h($q['option1']); ?></span>  
-                                    <span class="mr-3 border rounded px-1">[B] <?php echo h($q['option2']); ?></span>
-                                    <span class="mr-3 border rounded px-1">[C] <?php echo h($q['option3']); ?></span>
-                                    <span class="border rounded px-1">[D] <?php echo h($q['option4']); ?></span>
-                                </div>
+                                <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
+                                    <div class="small text-muted mt-2 d-flex align-items-center">
+                                        <span class="badge badge-warning text-dark mr-2 font-weight-bold shadow-sm"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank</span>
+                                        <span><i class="fas fa-key text-success mr-1"></i>Accepted: <strong class="text-success"><?php echo h($q['correct_answer_text'] ?: $q['option1']); ?></strong></span>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="small text-muted mt-2 d-flex flex-wrap gap-2">
+                                        <span class="mr-3 border rounded px-1">[A] <?php echo h($q['option1']); ?></span>  
+                                        <span class="mr-3 border rounded px-1">[B] <?php echo h($q['option2']); ?></span>
+                                        <span class="mr-3 border rounded px-1">[C] <?php echo h($q['option3']); ?></span>
+                                        <span class="border rounded px-1">[D] <?php echo h($q['option4']); ?></span>
+                                    </div>
+                                <?php endif; ?>
                             </td>
-                            <td class="align-middle"><span class="badge badge-success px-3 py-2 shadow-sm">Opt <?php echo $q['correct_option']; ?></span></td>
+                            <td class="align-middle">
+                                <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
+                                    <span class="badge badge-success px-2 py-1 shadow-sm font-weight-bold">Text Blank</span>
+                                <?php else: ?>
+                                    <span class="badge badge-success px-3 py-2 shadow-sm font-weight-bold">Opt <?php echo $q['correct_option']; ?></span>
+                                <?php endif; ?>
+                            </td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>

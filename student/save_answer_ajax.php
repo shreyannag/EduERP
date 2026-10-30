@@ -25,15 +25,16 @@ $student_id = (int)($_SESSION['student_id'] ?? 0);
 $attempt_id = (int)($_POST['attempt_id'] ?? 0);
 $exam_id = (int)($_POST['exam_id'] ?? 0);
 $question_id = (int)($_POST['question_id'] ?? 0);
-$chosen_option = isset($_POST['chosen_option']) ? (int)$_POST['chosen_option'] : null;
+$chosen_option = (isset($_POST['chosen_option']) && $_POST['chosen_option'] !== '') ? (int)$_POST['chosen_option'] : null;
+$answer_text = isset($_POST['answer_text']) ? (string)$_POST['answer_text'] : null;
 
-if (!$student_id || !$attempt_id || !$question_id || $chosen_option === null) {
+if (!$student_id || !$attempt_id || !$question_id || ($chosen_option === null && $answer_text === null)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Missing required parameter fields.']);
     exit;
 }
 
-if ($chosen_option < 1 || $chosen_option > 4) {
+if ($chosen_option !== null && ($chosen_option < 1 || $chosen_option > 4)) {
     http_response_code(400);
     echo json_encode(['success' => false, 'error' => 'Invalid option choice value.']);
     exit;
@@ -79,12 +80,23 @@ try {
     $stmt_find->execute([$attempt_id, $question_id]);
     $existing_id = $stmt_find->fetchColumn();
 
-    if ($existing_id) {
-        $stmt_up = $pdo->prepare("UPDATE attempt_answers SET chosen_option = ? WHERE id = ?");
-        $stmt_up->execute([$chosen_option, $existing_id]);
+    if ($answer_text !== null) {
+        $clean_text = trim($answer_text);
+        if ($existing_id) {
+            $stmt_up = $pdo->prepare("UPDATE attempt_answers SET answer_text = ?, chosen_option = NULL WHERE id = ?");
+            $stmt_up->execute([$clean_text, $existing_id]);
+        } else {
+            $stmt_ins = $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option, answer_text) VALUES (?, ?, NULL, ?)");
+            $stmt_ins->execute([$attempt_id, $question_id, $clean_text]);
+        }
     } else {
-        $stmt_ins = $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option) VALUES (?, ?, ?)");
-        $stmt_ins->execute([$attempt_id, $question_id, $chosen_option]);
+        if ($existing_id) {
+            $stmt_up = $pdo->prepare("UPDATE attempt_answers SET chosen_option = ?, answer_text = NULL WHERE id = ?");
+            $stmt_up->execute([$chosen_option, $existing_id]);
+        } else {
+            $stmt_ins = $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option, answer_text) VALUES (?, ?, ?, NULL)");
+            $stmt_ins->execute([$attempt_id, $question_id, $chosen_option]);
+        }
     }
 
     // 4. Update session activity and heartbeat
@@ -94,7 +106,12 @@ try {
     }
 
     // 5. Count total distinct answered questions for this attempt
-    $stmt_count = $pdo->prepare("SELECT COUNT(DISTINCT question_id) FROM attempt_answers WHERE attempt_id = ?");
+    $stmt_count = $pdo->prepare("
+        SELECT COUNT(DISTINCT question_id) 
+        FROM attempt_answers 
+        WHERE attempt_id = ? 
+          AND (chosen_option IS NOT NULL OR (answer_text IS NOT NULL AND TRIM(answer_text) != ''))
+    ");
     $stmt_count->execute([$attempt_id]);
     $answered_count = (int)$stmt_count->fetchColumn();
 
@@ -102,6 +119,7 @@ try {
         'success' => true,
         'question_id' => $question_id,
         'chosen_option' => $chosen_option,
+        'answer_text' => $answer_text,
         'answered_count' => $answered_count,
         'saved_at' => time()
     ]);

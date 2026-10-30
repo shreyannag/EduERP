@@ -15,7 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     $id = intval($_POST['id'] ?? 0);
+    $question_type = in_array($_POST['question_type'] ?? '', ['mcq', 'fill_blank']) ? $_POST['question_type'] : 'mcq';
     $q = trim($_POST['question_text'] ?? '');
+    $correct_blank = trim($_POST['correct_answer_text'] ?? '');
     $o1 = trim($_POST['option1'] ?? '');
     $o2 = trim($_POST['option2'] ?? '');
     $o3 = trim($_POST['option3'] ?? '');
@@ -27,9 +29,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $topic_id = !empty($_POST['topic_id']) ? intval($_POST['topic_id']) : null;
     $marks = intval($_POST['marks'] ?? 1);
     
-    if (!$id || $q === '' || strlen($o1) === 0 || strlen($o2) === 0 || strlen($o3) === 0 || strlen($o4) === 0 || !in_array($c, [1,2,3,4]) || !$class_id || !$board_id) {
-        echo json_encode(['success' => false, 'error' => 'All mandatory fields are required and must be valid.']);
-        exit;
+    if ($question_type === 'fill_blank') {
+        if (!$id || $q === '' || $correct_blank === '' || !$class_id || !$board_id) {
+            echo json_encode(['success' => false, 'error' => 'Class, board, question prompt, and correct blank answer are required.']);
+            exit;
+        }
+        $o1 = $correct_blank;
+        $o2 = null;
+        $o3 = null;
+        $o4 = null;
+        $c = null;
+    } else {
+        if (!$id || $q === '' || strlen($o1) === 0 || strlen($o2) === 0 || strlen($o3) === 0 || strlen($o4) === 0 || !in_array($c, [1,2,3,4]) || !$class_id || !$board_id) {
+            echo json_encode(['success' => false, 'error' => 'All mandatory fields are required and must be valid for MCQ.']);
+            exit;
+        }
+        $correct_blank = null;
     }
     
     $current_admin_id = (int)$_SESSION['admin_id'];
@@ -58,8 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         $q = process_question_images($q, $pdo, $current_admin_id);
-        $stmt = $pdo->prepare("UPDATE questions SET class_id = ?, board_id = ?, subject_id = ?, topic_id = ?, question_text = ?, option1 = ?, option2 = ?, option3 = ?, option4 = ?, correct_option = ?, marks = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $o1, $o2, $o3, $o4, $c, $marks, $id]);
+        $stmt = $pdo->prepare("UPDATE questions SET class_id = ?, board_id = ?, subject_id = ?, topic_id = ?, question_type = ?, question_text = ?, option1 = ?, option2 = ?, option3 = ?, option4 = ?, correct_option = ?, correct_answer_text = ?, marks = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $question_type, $q, $o1, $o2, $o3, $o4, $c, $correct_blank, $marks, $id]);
         
         // Sync multi-class assignments
         $add_classes = (array)($_POST['additional_classes'] ?? []);

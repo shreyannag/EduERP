@@ -22,7 +22,7 @@ $attempt = $stmt->fetch();
 if (!$attempt) die("Invalid subsystem boundary requested context.");
 
 $stmt_qa = $pdo->prepare("
-    SELECT q.*, eq.order_no, aa.chosen_option as selected_option
+    SELECT q.*, eq.order_no, aa.chosen_option as selected_option, aa.answer_text as selected_text
     FROM questions q
     JOIN exam_questions eq ON q.id = eq.question_id
     LEFT JOIN attempt_answers aa ON aa.question_id = q.id AND aa.attempt_id = ?
@@ -34,8 +34,15 @@ $qa_list = $stmt_qa->fetchAll();
 
 $correct_count = 0;
 foreach ($qa_list as $q) {
-    if (!empty($q['selected_option']) && $q['selected_option'] == $q['correct_option']) {
-        $correct_count++;
+    if (($q['question_type'] ?? 'mcq') === 'fill_blank') {
+        $corText = !empty($q['correct_answer_text']) ? $q['correct_answer_text'] : ($q['option1'] ?? '');
+        if (is_fill_blank_correct($q['selected_text'], $corText)) {
+            $correct_count++;
+        }
+    } else {
+        if (!empty($q['selected_option']) && $q['selected_option'] == $q['correct_option']) {
+            $correct_count++;
+        }
     }
 }
 
@@ -113,10 +120,32 @@ require_once '../includes/student_header.php';
 
 <?php foreach($qa_list as $index => $q): 
     $qNum = $index + 1;
+    $isFill = (($q['question_type'] ?? 'mcq') === 'fill_blank');
     $sel = $q['selected_option'];
     $cor = $q['correct_option'];
+    $selText = $q['selected_text'];
+    $corText = !empty($q['correct_answer_text']) ? $q['correct_answer_text'] : ($q['option1'] ?? '');
+
+    if ($isFill) {
+        $hasAttempted = ($selText !== null && trim((string)$selText) !== '');
+        $isCorrect = is_fill_blank_correct($selText, $corText);
+    } else {
+        $hasAttempted = !empty($sel);
+        $isCorrect = ($sel == $cor);
+    }
+
+    $cardBorderClass = 'border-primary';
+    if ($attempt['key_released']) {
+        if (!$hasAttempted) {
+            $cardBorderClass = 'border-warning';
+        } elseif ($isCorrect) {
+            $cardBorderClass = 'border-success';
+        } else {
+            $cardBorderClass = 'border-danger';
+        }
+    }
 ?>
-<div class="card shadow border-0 mb-4 rounded-lg overflow-hidden border-top <?php echo (!$attempt['key_released']) ? 'border-primary' : ($sel == $cor ? 'border-success' : 'border-danger'); ?>" style="border-top-width: 4px !important;">
+<div class="card shadow border-0 mb-4 rounded-lg overflow-hidden border-top <?php echo $cardBorderClass; ?>" style="border-top-width: 4px !important;">
     <div class="card-header bg-white border-bottom-0 pt-4 px-4 pb-2 d-flex justify-content-between align-items-start">
         <h5 class="font-weight-bold text-dark d-flex align-items-start mb-0">
             <span class="badge badge-dark mr-3 shadow-sm py-2 px-3 badge-pill text-uppercase flex-shrink-0">Question <?php echo $qNum; ?></span>
@@ -125,9 +154,9 @@ require_once '../includes/student_header.php';
         <div class="ml-4 flex-shrink-0 mt-1">
             <?php if(!$attempt['key_released']): ?>
                 <span class="badge badge-info px-3 py-2 shadow-sm rounded-pill text-white"><i class="fas fa-eye-slash mr-2"></i>Answer Hidden</span>
-            <?php elseif(!$sel): ?>
+            <?php elseif(!$hasAttempted): ?>
                 <span class="badge badge-warning px-3 py-2 shadow-sm rounded-pill text-white"><i class="fas fa-ban mr-2"></i>Not Attempted</span>
-            <?php elseif($sel == $cor): ?>
+            <?php elseif($isCorrect): ?>
                 <span class="badge badge-success px-3 py-2 shadow-sm rounded-pill"><i class="fas fa-check-circle mr-2"></i>Correct</span>
             <?php else: ?>
                 <span class="badge badge-danger px-3 py-2 shadow-sm rounded-pill"><i class="fas fa-times-circle mr-2"></i>Incorrect</span>
@@ -140,47 +169,74 @@ require_once '../includes/student_header.php';
         </div>
     </div>
     <div class="card-body px-4 pb-4 pt-3 ml-md-5 pl-md-4">
-        <div class="row">
-            <?php for($i=1; $i<=4; $i++): 
-                $optText = $q['option'.$i];
-                if ($optText === null || trim((string)$optText) === '') continue;
-                $is_selected = ($sel == $i);
-                $is_correct = ($attempt['key_released'] && $cor == $i);
-                
-                $cls = 'review-opt-box shadow-sm';
-                $badgeHtml = '';
-                
-                if ($is_correct) {
-                    $cls .= ' is-correct shadow';
-                    $badgeHtml .= '<span class="badge badge-success px-2 py-1 shadow-sm ml-2"><i class="fas fa-check-circle mr-1"></i>Correct</span>';
-                } elseif ($is_selected && $attempt['key_released'] && !$is_correct) {
-                    $cls .= ' is-incorrect shadow-sm';
-                    $badgeHtml .= '<span class="badge badge-danger px-2 py-1 shadow-sm ml-2"><i class="fas fa-times-circle mr-1"></i>Incorrect</span>';
-                } elseif ($is_selected && !$attempt['key_released']) {
-                    $cls .= ' is-selected-pending shadow-sm';
-                }
-
-                if ($is_selected) {
-                    $badgeHtml .= '<span class="badge badge-dark px-2 py-1 shadow-sm ml-2" style="font-size:0.75rem; border: 1px solid rgba(255,255,255,0.2);">Your Answer <i class="fas fa-location-arrow ml-1"></i></span>';
-                }
-            ?>
-            <div class="col-md-6 mb-3">
-                <div class="p-3 d-flex align-items-center h-100 <?php echo $cls; ?>">
-                    <span class="review-opt-letter mr-3">
-                        <?php echo chr(64+$i); ?>
-                    </span>
-                    <div class="review-opt-content pr-2">
-                        <?php echo render_formatted_content($optText); ?>
-                    </div>
-                    <?php if (!empty($badgeHtml)): ?>
-                        <div class="d-flex align-items-center flex-shrink-0">
-                            <?php echo $badgeHtml; ?>
+        <?php if ($isFill): ?>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="p-3 rounded border shadow-sm <?php echo (!$attempt['key_released']) ? 'bg-light' : ($isCorrect ? 'bg-success text-white' : ($hasAttempted ? 'bg-danger text-white' : 'bg-light text-muted')); ?>">
+                        <div class="small font-weight-bold text-uppercase mb-1 opacity-75">
+                            <i class="fas fa-user-edit mr-1"></i>Your Submitted Answer
                         </div>
-                    <?php endif; ?>
+                        <div class="h5 font-weight-bold mb-0">
+                            <?php echo $hasAttempted ? h($selText) : '<em class="opacity-75">No answer entered</em>'; ?>
+                        </div>
+                    </div>
                 </div>
+                <?php if ($attempt['key_released']): ?>
+                <div class="col-md-6 mb-3">
+                    <div class="p-3 rounded border shadow-sm bg-light border-success">
+                        <div class="small font-weight-bold text-uppercase text-success mb-1">
+                            <i class="fas fa-check-circle mr-1"></i>Official Accepted Answer(s)
+                        </div>
+                        <div class="h5 font-weight-bold text-dark mb-0">
+                            <?php echo h($corText); ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
             </div>
-            <?php endfor; ?>
-        </div>
+        <?php else: ?>
+            <div class="row">
+                <?php for($i=1; $i<=4; $i++): 
+                    $optText = $q['option'.$i];
+                    if ($optText === null || trim((string)$optText) === '') continue;
+                    $is_selected = ($sel == $i);
+                    $is_correct_opt = ($attempt['key_released'] && $cor == $i);
+                    
+                    $cls = 'review-opt-box shadow-sm';
+                    $badgeHtml = '';
+                    
+                    if ($is_correct_opt) {
+                        $cls .= ' is-correct shadow';
+                        $badgeHtml .= '<span class="badge badge-success px-2 py-1 shadow-sm ml-2"><i class="fas fa-check-circle mr-1"></i>Correct</span>';
+                    } elseif ($is_selected && $attempt['key_released'] && !$is_correct_opt) {
+                        $cls .= ' is-incorrect shadow-sm';
+                        $badgeHtml .= '<span class="badge badge-danger px-2 py-1 shadow-sm ml-2"><i class="fas fa-times-circle mr-1"></i>Incorrect</span>';
+                    } elseif ($is_selected && !$attempt['key_released']) {
+                        $cls .= ' is-selected-pending shadow-sm';
+                    }
+
+                    if ($is_selected) {
+                        $badgeHtml .= '<span class="badge badge-dark px-2 py-1 shadow-sm ml-2" style="font-size:0.75rem; border: 1px solid rgba(255,255,255,0.2);">Your Answer <i class="fas fa-location-arrow ml-1"></i></span>';
+                    }
+                ?>
+                <div class="col-md-6 mb-3">
+                    <div class="p-3 d-flex align-items-center h-100 <?php echo $cls; ?>">
+                        <span class="review-opt-letter mr-3">
+                            <?php echo chr(64+$i); ?>
+                        </span>
+                        <div class="review-opt-content pr-2">
+                            <?php echo render_formatted_content($optText); ?>
+                        </div>
+                        <?php if (!empty($badgeHtml)): ?>
+                            <div class="d-flex align-items-center flex-shrink-0">
+                                <?php echo $badgeHtml; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endfor; ?>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php endforeach; ?>

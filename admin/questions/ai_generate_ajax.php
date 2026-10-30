@@ -29,6 +29,7 @@ $boardId   = intval($_POST['board_id'] ?? 0);
 $subjectId = !empty($_POST['subject_id']) ? intval($_POST['subject_id']) : 0;
 $topicId   = !empty($_POST['topic_id']) ? intval($_POST['topic_id']) : 0;
 $prompt    = trim($_POST['prompt'] ?? '');
+$question_type = in_array($_POST['question_type'] ?? '', ['mcq', 'fill_blank']) ? $_POST['question_type'] : 'mcq';
 $difficulty= trim($_POST['difficulty'] ?? 'Medium');
 $marks     = max(1, intval($_POST['marks'] ?? 1));
 $model     = trim($_POST['model'] ?? '');
@@ -94,7 +95,11 @@ $params = [
 ];
 
 try {
-    $result = generate_mcq_question($params, $pdo, $admin_id);
+    if ($question_type === 'fill_blank') {
+        $result = generate_fill_blank_question($params, $pdo, $admin_id);
+    } else {
+        $result = generate_mcq_question($params, $pdo, $admin_id);
+    }
 } catch (\Throwable $e) {
     $result = [
         'success' => false,

@@ -24,12 +24,14 @@ CREATE TABLE questions (
     id INT PRIMARY KEY AUTO_INCREMENT,
     class_id INT,
     board_id INT,
+    question_type VARCHAR(30) NOT NULL DEFAULT 'mcq',
     question_text TEXT,
     option1 VARCHAR(500),
     option2 VARCHAR(500),
     option3 VARCHAR(500),
     option4 VARCHAR(500),
     correct_option TINYINT(1),
+    correct_answer_text TEXT NULL,
     is_archived TINYINT(1) DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -104,6 +106,7 @@ CREATE TABLE attempt_answers (
     attempt_id INT,
     question_id INT,
     chosen_option TINYINT(1),
+    answer_text TEXT NULL,
     FOREIGN KEY (attempt_id) REFERENCES attempts(id) ON DELETE CASCADE,
     FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
 );

@@ -36,13 +36,27 @@ try {
         // If exam scheduled window has ended, auto-finalize the attempt and score it
         if ($now_str > $end_dt) {
             $stmt_calc = $pdo->prepare("
-                SELECT COALESCE(SUM(CASE WHEN q.correct_option = ans.chosen_option THEN COALESCE(q.marks, 1) ELSE 0 END), 0) as calc_score
+                SELECT q.id, q.question_type, q.correct_option, q.correct_answer_text, q.option1, COALESCE(q.marks, 1) as marks,
+                       ans.chosen_option, ans.answer_text
                 FROM attempt_answers ans
                 JOIN questions q ON ans.question_id = q.id
                 WHERE ans.attempt_id = ?
             ");
             $stmt_calc->execute([$oa['attempt_id']]);
-            $calc_score = (int)$stmt_calc->fetchColumn();
+            $ans_rows = $stmt_calc->fetchAll(PDO::FETCH_ASSOC);
+            $calc_score = 0;
+            foreach ($ans_rows as $ar) {
+                if (($ar['question_type'] ?? 'mcq') === 'fill_blank') {
+                    $cor_text = !empty($ar['correct_answer_text']) ? $ar['correct_answer_text'] : ($ar['option1'] ?? '');
+                    if (is_fill_blank_correct($ar['answer_text'], $cor_text)) {
+                        $calc_score += (int)$ar['marks'];
+                    }
+                } else {
+                    if ((int)$ar['chosen_option'] === (int)$ar['correct_option']) {
+                        $calc_score += (int)$ar['marks'];
+                    }
+                }
+            }
 
             $stmt_fin = $pdo->prepare("
                 UPDATE attempts 

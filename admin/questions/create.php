@@ -51,13 +51,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$chkTop->fetch()) $topic_id = null;
     }
     
-    if (!$class_id || !$board_id || $q === '' || strlen($o1) === 0 || strlen($o2) === 0 || strlen($o3) === 0 || strlen($o4) === 0 || !in_array($c, [1,2,3,4])) {
-        $error = "All mandatory fields are fully required for safe ingestion into the schema.";
+    $question_type = in_array($_POST['question_type'] ?? '', ['mcq', 'fill_blank']) ? $_POST['question_type'] : 'mcq';
+    $correct_answer_text = trim($_POST['correct_answer_text'] ?? '');
+
+    if ($question_type === 'fill_blank') {
+        if (!$class_id || !$board_id || $q === '' || $correct_answer_text === '') {
+            $error = "Class, board, question prompt, and correct blank answer are all required for Fill in the Blanks.";
+        }
     } else {
+        if (!$class_id || !$board_id || $q === '' || strlen($o1) === 0 || strlen($o2) === 0 || strlen($o3) === 0 || strlen($o4) === 0 || !in_array($c, [1,2,3,4])) {
+            $error = "All mandatory fields are fully required for safe ingestion into the schema.";
+        }
+    }
+
+    if (!$error) {
         try {
             $q = process_question_images($q, $pdo, $current_admin_id);
-            $stmt = $pdo->prepare("INSERT INTO questions (class_id, board_id, subject_id, topic_id, question_text, option1, option2, option3, option4, correct_option, marks, admin_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $o1, $o2, $o3, $o4, $c, $marks, $current_admin_id]);
+            if ($question_type === 'fill_blank') {
+                $stmt = $pdo->prepare("INSERT INTO questions (class_id, board_id, subject_id, topic_id, question_type, question_text, option1, option2, option3, option4, correct_option, correct_answer_text, marks, admin_id) VALUES (?, ?, ?, ?, 'fill_blank', ?, ?, NULL, NULL, NULL, NULL, ?, ?, ?)");
+                $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $correct_answer_text, $correct_answer_text, $marks, $current_admin_id]);
+            } else {
+                $stmt = $pdo->prepare("INSERT INTO questions (class_id, board_id, subject_id, topic_id, question_type, question_text, option1, option2, option3, option4, correct_option, correct_answer_text, marks, admin_id) VALUES (?, ?, ?, ?, 'mcq', ?, ?, ?, ?, ?, ?, NULL, ?, ?)");
+                $stmt->execute([$class_id, $board_id, $subject_id, $topic_id, $q, $o1, $o2, $o3, $o4, $c, $marks, $current_admin_id]);
+            }
             $new_q_id = (int)$pdo->lastInsertId();
 
             $additional_classes = (array)($_POST['additional_classes'] ?? []);
@@ -65,9 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $all_classes[] = $class_id;
             sync_question_classes($new_q_id, $all_classes, $pdo);
 
-            $success = "Single question instantiated successfully in your question bank (Class availability mapped).";
+            $success = ($question_type === 'fill_blank' ? "Fill in the Blanks" : "Multiple Choice") . " question instantiated successfully in your question bank (Class availability mapped).";
         } catch (\PDOException $e) {
-            $error = "Persistence execution failure via database boundary.";
+            $error = "Persistence execution failure via database boundary: " . $e->getMessage();
         }
     }
 }
@@ -169,10 +185,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
 
+            <!-- Question Format / Type Selector -->
+            <div class="card border-0 shadow-sm rounded-lg mb-4 bg-light border-left border-primary" style="border-left-width: 4px !important;">
+                <div class="card-body p-3 p-md-4">
+                    <label class="font-weight-bold text-dark small text-uppercase mb-2 d-flex align-items-center">
+                        <i class="fas fa-shapes text-primary mr-2"></i>Select Question Format
+                    </label>
+                    <div class="row">
+                        <div class="col-md-6 mb-2 mb-md-0">
+                            <label class="q-type-card d-block p-3 bg-white border rounded-lg shadow-sm mb-0 transition cursor-pointer" id="labelTypeMCQ" style="cursor: pointer; border-width: 2px !important; border-color: #3b82f6 !important;">
+                                <div class="custom-control custom-radio">
+                                    <input type="radio" id="type_mcq" name="question_type" value="mcq" class="custom-control-input" checked>
+                                    <label class="custom-control-label font-weight-bold text-dark mb-0" for="type_mcq" style="cursor: pointer;">
+                                        <i class="fas fa-list-ul text-primary mr-1"></i> Multiple Choice Question (MCQ)
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block ml-4 mt-1">4 distinct options (A, B, C, D) with single declared correct answer.</small>
+                            </label>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="q-type-card d-block p-3 bg-white border rounded-lg shadow-sm mb-0 transition cursor-pointer" id="labelTypeFillBlank" style="cursor: pointer; border-width: 2px !important; border-color: #e5e7eb !important;">
+                                <div class="custom-control custom-radio">
+                                    <input type="radio" id="type_fill_blank" name="question_type" value="fill_blank" class="custom-control-input">
+                                    <label class="custom-control-label font-weight-bold text-dark mb-0" for="type_fill_blank" style="cursor: pointer;">
+                                        <i class="fas fa-pen-alt text-warning mr-1"></i> Fill in the Blanks
+                                    </label>
+                                </div>
+                                <small class="text-muted d-block ml-4 mt-1">Sentence with missing word(s). Students type their answer directly.</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="form-group mb-4">
                 <div class="d-flex justify-content-between align-items-center mb-2 bg-light p-2 rounded border-left border-primary" style="border-width: 4px !important;">
                     <label class="font-weight-bold text-dark h5 mb-0"><i class="fas fa-quote-left text-muted mx-2 opacity-50 text-sm"></i>Question Prompt Text</label>
                     <div>
+                        <button type="button" class="btn btn-sm btn-outline-warning text-dark font-weight-bold rounded-pill px-3 shadow-sm mr-2 d-none" id="btnInsertBlankTag" title="Insert [blank] placeholder into prompt">
+                            <i class="fas fa-plus mr-1 text-warning"></i>Insert [blank]
+                        </button>
                         <button type="button" class="btn btn-sm btn-outline-info font-weight-bold rounded-pill px-3 shadow-sm mr-2" data-toggle="modal" data-target="#latexFormulaModal" id="btnOpenFormulaModalPrompt">
                             <i class="fas fa-square-root-alt mr-1"></i>LaTeX Formula Helper
                         </button>
@@ -180,6 +232,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <i class="fas fa-magic mr-1"></i>Generate with AI
                         </button>
                     </div>
+                </div>
+                <div id="fillBlankPromptHelp" class="alert alert-info border-0 rounded-lg p-3 small mb-2 d-none">
+                    <i class="fas fa-lightbulb text-warning mr-2 fa-lg"></i><strong>Tip for Fill in the Blanks:</strong> Use <code>[blank]</code> or <code>______</code> in your sentence where the blank should appear (e.g. <em>"The capital of France is [blank]."</em>). Click <strong>Insert [blank]</strong> above to add it automatically.
                 </div>
 
                 <!-- Quick LaTeX Math Symbols Bar -->
@@ -211,52 +266,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <textarea name="question_text" class="form-control font-weight-bold text-dark shadow-sm" rows="4" placeholder="Articulate the full structure of the computational prompt..." required style="resize: none;"></textarea>
             </div>
             
-            <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-2 rounded border-left border-warning" style="border-width: 4px !important;">
-                <label class="font-weight-bold text-dark h5 mb-0"><i class="fas fa-list-ol text-muted mx-2 opacity-50 text-sm"></i>Option Variations</label>
-                <span class="text-muted small font-weight-normal"><i class="fas fa-info-circle mr-1 text-primary"></i>Use <code>$...$</code> or <code>+ LaTeX</code> for mathematical options</span>
+            <!-- Fill in the Blanks Answer Declaration Section -->
+            <div id="fillBlankAnswerSection" class="p-4 bg-light rounded-lg border border-primary mb-4" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="font-weight-bold text-dark h5 mb-0">
+                        <i class="fas fa-check-circle text-success mr-2"></i>Declare Correct Blank Answer(s)
+                    </label>
+                    <span class="badge badge-success px-3 py-1 font-weight-bold rounded-pill shadow-sm"><i class="fas fa-spell-check mr-1"></i>Case-Insensitive Match</span>
+                </div>
+                <p class="text-muted small mb-3">Enter the accepted word, formula, or phrase students must input. If there are alternative accepted variants or synonyms, separate them using a vertical bar <code>|</code> (e.g. <code>Paris | Paris, France</code> or <code>Mitochondria | mitochondrion</code>).</p>
+                <div class="input-group input-group-lg shadow-sm mb-2">
+                    <div class="input-group-prepend">
+                        <span class="input-group-text bg-white border-0 text-success font-weight-bold px-3"><i class="fas fa-key"></i></span>
+                    </div>
+                    <input type="text" name="correct_answer_text" id="correct_answer_text_input" class="form-control border-0 bg-white font-weight-bold text-dark" placeholder="e.g. Photosynthesis or Newton | Isaac Newton">
+                </div>
+                <small class="text-muted d-block"><i class="fas fa-info-circle mr-1 text-primary"></i>During grading, students receive full marks if their response matches any of the pipe-separated values (ignoring uppercase/lowercase differences and extra spacing).</small>
             </div>
-            <div class="row">
-                <div class="col-md-6 form-group mb-4">
-                    <div class="input-group shadow-sm">
-                        <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">A</span></div>
-                        <input type="text" name="option1" id="option1_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 1" required>
-                        <div class="input-group-append">
-                            <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt1" title="Insert LaTeX into Option A">
-                                <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
-                            </button>
+
+            <!-- MCQ Options Section -->
+            <div id="mcqOptionsSection">
+                <div class="d-flex justify-content-between align-items-center mb-3 bg-light p-2 rounded border-left border-warning" style="border-width: 4px !important;">
+                    <label class="font-weight-bold text-dark h5 mb-0"><i class="fas fa-list-ol text-muted mx-2 opacity-50 text-sm"></i>Option Variations</label>
+                    <span class="text-muted small font-weight-normal"><i class="fas fa-info-circle mr-1 text-primary"></i>Use <code>$...$</code> or <code>+ LaTeX</code> for mathematical options</span>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 form-group mb-4">
+                        <div class="input-group shadow-sm">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">A</span></div>
+                            <input type="text" name="option1" id="option1_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 1" required>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt1" title="Insert LaTeX into Option A">
+                                    <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-6 form-group mb-4">
-                    <div class="input-group shadow-sm">
-                        <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">B</span></div>
-                        <input type="text" name="option2" id="option2_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 2" required>
-                        <div class="input-group-append">
-                            <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt2" title="Insert LaTeX into Option B">
-                                <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
-                            </button>
+                    <div class="col-md-6 form-group mb-4">
+                        <div class="input-group shadow-sm">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">B</span></div>
+                            <input type="text" name="option2" id="option2_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 2" required>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt2" title="Insert LaTeX into Option B">
+                                    <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-6 form-group mb-4">
-                    <div class="input-group shadow-sm">
-                        <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">C</span></div>
-                        <input type="text" name="option3" id="option3_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 3" required>
-                        <div class="input-group-append">
-                            <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt3" title="Insert LaTeX into Option C">
-                                <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
-                            </button>
+                    <div class="col-md-6 form-group mb-4">
+                        <div class="input-group shadow-sm">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">C</span></div>
+                            <input type="text" name="option3" id="option3_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 3" required>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt3" title="Insert LaTeX into Option C">
+                                    <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-md-6 form-group mb-4">
-                    <div class="input-group shadow-sm">
-                        <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">D</span></div>
-                        <input type="text" name="option4" id="option4_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 4" required>
-                        <div class="input-group-append">
-                            <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt4" title="Insert LaTeX into Option D">
-                                <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
-                            </button>
+                    <div class="col-md-6 form-group mb-4">
+                        <div class="input-group shadow-sm">
+                            <div class="input-group-prepend"><span class="input-group-text bg-white border-0 font-weight-bold text-muted">D</span></div>
+                            <input type="text" name="option4" id="option4_input" class="form-control border-0 bg-white opt-math-input" placeholder="Literal for Option 4" required>
+                            <div class="input-group-append">
+                                <button type="button" class="btn btn-light border-0 text-primary font-weight-bold btn-opt-latex px-3" data-target-opt="opt4" title="Insert LaTeX into Option D">
+                                    <i class="fas fa-square-root-alt mr-1"></i>+ LaTeX
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -314,10 +390,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         </div>
                     </div>
+
+                    <!-- Fill in the Blank Live Preview Card -->
+                    <div id="livePreviewBlankContainer" class="p-3 bg-white rounded border shadow-sm mb-2 d-none">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <span class="badge badge-warning text-dark font-weight-bold px-3 py-1 shadow-sm rounded-pill"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank Format</span>
+                            <span class="badge badge-success px-3 py-1 font-weight-bold shadow-sm rounded-pill" id="liveBlankCorrectBadge"><i class="fas fa-check-circle mr-1"></i>Accepted: <span id="liveBlankCorrectText">None specified</span></span>
+                        </div>
+                        <div class="p-3 bg-light rounded-lg border">
+                            <div class="small font-weight-bold text-uppercase mb-2 text-primary d-flex align-items-center"><i class="fas fa-keyboard mr-2"></i>Student Response Field (Typeset Preview):</div>
+                            <div class="input-group">
+                                <input type="text" class="form-control form-control-lg bg-white font-weight-bold text-dark border shadow-sm" disabled placeholder="Students will type their answer directly here...">
+                            </div>
+                            <small class="text-muted mt-2 d-block"><i class="fas fa-spell-check mr-1 text-success"></i>Answers are evaluated case-insensitively and space-normalized.</small>
+                        </div>
+                    </div>
                 </div>
             </div>
             
-            <div class="form-group mb-0 p-4 bg-success bg-opacity-10 rounded-lg border border-success">
+            <div id="mcqCorrectSection" class="form-group mb-0 p-4 bg-success bg-opacity-10 rounded-lg border border-success">
                 <label class="font-weight-bold text-success text-uppercase small"><i class="fas fa-check-circle mr-2"></i>Declare Correct Option Map</label>
                 <select name="correct_option" class="form-control custom-select bg-white shadow-sm border-0 font-weight-bold text-success" required>
                     <option value="1">Option 1 contains the verified mapped value</option>
@@ -438,16 +529,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <div class="row">
-                    <div class="col-md-4 form-group mb-3">
-                        <label class="font-weight-bold small text-muted text-uppercase">Difficulty Level</label>
-                        <select id="modal_ai_difficulty" class="form-control custom-select bg-white font-weight-bold shadow-sm">
-                            <option value="Easy">Easy (Recall / Foundational)</option>
-                            <option value="Medium" selected>Medium (Standard Conceptual)</option>
-                            <option value="Hard">Hard (Analytical / Multi-step)</option>
-                            <option value="Olympiad / Advanced">Olympiad / Advanced</option>
+                    <div class="col-md-3 form-group mb-3">
+                        <label class="font-weight-bold small text-muted text-uppercase">Format</label>
+                        <select id="modal_ai_type" class="form-control custom-select bg-white font-weight-bold shadow-sm">
+                            <option value="mcq">MCQ (4 Options)</option>
+                            <option value="fill_blank">Fill in the Blanks</option>
                         </select>
                     </div>
-                    <div class="col-md-4 form-group mb-3">
+                    <div class="col-md-3 form-group mb-3">
+                        <label class="font-weight-bold small text-muted text-uppercase">Difficulty</label>
+                        <select id="modal_ai_difficulty" class="form-control custom-select bg-white font-weight-bold shadow-sm">
+                            <option value="Easy">Easy (Recall)</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="Hard">Hard</option>
+                            <option value="Olympiad / Advanced">Olympiad</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 form-group mb-3">
                         <label class="font-weight-bold small text-muted text-uppercase">Marks</label>
                         <input type="number" id="modal_ai_marks" class="form-control bg-white font-weight-bold shadow-sm" value="1" min="1">
                     </div>
@@ -787,25 +885,35 @@ $(document).ready(function() {
             $('#livePreviewQuestion').html('<span class="text-muted font-italic">Question prompt preview will render here with LaTeX equations formatted...</span>');
         }
 
-        var correctOpt = $('select[name="correct_option"]').val();
-        for (var i = 1; i <= 4; i++) {
-            var optVal = $('input[name="option' + i + '"]').val().trim();
-            var card = $('#liveOptCard' + i);
-            var badge = $('#liveCorrectBadge' + i);
-            var textSpan = $('#liveOptText' + i);
+        var qType = $('input[name="question_type"]:checked').val() || 'mcq';
+        if (qType === 'fill_blank') {
+            $('#livePreviewOptionsRow').addClass('d-none');
+            $('#livePreviewBlankContainer').removeClass('d-none');
+            var acceptedVal = $('#correct_answer_text_input').val().trim();
+            $('#liveBlankCorrectText').text(acceptedVal ? acceptedVal : 'None specified');
+        } else {
+            $('#livePreviewOptionsRow').removeClass('d-none');
+            $('#livePreviewBlankContainer').addClass('d-none');
+            var correctOpt = $('select[name="correct_option"]').val();
+            for (var i = 1; i <= 4; i++) {
+                var optVal = $('input[name="option' + i + '"]').val().trim();
+                var card = $('#liveOptCard' + i);
+                var badge = $('#liveCorrectBadge' + i);
+                var textSpan = $('#liveOptText' + i);
 
-            if (optVal) {
-                textSpan.text(optVal);
-            } else {
-                textSpan.html('<em class="text-muted">Option ' + i + ' preview</em>');
-            }
+                if (optVal) {
+                    textSpan.text(optVal);
+                } else {
+                    textSpan.html('<em class="text-muted">Option ' + i + ' preview</em>');
+                }
 
-            if (String(i) === String(correctOpt)) {
-                card.addClass('border-success bg-success bg-opacity-10 text-success font-weight-bold');
-                badge.removeClass('d-none');
-            } else {
-                card.removeClass('border-success bg-success bg-opacity-10 text-success font-weight-bold');
-                badge.addClass('d-none');
+                if (String(i) === String(correctOpt)) {
+                    card.addClass('border-success bg-success bg-opacity-10 text-success font-weight-bold');
+                    badge.removeClass('d-none');
+                } else {
+                    card.removeClass('border-success bg-success bg-opacity-10 text-success font-weight-bold');
+                    badge.addClass('d-none');
+                }
             }
         }
 
@@ -830,8 +938,44 @@ $(document).ready(function() {
 
     // Attach live preview listeners
     $('input[name^="option"]').on('input', debouncedLivePreview);
+    $('#correct_answer_text_input').on('input', debouncedLivePreview);
     $('select[name="correct_option"]').on('change', debouncedLivePreview);
     $('#btnRefreshPreview').click(updateLivePreview);
+
+    // Question Type Mode Switching
+    function syncQuestionType(type) {
+        if (type === 'fill_blank') {
+            $('#labelTypeFillBlank').css({'border-color': '#f59e0b', 'background-color': '#fffbeb'});
+            $('#labelTypeMCQ').css({'border-color': '#e5e7eb', 'background-color': '#ffffff'});
+            $('#mcqOptionsSection, #mcqCorrectSection').slideUp(200);
+            $('#fillBlankAnswerSection, #fillBlankPromptHelp, #btnInsertBlankTag').fadeIn(200);
+
+            $('input[name^="option"]').prop('required', false);
+            $('select[name="correct_option"]').prop('required', false);
+            $('#correct_answer_text_input').prop('required', true);
+        } else {
+            $('#labelTypeMCQ').css({'border-color': '#3b82f6', 'background-color': '#eff6ff'});
+            $('#labelTypeFillBlank').css({'border-color': '#e5e7eb', 'background-color': '#ffffff'});
+            $('#mcqOptionsSection, #mcqCorrectSection').slideDown(200);
+            $('#fillBlankAnswerSection, #fillBlankPromptHelp, #btnInsertBlankTag').fadeOut(200);
+
+            $('input[name^="option"]').prop('required', true);
+            $('select[name="correct_option"]').prop('required', true);
+            $('#correct_answer_text_input').prop('required', false);
+        }
+        updateLivePreview();
+    }
+
+    $('input[name="question_type"]').change(function() {
+        syncQuestionType($(this).val());
+    });
+    syncQuestionType($('input[name="question_type"]:checked').val());
+
+    // Insert [blank] tag into Summernote
+    $('#btnInsertBlankTag').click(function() {
+        $('textarea[name="question_text"]').summernote('insertText', ' [blank] ');
+        debouncedLivePreview();
+    });
 
     // --- LaTeX Quick Toolbar Buttons (above prompt) ---
     $('.quick-latex-insert').click(function() {
@@ -1053,6 +1197,7 @@ $(document).ready(function() {
                 board_id: boardId,
                 subject_id: subjectId,
                 topic_id: topicId,
+                question_type: $('#modal_ai_type').val() || 'mcq',
                 difficulty: difficulty,
                 marks: marks,
                 model: model,
@@ -1101,21 +1246,34 @@ $(document).ready(function() {
         $('#aiModelBadge').text('Model: ' + (data.model_used || $('#modal_ai_model').val()));
         $('#aiPreviewQuestionText').html(data.question_text);
         
-        for (var i = 1; i <= 4; i++) {
-            var rawOpt = data['option' + i] || '';
-            if (rawOpt.indexOf('<') !== -1) {
-                $('#preview_opt_text_' + i).html(rawOpt);
-            } else {
-                $('#preview_opt_text_' + i).text(rawOpt);
+        var isAiFill = (data.question_type === 'fill_blank');
+        if (isAiFill) {
+            $('#aiPreviewOptionsRow').addClass('d-none');
+            var accepted = data.correct_answer || data.correct_answer_text || '';
+            if (!$('#aiPreviewBlankBox').length) {
+                $('#aiPreviewQuestionText').after('<div id="aiPreviewBlankBox" class="p-3 bg-light rounded border border-success mb-3"><div class="small font-weight-bold text-success text-uppercase mb-1"><i class="fas fa-check-circle mr-1"></i>Accepted Blank Answer:</div><div class="h5 font-weight-bold text-dark mb-0" id="aiPreviewBlankAns"></div></div>');
             }
-            var card = $('#preview_opt_' + i);
-            var badge = $('#preview_badge_' + i);
-            if (i === data.correct_option) {
-                card.addClass('border-success bg-success bg-opacity-10 font-weight-bold text-success');
-                badge.removeClass('d-none');
-            } else {
-                card.removeClass('border-success bg-success bg-opacity-10 font-weight-bold text-success');
-                badge.addClass('d-none');
+            $('#aiPreviewBlankAns').text(accepted);
+            $('#aiPreviewBlankBox').removeClass('d-none');
+        } else {
+            $('#aiPreviewOptionsRow').removeClass('d-none');
+            $('#aiPreviewBlankBox').addClass('d-none');
+            for (var i = 1; i <= 4; i++) {
+                var rawOpt = data['option' + i] || '';
+                if (rawOpt.indexOf('<') !== -1) {
+                    $('#preview_opt_text_' + i).html(rawOpt);
+                } else {
+                    $('#preview_opt_text_' + i).text(rawOpt);
+                }
+                var card = $('#preview_opt_' + i);
+                var badge = $('#preview_badge_' + i);
+                if (i === data.correct_option) {
+                    card.addClass('border-success bg-success bg-opacity-10 font-weight-bold text-success');
+                    badge.removeClass('d-none');
+                } else {
+                    card.removeClass('border-success bg-success bg-opacity-10 font-weight-bold text-success');
+                    badge.addClass('d-none');
+                }
             }
         }
 
@@ -1142,14 +1300,20 @@ $(document).ready(function() {
         // Populate Summernote
         $('textarea[name="question_text"]').summernote('code', lastGeneratedData.question_text);
 
-        // Populate Options
-        $('input[name="option1"]').val(lastGeneratedData.option1);
-        $('input[name="option2"]').val(lastGeneratedData.option2);
-        $('input[name="option3"]').val(lastGeneratedData.option3);
-        $('input[name="option4"]').val(lastGeneratedData.option4);
-
-        // Populate Correct Option
-        $('select[name="correct_option"]').val(lastGeneratedData.correct_option);
+        if (lastGeneratedData.question_type === 'fill_blank') {
+            $('#type_fill_blank').prop('checked', true);
+            syncQuestionType('fill_blank');
+            var ans = lastGeneratedData.correct_answer || lastGeneratedData.correct_answer_text || '';
+            $('#correct_answer_text_input').val(ans);
+        } else {
+            $('#type_mcq').prop('checked', true);
+            syncQuestionType('mcq');
+            $('input[name="option1"]').val(lastGeneratedData.option1);
+            $('input[name="option2"]').val(lastGeneratedData.option2);
+            $('input[name="option3"]').val(lastGeneratedData.option3);
+            $('input[name="option4"]').val(lastGeneratedData.option4);
+            $('select[name="correct_option"]').val(lastGeneratedData.correct_option);
+        }
 
         // Populate Marks
         if (lastGeneratedData.marks) {

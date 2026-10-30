@@ -922,3 +922,30 @@ function get_git_commit_info(): array {
 
     return $commitInfo;
 }
+
+/**
+ * Evaluates whether a student's fill-in-the-blank answer matches the acceptable answer(s).
+ * Matching is case-insensitive and trims extraneous whitespace.
+ * Multiple acceptable answers can be delimited by '|' (e.g. "Paris|Paris, France") or newlines.
+ */
+function is_fill_blank_correct($student_answer, $correct_answer): bool {
+    if ($student_answer === null || trim((string)$student_answer) === '') {
+        return false;
+    }
+    if ($correct_answer === null || trim((string)$correct_answer) === '') {
+        return false;
+    }
+
+    // Normalize student answer: trim, lower case, collapse multiple internal spaces
+    $clean_student = preg_replace('/\s+/', ' ', trim(mb_strtolower((string)$student_answer, 'UTF-8')));
+
+    // Split acceptable answers by '|' or newlines
+    $options = preg_split('/[|\r\n]+/', (string)$correct_answer);
+    foreach ($options as $opt) {
+        $clean_opt = preg_replace('/\s+/', ' ', trim(mb_strtolower((string)$opt, 'UTF-8')));
+        if ($clean_opt !== '' && $clean_student === $clean_opt) {
+            return true;
+        }
+    }
+    return false;
+}

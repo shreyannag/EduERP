@@ -83,11 +83,18 @@ $questions = $stmt_qs->fetchAll();
 
 // Fetch already saved answers for this attempt from database (real-time resilience)
 $saved_answers = [];
+$saved_text_answers = [];
 if ($attempt_id > 0) {
-    $stmt_ans = $pdo->prepare("SELECT question_id, chosen_option FROM attempt_answers WHERE attempt_id = ?");
+    $stmt_ans = $pdo->prepare("SELECT question_id, chosen_option, answer_text FROM attempt_answers WHERE attempt_id = ?");
     $stmt_ans->execute([$attempt_id]);
-    $saved_answers = $stmt_ans->fetchAll(PDO::FETCH_KEY_PAIR);
+    $raw_saved = $stmt_ans->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($raw_saved as $r) {
+        $qid = (int)$r['question_id'];
+        if ($r['chosen_option'] !== null) $saved_answers[$qid] = (int)$r['chosen_option'];
+        if ($r['answer_text'] !== null && trim($r['answer_text']) !== '') $saved_text_answers[$qid] = $r['answer_text'];
+    }
 }
+$total_answered_initial = count($saved_answers) + count($saved_text_answers);
 
 $remaining_seconds = max(0, $end_ts - $now_ts);
 $csrf_token = generate_csrf_token();
@@ -237,6 +244,35 @@ $csrf_token = generate_csrf_token();
                             </button>
                         </div>
                     </div>
+                    <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): 
+                        $savedText = $saved_text_answers[$q['id']] ?? '';
+                    ?>
+                    <div class="q-body px-4 pb-3">
+                        <div class="p-4 bg-light rounded-lg border border-primary shadow-sm">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <label class="font-weight-bold text-dark small text-uppercase mb-0 d-flex align-items-center">
+                                    <i class="fas fa-pen-alt text-primary mr-2"></i>Fill in the Blank
+                                </label>
+                                <span class="badge badge-success px-3 py-1 font-weight-bold rounded-pill shadow-sm"><i class="fas fa-spell-check mr-1"></i>Case Insensitive</span>
+                            </div>
+                            <p class="text-muted small mb-3">Type your response below. Your answer is automatically saved to the cloud as you type.</p>
+                            <div class="input-group input-group-lg shadow-sm">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text bg-white border-right-0 text-primary"><i class="fas fa-keyboard"></i></span>
+                                </div>
+                                <input type="text" 
+                                       name="text_answers[<?php echo $q['id']; ?>]" 
+                                       id="q_fill_<?php echo $q['id']; ?>" 
+                                       class="form-control form-control-lg border-left-0 bg-white font-weight-bold text-dark q-fill-input" 
+                                       placeholder="Type your answer here..."
+                                       value="<?php echo h($savedText); ?>"
+                                       data-qnum="<?php echo $qNum; ?>"
+                                       data-qid="<?php echo $q['id']; ?>"
+                                       autocomplete="off">
+                            </div>
+                        </div>
+                    </div>
+                    <?php else: ?>
                     <div class="q-body row mx-0">
                         <?php for($i=1; $i<=4; $i++): 
                             $optText = $q['option'.$i]; 
@@ -255,6 +291,7 @@ $csrf_token = generate_csrf_token();
                         </div>
                         <?php endfor; ?>
                     </div>
+                    <?php endif; ?>
                     
                     <!-- Question footer navigation bar -->
                     <div class="q-card-footer d-flex justify-content-between align-items-center bg-light px-4 py-2 border-top">
@@ -302,15 +339,15 @@ $csrf_token = generate_csrf_token();
                     <div class="d-flex flex-wrap" id="qNavContainer">
                         <?php for($i=1; $i<=count($questions); $i++): 
                             $qIdCurrent = $questions[$i-1]['id'];
-                            $isAns = !empty($saved_answers[$qIdCurrent]);
+                            $isAns = !empty($saved_answers[$qIdCurrent]) || !empty($saved_text_answers[$qIdCurrent]);
                             $btnClass = $isAns ? 'answered shadow text-white' : 'unanswered';
                         ?>
                             <a href="#q<?php echo $i; ?>" class="btn q-btn <?php echo $btnClass; ?> border text-center p-0 d-flex align-items-center justify-content-center shadow-sm" id="nav_btn_<?php echo $i; ?>" onclick="scrollToQuestion(<?php echo $i; ?>); return false;"><?php echo $i; ?></a>
                         <?php endfor; ?>
                     </div>
                     <div class="mt-4 pt-4 border-top small text-muted font-weight-bold text-uppercase">
-                        <div class="mb-3 d-flex align-items-center"><span class="d-inline-block bg-success rounded-circle shadow-sm mr-3" style="width:14px; height:14px;"></span> Answered (<span id="desktopAnsweredBadge"><?php echo count($saved_answers); ?></span>)</div>
-                        <div class="d-flex align-items-center"><span class="d-inline-block bg-light border border-secondary rounded-circle shadow-sm mr-3" style="width:14px; height:14px;"></span> Unanswered (<span id="desktopUnansweredBadge"><?php echo count($questions) - count($saved_answers); ?></span>)</div>
+                        <div class="mb-3 d-flex align-items-center"><span class="d-inline-block bg-success rounded-circle shadow-sm mr-3" style="width:14px; height:14px;"></span> Answered (<span id="desktopAnsweredBadge"><?php echo $total_answered_initial; ?></span>)</div>
+                        <div class="d-flex align-items-center"><span class="d-inline-block bg-light border border-secondary rounded-circle shadow-sm mr-3" style="width:14px; height:14px;"></span> Unanswered (<span id="desktopUnansweredBadge"><?php echo count($questions) - $total_answered_initial; ?></span>)</div>
                     </div>
                     <div class="mt-4 pt-3 border-top text-center">
                         <button type="button" class="btn btn-primary font-weight-bold rounded-pill btn-block shadow-sm" onclick="openSubmitModal()">
@@ -326,7 +363,7 @@ $csrf_token = generate_csrf_token();
     <div class="floating-palette-btn d-lg-none" data-toggle="modal" data-target="#paletteModal" title="Open Question Palette">
         <i class="fas fa-th-large fa-lg"></i>
         <span class="badge badge-light text-primary position-absolute font-weight-bold shadow-sm" id="mobileFloatingBadge" style="top: -4px; right: -4px; font-size: 0.65rem; border-radius: 10px; padding: 3px 6px;">
-            <?php echo count($saved_answers); ?>/<?php echo count($questions); ?>
+            <?php echo $total_answered_initial; ?>/<?php echo count($questions); ?>
         </span>
     </div>
 
@@ -344,13 +381,13 @@ $csrf_token = generate_csrf_token();
                 </div>
                 <div class="modal-body p-4">
                     <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom small font-weight-bold">
-                        <span class="text-success"><i class="fas fa-check-circle mr-1"></i><span id="mobileAnsweredCount"><?php echo count($saved_answers); ?></span> Answered</span>
-                        <span class="text-muted"><i class="fas fa-circle mr-1"></i><span id="mobileUnansweredCount"><?php echo count($questions) - count($saved_answers); ?></span> Unanswered</span>
+                        <span class="text-success"><i class="fas fa-check-circle mr-1"></i><span id="mobileAnsweredCount"><?php echo $total_answered_initial; ?></span> Answered</span>
+                        <span class="text-muted"><i class="fas fa-circle mr-1"></i><span id="mobileUnansweredCount"><?php echo count($questions) - $total_answered_initial; ?></span> Unanswered</span>
                     </div>
                     <div class="d-flex flex-wrap justify-content-center" id="mobileQNavGrid">
                         <?php for($i=1; $i<=count($questions); $i++): 
                             $qIdCurrent = $questions[$i-1]['id'];
-                            $isAns = !empty($saved_answers[$qIdCurrent]);
+                            $isAns = !empty($saved_answers[$qIdCurrent]) || !empty($saved_text_answers[$qIdCurrent]);
                             $btnClass = $isAns ? 'answered shadow text-white' : 'unanswered';
                         ?>
                             <a href="#q<?php echo $i; ?>" class="btn q-btn <?php echo $btnClass; ?> border text-center p-0 d-flex align-items-center justify-content-center shadow-sm mobile-q-link" id="nav_btn_mobile_<?php echo $i; ?>" onclick="scrollToQuestion(<?php echo $i; ?>); $('#paletteModal').modal('hide'); return false;"><?php echo $i; ?></a>
@@ -556,13 +593,72 @@ $csrf_token = generate_csrf_token();
     }
 
     function syncCounts() {
-        let ans = $('.q-radio:checked').length;
+        let ansMCQ = $('.q-radio:checked').length;
+        let ansFill = $('.q-fill-input').filter(function() { return $(this).val().trim() !== ''; }).length;
+        let ans = ansMCQ + ansFill;
         let unans = totalQuestions - ans;
         $('#mobileAnsweredCount').text(ans);
         $('#mobileUnansweredCount').text(unans);
         $('#desktopAnsweredBadge').text(ans);
         $('#desktopUnansweredBadge').text(unans);
         $('#mobileFloatingBadge').text(ans + '/' + totalQuestions);
+    }
+
+    // Fill in the Blanks Input Handler & Server Auto-Saver
+    let fillDebounceTimers = {};
+    $('.q-fill-input').on('input', function() {
+        let inputEl = $(this);
+        let qNum = inputEl.data('qnum');
+        let qId = inputEl.data('qid');
+        let textVal = inputEl.val().trim();
+
+        if (textVal.length > 0) {
+            updatePalette(qNum);
+        } else {
+            $('#nav_btn_' + qNum).removeClass('answered shadow text-white').addClass('unanswered');
+            $('#nav_btn_mobile_' + qNum).removeClass('answered shadow text-white').addClass('unanswered');
+            syncCounts();
+        }
+
+        clearTimeout(fillDebounceTimers[qId]);
+        fillDebounceTimers[qId] = setTimeout(function() {
+            autoSaveTextToServer(qId, textVal);
+        }, 400);
+    });
+
+    function autoSaveTextToServer(questionId, answerText) {
+        let badge = $('#saveStatusBadge');
+        let text = $('#saveStatusText');
+        badge.removeClass('bg-light text-muted bg-danger text-white bg-success').addClass('bg-warning text-dark');
+        text.html('<i class="fas fa-spinner fa-spin mr-1"></i>Saving...');
+
+        $.ajax({
+            url: 'save_answer_ajax.php',
+            method: 'POST',
+            data: {
+                attempt_id: attemptId,
+                exam_id: examId,
+                question_id: questionId,
+                answer_text: answerText,
+                csrf_token: csrfToken
+            },
+            dataType: 'json'
+        }).done(function(res) {
+            if (res.success) {
+                badge.removeClass('bg-warning text-dark bg-danger').addClass('bg-success text-white');
+                text.html('<i class="fas fa-check-circle mr-1"></i>Saved');
+                setTimeout(function() {
+                    badge.removeClass('bg-success text-white').addClass('bg-light text-muted');
+                    text.html('<i class="fas fa-cloud text-primary mr-1"></i>All Answers Saved');
+                }, 2000);
+            } else {
+                badge.removeClass('bg-warning text-dark').addClass('bg-danger text-white');
+                text.html('<i class="fas fa-exclamation-triangle mr-1"></i>Save Warning');
+            }
+        }).fail(function() {
+            badge.removeClass('bg-warning text-dark').addClass('bg-secondary text-white');
+            text.html('<i class="fas fa-wifi mr-1"></i>Saved Locally');
+        });
     }
 
     // Real-Time Asynchronous Server-Side Auto-Saver
@@ -614,7 +710,9 @@ $csrf_token = generate_csrf_token();
 
     // High-friction submit confirmation modal
     function openSubmitModal() {
-        let ans = $('.q-radio:checked').length;
+        let ansMCQ = $('.q-radio:checked').length;
+        let ansFill = $('.q-fill-input').filter(function() { return $(this).val().trim() !== ''; }).length;
+        let ans = ansMCQ + ansFill;
         let unans = totalQuestions - ans;
         
         $('#modalTotalQ').text(totalQuestions);

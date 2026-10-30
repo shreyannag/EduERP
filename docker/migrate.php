@@ -783,7 +783,12 @@ $migrations = [
         INDEX idx_ip (ip_address),
         INDEX idx_admin (admin_id),
         INDEX idx_active (is_active)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci"
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+
+    // Fill in the Blanks Question Support
+    "ALTER TABLE questions ADD COLUMN IF NOT EXISTS question_type VARCHAR(30) NOT NULL DEFAULT 'mcq' AFTER topic_id",
+    "ALTER TABLE questions ADD COLUMN IF NOT EXISTS correct_answer_text TEXT NULL AFTER correct_option",
+    "ALTER TABLE attempt_answers ADD COLUMN IF NOT EXISTS answer_text TEXT NULL AFTER chosen_option"
 ];
 
 $successCount = 0;

@@ -102,27 +102,40 @@ $is_draft = strpos($exam['status'], 'draft') !== false;
         </div>
     </div>
     <div class="card-body px-4 pb-4 pt-3 ml-md-5 pl-md-4">
-        <div class="row">
-            <?php for($i=1; $i<=4; $i++): 
-                $optText = $i===1 ? $q['option1'] : ($i===2 ? $q['option2'] : ($i===3 ? $q['option3'] : $q['option4']));
-                if ($optText === null || trim((string)$optText) === '') continue;
-                $isCorrect = ($i == $q['correct_option']);
-            ?>
-            <div class="col-md-6 mb-3">
-                <div class="p-3 d-flex align-items-center h-100 review-opt-box <?php echo $isCorrect ? 'is-correct shadow' : 'shadow-sm'; ?>">
-                    <span class="review-opt-letter mr-3">
-                        <?php echo chr(64+$i); ?>
-                    </span>
-                    <div class="review-opt-content pr-2">
-                        <?php echo render_formatted_content($optText); ?>
-                    </div>
-                    <?php if($isCorrect): ?>
-                        <span class="badge badge-success px-2 py-1 shadow-sm flex-shrink-0"><i class="fas fa-check mr-1"></i> Correct</span>
-                    <?php endif; ?>
+        <?php if (($q['question_type'] ?? 'mcq') === 'fill_blank'): ?>
+            <div class="p-3 bg-light rounded border border-primary">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <span class="badge badge-warning text-dark font-weight-bold shadow-sm"><i class="fas fa-pen-alt mr-1"></i>Fill in the Blank</span>
+                    <span class="badge badge-success font-weight-bold shadow-sm"><i class="fas fa-check-circle mr-1"></i>Official Answer Key</span>
+                </div>
+                <div class="p-3 bg-white rounded border">
+                    <span class="small font-weight-bold text-muted text-uppercase d-block mb-1">Accepted Input:</span>
+                    <span class="h5 font-weight-bold text-success mb-0"><?php echo h($q['correct_answer_text'] ?: $q['option1']); ?></span>
                 </div>
             </div>
-            <?php endfor; ?>
-        </div>
+        <?php else: ?>
+            <div class="row">
+                <?php for($i=1; $i<=4; $i++): 
+                    $optText = $i===1 ? $q['option1'] : ($i===2 ? $q['option2'] : ($i===3 ? $q['option3'] : $q['option4']));
+                    if ($optText === null || trim((string)$optText) === '') continue;
+                    $isCorrect = ($i == $q['correct_option']);
+                ?>
+                <div class="col-md-6 mb-3">
+                    <div class="p-3 d-flex align-items-center h-100 review-opt-box <?php echo $isCorrect ? 'is-correct shadow' : 'shadow-sm'; ?>">
+                        <span class="review-opt-letter mr-3">
+                            <?php echo chr(64+$i); ?>
+                        </span>
+                        <div class="review-opt-content pr-2">
+                            <?php echo render_formatted_content($optText); ?>
+                        </div>
+                        <?php if($isCorrect): ?>
+                            <span class="badge badge-success px-2 py-1 shadow-sm flex-shrink-0"><i class="fas fa-check mr-1"></i> Correct</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endfor; ?>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 <?php endforeach; ?>

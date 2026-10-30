@@ -60,17 +60,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                             $isValid = true;
                             $errorText = [];
                             
+                            $is_fill_blank = false;
+                            $q_format = (isset($data[8]) && strtolower(trim($data[8])) === 'fill_blank') ? 'fill_blank' : '';
+                            if ($q_format === 'fill_blank' || ($opt2 === '' && $opt3 === '' && $opt4 === '' && ($opt1 !== '' || $correct !== ''))) {
+                                $is_fill_blank = true;
+                            }
+
                             if (!in_array($class, $valid_classes)) { $isValid = false; $errorText[] = "Invalid Class"; }
                             if (!in_array($board, $valid_boards)) { $isValid = false; $errorText[] = "Invalid Board: " . htmlspecialchars($board); }
                             if ($question === '') { $isValid = false; $errorText[] = "Empty Question"; }
-                            if ($opt1 === '' || $opt2 === '' || $opt3 === '' || $opt4 === '') { $isValid = false; $errorText[] = "Options cannot be empty"; }
-                            if (!in_array($correct, ['1','2','3','4'])) { $isValid = false; $errorText[] = "Correct Option must be 1-4"; }
+
+                            $blank_ans = '';
+                            if ($is_fill_blank) {
+                                $blank_ans = $opt1 !== '' ? $opt1 : $correct;
+                                if ($blank_ans === '') {
+                                    $isValid = false;
+                                    $errorText[] = "Fill-in-the-blank answer cannot be empty";
+                                }
+                            } else {
+                                if ($opt1 === '' || $opt2 === '' || $opt3 === '' || $opt4 === '') { $isValid = false; $errorText[] = "Options cannot be empty"; }
+                                if (!in_array($correct, ['1','2','3','4'])) { $isValid = false; $errorText[] = "Correct Option must be 1-4"; }
+                            }
                             
                             $preview_data[] = [
                                 'row' => $rowNum,
                                 'class' => $class,
                                 'board' => $board,
                                 'question' => $question,
+                                'is_fill_blank' => $is_fill_blank,
+                                'blank_answer' => $blank_ans,
                                 'options' => [$opt1, $opt2, $opt3, $opt4],
                                 'correct' => $correct,
                                 'is_valid' => $isValid,
@@ -129,22 +147,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_import'])) {
                 $opt4 = trim($data[6]);
                 $correct = trim($data[7]);
                 
-                if (isset($classMap[$class]) && isset($boardMap[$board]) && $question !== '' && $opt1 !== '' && $opt2 !== '' && $opt3 !== '' && $opt4 !== '' && in_array($correct, ['1','2','3','4'])) {
-                    $c_id = $classMap[$class];
-                    $b_id = $boardMap[$board];
-                    
+                $c_id = $classMap[$class] ?? null;
+                $b_id = $boardMap[$board] ?? null;
+                if ($c_id && $b_id && $question !== '') {
                     $stmt_check->execute([$current_admin_id, $c_id, $b_id, $question]);
                     if ($stmt_check->fetch()) {
                         $skipped++; 
                         continue;
                     }
-                    
-                    $stmt_insert->execute([$current_admin_id, $c_id, $b_id, $question, $opt1, $opt2, $opt3, $opt4, $correct]);
-                    $new_upload_id = (int)$pdo->lastInsertId();
+
+                    $is_fill_blank = false;
+                    $q_format = (isset($data[8]) && strtolower(trim($data[8])) === 'fill_blank') ? 'fill_blank' : '';
+                    if ($q_format === 'fill_blank' || ($opt2 === '' && $opt3 === '' && $opt4 === '' && ($opt1 !== '' || $correct !== ''))) {
+                        $is_fill_blank = true;
+                    }
+
+                    $new_upload_id = 0;
+                    if ($is_fill_blank) {
+                        $blank_ans = $opt1 !== '' ? $opt1 : $correct;
+                        if ($blank_ans !== '') {
+                            $stmt_ins_blank = $pdo->prepare("INSERT INTO questions (admin_id, class_id, board_id, question_type, question_text, option1, correct_answer_text) VALUES (?, ?, ?, 'fill_blank', ?, ?, ?)");
+                            $stmt_ins_blank->execute([$current_admin_id, $c_id, $b_id, $question, $blank_ans, $blank_ans]);
+                            $new_upload_id = (int)$pdo->lastInsertId();
+                            $imported++;
+                        }
+                    } else {
+                        if ($opt1 !== '' && $opt2 !== '' && $opt3 !== '' && $opt4 !== '' && in_array($correct, ['1','2','3','4'])) {
+                            $stmt_ins_mcq = $pdo->prepare("INSERT INTO questions (admin_id, class_id, board_id, question_type, question_text, option1, option2, option3, option4, correct_option) VALUES (?, ?, ?, 'mcq', ?, ?, ?, ?, ?, ?)");
+                            $stmt_ins_mcq->execute([$current_admin_id, $c_id, $b_id, $question, $opt1, $opt2, $opt3, $opt4, $correct]);
+                            $new_upload_id = (int)$pdo->lastInsertId();
+                            $imported++;
+                        }
+                    }
+
                     if ($new_upload_id > 0) {
                         $pdo->prepare("INSERT IGNORE INTO question_classes (question_id, class_id) VALUES (?, ?)")->execute([$new_upload_id, $c_id]);
                     }
-                    $imported++;
                 }
             }
             fclose($handle);
@@ -295,30 +333,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['cancel_import'])) {
                             <td class="align-middle"><span class="badge badge-light border text-primary"><?php echo h($row['board']); ?></span></td>
                             <td class="align-middle">
                                 <div class="font-weight-500 text-dark mb-2" style="font-size: 1.05rem; line-height: 1.6;">
+                                    <?php if (!empty($row['is_fill_blank'])): ?>
+                                        <span class="badge badge-warning text-dark font-weight-bold mr-1"><i class="fas fa-pen-alt mr-1"></i>Fill Blank</span>
+                                    <?php else: ?>
+                                        <span class="badge badge-light border text-secondary font-weight-bold mr-1">MCQ</span>
+                                    <?php endif; ?>
                                     <?php echo render_formatted_content($row['question']); ?>
                                 </div>
-                                <button class="btn btn-xs btn-outline-secondary py-1 px-3 rounded-pill font-weight-bold shadow-sm" type="button" data-toggle="collapse" data-target="#opt-details-<?php echo $row['row']; ?>">
-                                    <i class="fas fa-list-ol mr-1"></i>Toggle 4 Options & Formulas
-                                </button>
-                                <div class="collapse mt-2" id="opt-details-<?php echo $row['row']; ?>">
-                                    <div class="p-3 bg-white rounded border shadow-sm small">
-                                        <div class="row">
-                                            <?php foreach($row['options'] as $idx => $opt): 
-                                                $isC = (($idx + 1) == (int)$row['correct']);
-                                            ?>
-                                            <div class="col-md-6 mb-2">
-                                                <div class="p-2 rounded border <?php echo $isC ? 'bg-success bg-opacity-10 border-success font-weight-bold' : 'bg-light'; ?>">
-                                                    <span class="badge <?php echo $isC ? 'badge-success' : 'badge-secondary'; ?> mr-2"><?php echo chr(65 + $idx); ?></span>
-                                                    <span class="<?php echo $isC ? 'text-success' : 'text-dark'; ?>"><?php echo render_formatted_content($opt); ?></span>
-                                                    <?php if($isC): ?><span class="badge badge-success ml-2 py-0 px-1 float-right">Correct</span><?php endif; ?>
+                                <?php if (!empty($row['is_fill_blank'])): ?>
+                                    <div class="small text-muted mt-1"><i class="fas fa-key text-success mr-1"></i>Accepted Answer: <strong class="text-success"><?php echo h($row['blank_answer']); ?></strong></div>
+                                <?php else: ?>
+                                    <button class="btn btn-xs btn-outline-secondary py-1 px-3 rounded-pill font-weight-bold shadow-sm" type="button" data-toggle="collapse" data-target="#opt-details-<?php echo $row['row']; ?>">
+                                        <i class="fas fa-list-ol mr-1"></i>Toggle 4 Options & Formulas
+                                    </button>
+                                    <div class="collapse mt-2" id="opt-details-<?php echo $row['row']; ?>">
+                                        <div class="p-3 bg-white rounded border shadow-sm small">
+                                            <div class="row">
+                                                <?php foreach($row['options'] as $idx => $opt): 
+                                                    $isC = (($idx + 1) == (int)$row['correct']);
+                                                ?>
+                                                <div class="col-md-6 mb-2">
+                                                    <div class="p-2 rounded border <?php echo $isC ? 'bg-success bg-opacity-10 border-success font-weight-bold' : 'bg-light'; ?>">
+                                                        <span class="badge <?php echo $isC ? 'badge-success' : 'badge-secondary'; ?> mr-2"><?php echo chr(65 + $idx); ?></span>
+                                                        <span class="<?php echo $isC ? 'text-success' : 'text-dark'; ?>"><?php echo render_formatted_content($opt); ?></span>
+                                                        <?php if($isC): ?><span class="badge badge-success ml-2 py-0 px-1 float-right">Correct</span><?php endif; ?>
+                                                    </div>
                                                 </div>
+                                                <?php endforeach; ?>
                                             </div>
-                                            <?php endforeach; ?>
                                         </div>
                                     </div>
-                                </div>
+                                <?php endif; ?>
                             </td>
-                            <td class="align-middle"><span class="badge badge-success px-3 py-2 shadow-sm font-weight-bold">Option <?php echo h($row['correct']); ?></span></td>
+                            <td class="align-middle">
+                                <?php if (!empty($row['is_fill_blank'])): ?>
+                                    <span class="badge badge-success px-2 py-1 shadow-sm font-weight-bold text-truncate" style="max-width: 130px;" title="<?php echo h($row['blank_answer']); ?>"><i class="fas fa-check mr-1"></i><?php echo h($row['blank_answer']); ?></span>
+                                <?php else: ?>
+                                    <span class="badge badge-success px-3 py-2 shadow-sm font-weight-bold">Option <?php echo h($row['correct']); ?></span>
+                                <?php endif; ?>
+                            </td>
                             <td class="pr-4 align-middle text-right">
                                 <?php if ($row['is_valid']): ?>
                                     <span class="badge badge-success px-3 py-1 shadow-sm"><i class="fas fa-check mr-1"></i> Valid</span>

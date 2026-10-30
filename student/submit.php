@@ -15,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $exam_id = intval($_POST['exam_id'] ?? 0);
     $attempt_id = intval($_POST['attempt_id'] ?? 0);
     $post_answers = $_POST['answers'] ?? []; // Map struct => answers[question_id] = option_number
+    $post_text_answers = $_POST['text_answers'] ?? []; // Map struct => text_answers[question_id] = text_answer
     
     if (!$student_id || !$exam_id) {
         header("Location: dashboard.php");
@@ -52,57 +53,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->beginTransaction();
 
         // 1. Fetch any answers already persisted in real-time via AJAX
-        $stmt_existing = $pdo->prepare("SELECT question_id, chosen_option FROM attempt_answers WHERE attempt_id = ?");
+        $stmt_existing = $pdo->prepare("SELECT question_id, chosen_option, answer_text FROM attempt_answers WHERE attempt_id = ?");
         $stmt_existing->execute([$attempt_id]);
-        $all_answers = $stmt_existing->fetchAll(PDO::FETCH_KEY_PAIR); // [question_id => chosen_option]
+        $existing_rows = $stmt_existing->fetchAll(PDO::FETCH_ASSOC);
+        $all_mcq_answers = [];
+        $all_text_answers = [];
+        foreach ($existing_rows as $er) {
+            $qid = (int)$er['question_id'];
+            if ($er['chosen_option'] !== null) $all_mcq_answers[$qid] = (int)$er['chosen_option'];
+            if ($er['answer_text'] !== null && trim($er['answer_text']) !== '') $all_text_answers[$qid] = $er['answer_text'];
+        }
 
         // 2. Merge with answers submitted in the form POST (form takes priority)
         if (!empty($post_answers) && is_array($post_answers)) {
             foreach ($post_answers as $q_id => $sel_opt) {
                 if ($sel_opt !== null && $sel_opt !== '') {
-                    $all_answers[intval($q_id)] = intval($sel_opt);
+                    $all_mcq_answers[intval($q_id)] = intval($sel_opt);
+                }
+            }
+        }
+        if (!empty($post_text_answers) && is_array($post_text_answers)) {
+            foreach ($post_text_answers as $q_id => $txt_ans) {
+                if ($txt_ans !== null && trim((string)$txt_ans) !== '') {
+                    $all_text_answers[intval($q_id)] = trim((string)$txt_ans);
                 }
             }
         }
 
-        // 3. Fetch questions, correct options, and marks for grading
+        // 3. Fetch questions, types, correct options, acceptable text, and marks for grading
         $stmt_q = $pdo->prepare("
-            SELECT q.id, q.correct_option, q.marks
+            SELECT q.id, q.question_type, q.correct_option, q.correct_answer_text, q.option1, q.marks
             FROM questions q
             JOIN exam_questions eq ON q.id = eq.question_id
             WHERE eq.exam_id = ?
         ");
         $stmt_q->execute([$exam_id]);
-        $correct_mapping = [];
-        $marks_mapping = [];
-        while ($row = $stmt_q->fetch()) {
-            $correct_mapping[$row['id']] = $row['correct_option'];
-            $marks_mapping[$row['id']] = $row['marks'] ?? 1;
-        }
-        
-        // 4. Save/update all answers in attempt_answers and calculate score
-        if (!empty($all_answers)) {
-            foreach ($all_answers as $q_id => $sel_opt) {
-                $q_id = intval($q_id);
-                $sel_opt = intval($sel_opt);
-                
-                if (isset($correct_mapping[$q_id])) {
-                    $is_correct = ($correct_mapping[$q_id] == $sel_opt) ? 1 : 0;
-                    if ($is_correct) {
-                        $score += $marks_mapping[$q_id];
-                    }
-                    
-                    // Upsert answer record
-                    $stmt_find = $pdo->prepare("SELECT id FROM attempt_answers WHERE attempt_id = ? AND question_id = ? LIMIT 1");
-                    $stmt_find->execute([$attempt_id, $q_id]);
-                    $existing_ans_id = $stmt_find->fetchColumn();
+        $questions_list = $stmt_q->fetchAll(PDO::FETCH_ASSOC);
 
+        $total_answered_count = 0;
+
+        // 4. Save/update all answers in attempt_answers and calculate score
+        foreach ($questions_list as $q_row) {
+            $qid = (int)$q_row['id'];
+            $q_type = $q_row['question_type'] ?? 'mcq';
+            $marks = (int)($q_row['marks'] ?? 1);
+
+            $stmt_find = $pdo->prepare("SELECT id FROM attempt_answers WHERE attempt_id = ? AND question_id = ? LIMIT 1");
+            $stmt_find->execute([$attempt_id, $qid]);
+            $existing_ans_id = $stmt_find->fetchColumn();
+
+            if ($q_type === 'fill_blank') {
+                $student_text = $all_text_answers[$qid] ?? null;
+                if ($student_text !== null && trim($student_text) !== '') {
+                    $total_answered_count++;
+                    $cor_text = !empty($q_row['correct_answer_text']) ? $q_row['correct_answer_text'] : ($q_row['option1'] ?? '');
+                    if (is_fill_blank_correct($student_text, $cor_text)) {
+                        $score += $marks;
+                    }
                     if ($existing_ans_id) {
-                        $stmt_ans_up = $pdo->prepare("UPDATE attempt_answers SET chosen_option = ? WHERE id = ?");
-                        $stmt_ans_up->execute([$sel_opt, $existing_ans_id]);
+                        $pdo->prepare("UPDATE attempt_answers SET answer_text = ?, chosen_option = NULL WHERE id = ?")->execute([$student_text, $existing_ans_id]);
                     } else {
-                        $stmt_ans_ins = $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option) VALUES (?, ?, ?)");
-                        $stmt_ans_ins->execute([$attempt_id, $q_id, $sel_opt]);
+                        $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option, answer_text) VALUES (?, ?, NULL, ?)")->execute([$attempt_id, $qid, $student_text]);
+                    }
+                }
+            } else {
+                $sel_opt = $all_mcq_answers[$qid] ?? null;
+                if ($sel_opt !== null) {
+                    $total_answered_count++;
+                    if ((int)$sel_opt === (int)$q_row['correct_option']) {
+                        $score += $marks;
+                    }
+                    if ($existing_ans_id) {
+                        $pdo->prepare("UPDATE attempt_answers SET chosen_option = ?, answer_text = NULL WHERE id = ?")->execute([$sel_opt, $existing_ans_id]);
+                    } else {
+                        $pdo->prepare("INSERT INTO attempt_answers (attempt_id, question_id, chosen_option, answer_text) VALUES (?, ?, ?, NULL)")->execute([$attempt_id, $qid, $sel_opt]);
                     }
                 }
             }
@@ -123,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("UPDATE attempts SET is_submitted = 1, submitted_at = NOW(), score = 0 WHERE student_id = ? AND exam_id = ? AND id != ? AND is_submitted = 0")->execute([$student_id, $exam_id, $attempt_id]);
 
         $pdo->commit();
-        $_SESSION['flash_success'] = "Examination submitted successfully! All your responses (" . count($all_answers) . " answered) have been recorded safely.";
+        $_SESSION['flash_success'] = "Examination submitted successfully! All your responses (" . $total_answered_count . " answered) have been recorded safely.";
     } catch (\Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
