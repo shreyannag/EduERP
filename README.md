@@ -16,7 +16,7 @@
 </p>
 
 <p align="center">
-  <b>⚡ 56,255 Lines of Clean Code</b> • <b>📁 234 Source Files</b> • <b>🏛️ 37 Relational Tables</b> • <b>⏱️ Sub-50ms Query Latency</b> • <b>🛡️ Zero Cloud Licensing Fees</b>
+  <b>⚡ 62,773+ Lines of Clean Code</b> • <b>📁 258 Source Files</b> • <b>🏛️ 44 Relational Tables</b> • <b>⏱️ Sub-50ms Query Latency</b> • <b>🛡️ Zero Cloud Licensing Fees</b>
 </p>
 
 ---
@@ -72,6 +72,8 @@ flowchart TD
         A1["Real-time Background AJAX Auto-Save"]
         A2["ACID Transaction Submission Merge"]
         A3["Mid-Exam Session Kickout Immunity"]
+        A4["Dual Format: MCQ & Fill in the Blanks"]
+        A5["Multi-Line Code & Equation Options"]
     end
 
     subgraph P2["2. STEM Coding Judge"]
@@ -84,6 +86,8 @@ flowchart TD
         C1["OpenRouter AI Question Generator"]
         C2["MathJax v3 LaTeX Rendering"]
         C3["Duplicate Question Auto-Detector"]
+        C4["Sticky Form Settings for Fast Entry"]
+        C5["Word-Style Toolbar & Option A-D UI"]
     end
 
     subgraph P4["4. Telegram Bot & Cloud Backup"]
@@ -106,7 +110,7 @@ flowchart TD
 
     subgraph P7["7. DevOps & Security"]
         G1["Cloudflare Zero-Trust Tunnel"]
-        G2["120 Idempotent Zero-Loss Migrations"]
+        G2["127 Idempotent Zero-Loss Migrations"]
         G3["PWA Offline Shell & IP Shielding"]
     end
 
@@ -116,10 +120,12 @@ flowchart TD
 ---
 
 ### 1. High-Concurrency CBT Examination Engine (Zero-Drop Resilience)
-* **Real-Time Asynchronous AJAX Answer Auto-Saver ([`student/save_answer_ajax.php`](student/save_answer_ajax.php)):** Every click on an option immediately triggers a background AJAX call that upserts into `attempt_answers` with visual header confirmation (`Saved ✓`). If a student loses power, disconnects, or closes the tab, all previously chosen answers are safely stored in the database.
-* **Server-Side Answer Pre-Loading:** Upon exam reload or device switch, chosen answers are pre-hydrated directly from the database, resuming the test seamlessly.
-* **ACID Transactions & Submission Merge ([`student/submit.php`](student/submit.php)):** Submissions run inside a protected ACID transaction (`$pdo->beginTransaction()` ... `$pdo->commit()`), merging pre-saved database answers with the final POST form.
-* **High-Friction Submit Modal (`#submitConfirmModal`):** Replaces accidental double-click submissions with a detailed modal summarizing Total, Answered, and Unanswered questions with explicit skipped-question warnings.
+* **Dual Assessment Modes (MCQ & Supply-Type Fill in the Blanks):** Evaluates traditional multiple-choice questions alongside output-based fill in the blank questions. Features sequential multi-blank placeholders (`[blank]`, `[blank 1]`, `[blank 2]`), case-insensitive string normalization, pipe-delimited synonym evaluation (`extends | extend`), and automated partial scoring (`calculate_blank_score()`).
+* **Multi-Line Options & Code Ingestion ([`admin/questions/create.php`](admin/questions/create.php)):** Option input fields are built as expandable `<textarea>` controls backed by `TEXT NULL` database columns, fully supporting multi-line code snippets (Java classes, algorithms, functions), formatted equations, and indentation rendered line-for-line via `white-space: pre-wrap`.
+* **Real-Time Asynchronous AJAX Answer Auto-Saver ([`student/save_answer_ajax.php`](student/save_answer_ajax.php)):** Every option selection or open-text blank response immediately triggers a background AJAX call that upserts into `attempt_answers` (`chosen_option` and `answer_text`) with visual header confirmation (`Saved ✓`). If a student loses power or disconnects, all answers are safely stored in the database.
+* **Server-Side Answer Pre-Loading:** Upon exam reload or device switch, chosen MCQ options and open-text blank answers are pre-hydrated directly from the database, resuming the test seamlessly.
+* **ACID Transactions & Submission Merge ([`student/submit.php`](student/submit.php)):** Submissions execute inside a protected ACID transaction (`$pdo->beginTransaction()` ... `$pdo->commit()`), merging pre-saved database answers with the final POST payload.
+* **High-Friction Submit Modal (`#submitConfirmModal`):** Replaces accidental submissions with an itemized modal summarizing Total, Answered, and Unanswered questions with explicit skipped-question warnings.
 * **Mid-Exam Session Kick-Out Immunity ([`includes/student_auth.php`](includes/student_auth.php)):** Resynchronizes active session tokens during live exams, preventing students from being prematurely booted out due to network IP shifts or mobile double-tap logins.
 * **Transient Query Throttling ([`includes/functions.php`](includes/functions.php)):** A 30-second lock-free transient file throttle eliminates database table locks, reducing background status update queries by **99.9%** during simultaneous exam starts.
 * **10 Specialized Composite Indexes ([`docker/migrate.php`](docker/migrate.php)):** Optimizes attempt lookups, question sequences, and scheduled exams into `O(log N)` index operations.
@@ -135,10 +141,13 @@ flowchart TD
 
 ---
 
-### 3. AI-Powered Question Synthesis & LaTeX Math Engine
-* **OpenRouter AI Integration ([`admin/ai_settings.php`](admin/ai_settings.php)):** Connects directly with DeepSeek, Claude 3.5, and GPT models to synthesize high-quality MCQ questions from raw textbook topics, outputs directly in CSV format.
-* **MathJax v3 LaTeX Rendering:** Fully supports mathematical formulas, chemical equations, fractions, and symbols (`$...$`, `\(...\)`, `$$...$$`) without blank option artifacts.
-* **Live Duplicate Search & Auto-Check:** Live search bar and duplicate detector (`?duplicates=1`) sequence duplicate questions together with badge counts to prevent question bank redundancy.
+### 3. AI-Powered Question Synthesis, LaTeX Math & Authoring Engine
+* **Sticky Form Settings (Batch Authoring Persistence):** Eliminates repetitive configuration friction by automatically preserving target Class, Board, Subject, Topic, Marks, Additional Classes, and Question Format in session (`$_SESSION['last_q_settings']`). After submitting a question, the form opens instantly ready for the next problem with all metadata pre-selected. Includes a 1-click **Reset to Defaults** option.
+* **Microsoft Word-Style Formatting Toolbar:** Exposes the text color palette (`forecolor`) directly on the main Summernote editor toolbar for 1-click styling, while cleanly tucking background highlight tools (`backcolor`) into the `more` overflow group alongside Fullscreen and Codeview.
+* **Unified Option A, B, C, D Architecture:** Completely aligns question choice nomenclature across authoring cards, validation selector dropdowns, table badges, and review cards. Features dedicated `( ) Correct Choice` radio toggles directly adjacent to each Option card header, bidirectionally synchronized with the validation selector.
+* **OpenRouter AI Integration ([`admin/ai_settings.php`](admin/ai_settings.php)):** Connects with DeepSeek, Claude 3.5, and GPT models to synthesize MCQs and Fill in the Blank questions directly from curriculum topics, auto-populating editors and blank answers.
+* **MathJax v3 LaTeX Rendering:** Real-time typesetting of equations, chemical notation, fractions, and matrices (`$...$`, `\(...\)`, `$$...$$`) with live preview cards across authoring and live exam views.
+* **Live Duplicate Search & Auto-Check:** Live search bar and duplicate detector (`?duplicates=1`) sequence identical questions together with duplicate count badges to prevent question bank redundancy.
 * **Multi-Class Question Sharing:** Questions map to multiple classes simultaneously via the `question_classes` junction table, eliminating duplicate entry across Class 11, Class 12, or Dropper batches.
 
 ---
@@ -176,7 +185,7 @@ flowchart TD
 ### 7. DevOps, Zero-Data-Loss Pipeline & Network Hardening
 * **Outbound Cloudflare Zero-Trust Tunnel (`cloudflared`):** Origin web server IP is completely hidden from public DNS records, mitigating direct-to-origin DDoS attacks.
 * **Zero-Data-Loss Safe Deployment ([`scripts/publish.sh`](scripts/publish.sh)):** Automatically generates a timestamped database backup before pulling git commits and executing database migrations.
-* **120 Idempotent Schema Migrations ([`docker/migrate.php`](docker/migrate.php)):** Safely applies column, table, and index updates without data corruption.
+* **127 Idempotent Schema Migrations ([`docker/migrate.php`](docker/migrate.php)):** Safely applies column, table, and index updates without data corruption.
 * **Progressive Web App (PWA):** Installable directly from Chrome, Edge, and Safari on Android, iOS, Windows, macOS, and Linux with custom service worker caching (`sw.js`).
 * **IP Blacklisting & Fraud Shield ([`admin/enrolments/blocked_ips.php`](admin/enrolments/blocked_ips.php)):** Real-client IP detection (`CF-Connecting-IP`, `X-Forwarded-For`) with exact, wildcard, and CIDR subnet restrictions.
 
@@ -243,23 +252,30 @@ flowchart TD
 * **1-Click Roster Blocking:** Reject fraudulent students and black-list their originating IP address in a single step from [`admin/enrolments/link_students.php`](admin/enrolments/link_students.php).
 * **Live IP Diagnostics Tool:** Interactive tester on [`admin/enrolments/blocked_ips.php`](admin/enrolments/blocked_ips.php) allowing admins to verify if any IP is permitted or blocked.
 
-### 4. Online Examination & Assessment Engine (MCQ)
-* **Real-Time Asynchronous AJAX Answer Auto-Saver:** Persists options to `attempt_answers` in real time with visual status confirmation.
-* **Server-Side Answer Pre-Loading:** Reloading an exam restores previous choices directly from the database.
+### 4. Dual-Format Examination & Assessment Engine (MCQs & Fill in the Blanks)
+* **Multi-Blank Fill in the Blanks Engine:** Supports single and sequential multiple missing blanks (`[blank]`, `[blank 1]`, `[blank 2]`, `______`). Students type open-text responses directly in customized input fields embedded in the problem stream.
+* **Synonym Matching & Proportional Scoring:** Accepts synonym variations per blank using pipe delimiter syntax (`extend | extends | inheritance`). Calculates proportional partial scores (`calculate_blank_score()`) based on correct blanks.
+* **Multi-Line Option Support:** Choices support multi-line formatted text, equations, and code blocks with indentation preserved through `white-space: pre-wrap`.
+* **Real-Time Asynchronous AJAX Auto-Saver:** Persists both MCQ option selections (`chosen_option`) and open-text blank responses (`answer_text`) in real time with visual status confirmation (`Saved ✓`).
+* **Server-Side Answer Pre-Loading:** Reloading an exam or switching devices instantly restores both MCQ choices and typed blank answers directly from the database.
 * **Question-by-Question Navigation Controls:** Dedicated "Previous" and "Next" buttons under every question for frictionless mobile progression.
 * **High-Friction Submit Modal (`#submitConfirmModal`):** Summarizes Total, Answered, and Unanswered questions with explicit skipped-question warnings.
 * **Automated Expired Exam Finalization:** Automatically grades and finalizes open attempts when scheduled time expires.
 * **Negative Marking & Score Gating:** Configurable negative marking and instant vs teacher-published result embargo modes.
+* **Itemized Review & Explanation Breakdown:** Post-exam review cards break down student responses against official keys, showing per-blank score contributions and solution steps.
 
 ### 5. Question Doubt Flagging & Review
 * **In-Exam Doubt Flagging:** Students can flag doubtful questions directly from the live exam header with custom remarks.
 * **Visual Palette Indicator:** Flagged questions highlight in warning yellow on the question palette.
 * **Admin Resolution Console:** Dedicated console in [`admin/questions/index.php`](admin/questions/index.php) to filter, inspect, and submit resolutions (*Resolved, Dismissed*).
 
-### 6. Question Bank, Multi-Class Sharing & AI Generator
+### 6. Question Bank, Sticky Authoring & AI Generator
+* **Sticky Form State Persistence:** Automatically remembers chosen Class, Board, Subject, Topic, Marks, and Question Format between question submissions for friction-free batch authoring, with a 1-click reset trigger.
+* **Word-Style Toolbar & Formatting:** Direct access font color palette (`forecolor`) on the primary toolbar with text highlighting (`backcolor`) neatly placed in the overflow menu.
+* **Consistent Option A, B, C, D Architecture:** Unified naming across authoring cards, dropdowns, table badges, and review cards, with direct 1-click radio buttons on option headers.
 * **Multi-Class Sharing:** Questions map to multiple classes simultaneously via the `question_classes` junction table.
 * **Live Duplicate Search & Auto-Check:** Sequences identical questions together with duplicate count badges.
-* **AI Prompt Generation:** Built-in AI prompt templates that format curriculum questions into system-compatible CSV structures.
+* **OpenRouter AI Generation:** Built-in AI generation for both MCQs and Fill in the Blanks directly into the authoring canvas.
 
 ### 7. Staff Deletion Approval Queue & Governance
 * **Sub-Admin Deletion Safeguard:** Quarantines deletion requests initiated by staff and sub-admins.
